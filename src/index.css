@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 7%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 7%;
+    --primary: 113 38% 25%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 7%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 42 50% 54%;
+    --accent-foreground: 0 0% 7%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 113 38% 25%;
+    --radius: 0.5rem;
+
+    --sf-green: 113 38% 25%;
+    --sf-gold: 42 50% 54%;
+    --sf-green-hex: #2D5A27;
+    --sf-gold-hex: #C9A84C;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 20%;
+    --sidebar-primary: 113 38% 25%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 113 38% 96%;
+    --sidebar-accent-foreground: 113 38% 25%;
+    --sidebar-border: 0 0% 92%;
+    --sidebar-ring: 113 38% 25%;
+  }
+
+  .dark {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 113 38% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 42 50% 54%;
+    --accent-foreground: 0 0% 7%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 113 38% 35%;
+    --sidebar-background: 0 0% 10%;
+    --sidebar-foreground: 0 0% 80%;
+    --sidebar-primary: 113 38% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 113 38% 15%;
+    --sidebar-accent-foreground: 113 38% 80%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-ring: 113 38% 35%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'San Francisco', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  }
+}
+
+@layer utilities {
+  .kanban-scroll::-webkit-scrollbar {
+    height: 6px;
+  }
+  .kanban-scroll::-webkit-scrollbar-track {
+    @apply bg-muted rounded-full;
+  }
+  .kanban-scroll::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full;
+  }
+}
