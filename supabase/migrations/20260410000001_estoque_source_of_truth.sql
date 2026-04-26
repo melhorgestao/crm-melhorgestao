@@ -13,6 +13,7 @@ UPDATE public.pedidos SET uf_postagem = TRIM(UPPER(uf_postagem)) WHERE uf_postag
 
 -- 2. REESCRITA DA FUNÇÃO: get_estoque_completo
 -- Agora baseada 100% no histórico de movimentações para evitar "lançamentos fantasma" ou divergências
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(prod_id uuid, prod_nome text, estado text, entrada int, saida int, saldo int)
 LANGUAGE plpgsql

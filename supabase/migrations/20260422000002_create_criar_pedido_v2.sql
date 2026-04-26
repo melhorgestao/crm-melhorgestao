@@ -13,7 +13,7 @@ ALTER TABLE public.pedidos ADD COLUMN IF NOT EXISTS observacao text;
 CREATE SEQUENCE IF NOT EXISTS public.pedidos_order_number_seq;
 
 -- Inicia a partir do max atual
-PERFORM setval('public.pedidos_order_number_seq', COALESCE(MAX(order_number), 0)) FROM public.pedidos;
+SELECT setval('public.pedidos_order_number_seq', COALESCE(MAX(order_number), 0)) FROM public.pedidos;
 
 -- Drop funcao antiga se existir
 DROP FUNCTION IF EXISTS public.criar_pedido_v2(

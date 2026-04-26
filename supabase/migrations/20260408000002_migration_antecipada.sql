@@ -29,8 +29,8 @@ BEGIN
         updated_at = now()
     WHERE 
         canal_origem = 'ADS' 
-        AND ultima_venda_em = CURRENT_DATE - 1
-    RETURNING count(*) INTO v_ads_count;
+        AND ultima_venda_em = CURRENT_DATE - 1;
+    GET DIAGNOSTICS v_ads_count = ROW_COUNT;
 
     -- BASE Pagou -> BASE Clientes
     UPDATE public.contatos
@@ -40,8 +40,8 @@ BEGIN
     WHERE 
         canal_origem = 'BASE' 
         AND ultima_venda_em = CURRENT_DATE - 1
-        AND status_kanban = 'Pagou'
-    RETURNING count(*) INTO v_base_count;
+        AND status_kanban = 'Pagou';
+    GET DIAGNOSTICS v_base_count = ROW_COUNT;
 
     -- REP: customers who paid yesterday move to Clientes
     UPDATE public.contatos
@@ -52,8 +52,8 @@ BEGIN
     WHERE 
         canal_origem = 'REP' 
         AND ultima_venda_em = CURRENT_DATE - 1
-        AND (status_kanban != 'Clientes' OR status_kanban IS NULL)
-    RETURNING count(*) INTO v_rep_count;
+        AND (status_kanban != 'Clientes' OR status_kanban IS NULL);
+    GET DIAGNOSTICS v_rep_count = ROW_COUNT;
 
     -- C-REP: customers who paid yesterday move to Clientes
     UPDATE public.contatos
@@ -64,8 +64,8 @@ BEGIN
     WHERE 
         canal_origem = 'C-REP' 
         AND ultima_venda_em = CURRENT_DATE - 1
-        AND (status_kanban != 'Clientes' OR status_kanban IS NULL)
-    RETURNING count(*) INTO v_crep_count;
+        AND (status_kanban != 'Clientes' OR status_kanban IS NULL);
+    GET DIAGNOSTICS v_crep_count = ROW_COUNT;
 
     RAISE NOTICE 'Migrated: ADS->BASE: %, BASE Pagou->Clientes: %, REP: %, C-REP: %', v_ads_count, v_base_count, v_rep_count, v_crep_count;
 END $$;

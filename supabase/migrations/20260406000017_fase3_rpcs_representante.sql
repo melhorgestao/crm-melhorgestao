@@ -108,7 +108,7 @@ CREATE OR REPLACE FUNCTION public.criar_usuario(
   p_tipo text,
   p_email text,
   p_senha text DEFAULT NULL,
-  p_apelido text,
+  p_apelido text DEFAULT NULL,
   p_servico_tipo text DEFAULT NULL,
   p_uf text DEFAULT NULL,
   p_instancia_nome text DEFAULT NULL,

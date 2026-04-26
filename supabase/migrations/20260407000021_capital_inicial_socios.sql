@@ -2,6 +2,11 @@
 -- Substitui o hardcoded +49/+942 do frontend por registros reais no banco
 
 -- Sócio V: Capital inicial R$ 49,00
+-- Atualiza a constraint para permitir CAPITAL_INICIAL
+ALTER TABLE public.lancamentos_socios DROP CONSTRAINT IF EXISTS lancamentos_socios_tipo_check;
+ALTER TABLE public.lancamentos_socios ADD CONSTRAINT lancamentos_socios_tipo_check 
+  CHECK (tipo IN ('VENDA', 'ADS', 'ETIQUETA', 'MATERIAL', 'LOGISTICA', 'TRANSFERENCIA', 'LUCRO', 'CAPITAL_INICIAL'));
+
 INSERT INTO lancamentos_socios (id, socio, tipo, valor, descricao, status_pagamento, criado_por, realizado, data)
 VALUES (
   gen_random_uuid(),

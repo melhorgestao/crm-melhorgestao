@@ -183,6 +183,7 @@ GRANT EXECUTE ON FUNCTION public.criar_pedido_v2 TO anon, authenticated, service
 -- GET_ESTOQUE_COMPLETO (igual ao V1 - commit 69e35c1)
 -- ==============================================================================
 
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(prod_id uuid, prod_nome text, estado text, entrada int, saida int, saldo int)
 LANGUAGE plpgsql
@@ -315,5 +316,4 @@ GRANT EXECUTE ON FUNCTION public.trigger_novo_pedido_estoque TO anon, authentica
 
 -- Cria/atualiza trigger
 DROP TRIGGER IF EXISTS trg_novo_pedido_estoque ON public.pedidos;
-CREATE TRIGGER trg_novo_pedido_estoque AFTER INSERT ON public.pedidos FOR EACH ROW EXECUTE FUNCTION public.trigger_novo_pedido_estoque();
-END $$;
+CREATE TRIGGER trg_novo_pedido_estoque AFTER INSERT ON public.pedidos FOR EACH ROW EXECUTE FUNCTION public.trigger_novo_pedido_estoque();

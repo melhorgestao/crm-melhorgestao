@@ -6,7 +6,7 @@ BEGIN;
 -- 1. Ver quantos pedidos tem itens e NAO tem estoque_processado
 SELECT 
   COUNT(*) as total_pedidos_pendentes,
-  SUM(quantidade) as total_itens,
+  SUM(pi.quantidade) as total_itens,
   COUNT(DISTINCT uf_postagem) as ufs_distintas
 FROM public.pedidos p
 JOIN public.pedido_itens pi ON pi.pedido_id = p.id
@@ -55,7 +55,7 @@ SELECT
   ), 0) as saldo_estoque
 FROM public.produtos pr
 LEFT JOIN public.lotes l ON l.produto_id = pr.id
-GROUP BY pr.nome_oficial, l.uf
+GROUP BY pr.id, pr.nome_oficial, l.uf
 ORDER BY pr.nome_oficial, l.uf;
 
 -- 4. TOTAL POR PRODUTO (soma de todas as UFs)

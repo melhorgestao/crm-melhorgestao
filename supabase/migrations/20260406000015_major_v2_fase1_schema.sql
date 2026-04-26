@@ -102,6 +102,27 @@ CREATE TABLE IF NOT EXISTS public.config_comissao_produto (
 );
 
 -- ============================================================
+-- 6.5 PREPARAÇÃO CONTATOS (canal_atual + constraint ADMIN)
+-- ============================================================
+
+ALTER TABLE public.contatos ADD COLUMN IF NOT EXISTS canal_atual text;
+
+-- Atualizar constraint para permitir 'ADMIN'
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints tc
+    JOIN information_schema.check_constraints cc ON tc.constraint_name = cc.constraint_name
+    WHERE tc.constraint_name = 'contatos_canal_origem_check'
+    AND tc.table_name = 'contatos'
+  ) THEN
+    ALTER TABLE public.contatos DROP CONSTRAINT contatos_canal_origem_check;
+    ALTER TABLE public.contatos ADD CONSTRAINT contatos_canal_origem_check
+      CHECK (canal_origem IN ('ADS', 'BASE', 'REP', 'C-REP', 'ADMIN'));
+  END IF;
+END $$;
+
+-- ============================================================
 -- 7. CRIAR CONTATOS PARA ADMINS v@ e a@
 -- ============================================================
 
@@ -138,25 +159,6 @@ UPDATE public.contatos
 SET instancia_id = (SELECT id FROM public.instancias WHERE tipo = 'base' AND ativo = true ORDER BY is_default_base DESC, created_at ASC LIMIT 1)
 WHERE canal_origem IN ('BASE', 'REP', 'C-REP') AND instancia_id IS NULL;
 
--- ============================================================
--- 10. ADICIONAR 'ADMIN' AO CHECK DE canal_origem (se existir)
--- ============================================================
-
--- Verificar se existe constraint de canal_origem
-DO $$
-BEGIN
-  -- Tentar adicionar 'ADMIN' à constraint se existir
-  IF EXISTS (
-    SELECT 1 FROM information_schema.table_constraints tc
-    JOIN information_schema.check_constraints cc ON tc.constraint_name = cc.constraint_name
-    WHERE tc.constraint_name = 'contatos_canal_origem_check'
-    AND tc.table_name = 'contatos'
-  ) THEN
-    ALTER TABLE public.contatos DROP CONSTRAINT contatos_canal_origem_check;
-    ALTER TABLE public.contatos ADD CONSTRAINT contatos_canal_origem_check
-      CHECK (canal_origem IN ('ADS', 'BASE', 'REP', 'C-REP', 'ADMIN'));
-  END IF;
-END $$;
 
 -- ============================================================
 -- 11. ATUALIZAR perfis_usuario existentes

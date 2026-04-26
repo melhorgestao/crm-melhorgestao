@@ -16,5 +16,10 @@ SET estoque_atual = (
 )
 WHERE id = '64482cf8-cc5c-4964-bc67-62fde991d06d';
 
--- Atualiza snapshot
-SELECT public.atualizar_estoque_snapshot();
+-- Atualiza snapshot (safe check)
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_proc WHERE proname = 'atualizar_estoque_snapshot') THEN
+      PERFORM public.atualizar_estoque_snapshot();
+  END IF;
+END $$;

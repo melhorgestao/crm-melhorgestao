@@ -81,6 +81,7 @@ END;
 $$;
 
 -- 4. Função RPC que busca do snapshot (para frontend via fetch)
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(
   produto_id uuid,

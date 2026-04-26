@@ -16,6 +16,7 @@ SET uf_cliente = p.uf_postagem
 WHERE p.uf_cliente IS NULL AND p.uf_postagem IS NOT NULL;
 
 -- 2. Limpa e reconstrói GET_ESTOQUE_COMPLETO com lógica Dinâmica (Source of Truth)
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(prod_id uuid, prod_nome text, estado text, entrada int, saida int, saldo int)
 LANGUAGE plpgsql

@@ -8,6 +8,7 @@ DELETE FROM public.estoque_movimentacoes WHERE tipo = 'saida';
 UPDATE public.pedidos SET estoque_processado = NULL;
 
 -- 2. Criar funcao de estoque considerando TODOS os pedidos pagos
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(
   produto_id uuid,
@@ -24,9 +25,9 @@ AS $$
 BEGIN
   RETURN QUERY
   WITH lotess AS (
-    SELECT produto_id, uf, COALESCE(SUM(quantidade_atual), 0) as total_lote
-    FROM public.lotes
-    GROUP BY produto_id, uf
+    SELECT l.produto_id, l.uf, COALESCE(SUM(l.quantidade_atual), 0) as total_lote
+    FROM public.lotes l
+    GROUP BY l.produto_id, l.uf
   ),
   pedidoss AS (
     SELECT 
@@ -42,9 +43,9 @@ BEGIN
     COALESCE(l.produto_id, p.produto_id) as produto_id,
     COALESCE(pr.nome_oficial, 'Desconhecido') as produto_nome,
     COALESCE(l.uf, p.uf) as uf,
-    l.total_lote as entradas,
-    p.total_pedido as saidas_pedidos,
-    (l.total_lote - p.total_pedido) as saldo
+    COALESCE(l.total_lote, 0)::integer as entradas,
+    COALESCE(p.total_pedido, 0)::integer as saidas_pedidos,
+    (COALESCE(l.total_lote, 0) - COALESCE(p.total_pedido, 0))::integer as saldo
   FROM lotess l
   FULL OUTER JOIN pedidoss p ON p.produto_id = l.produto_id AND p.uf = l.uf
   LEFT JOIN public.produtos pr ON pr.id = COALESCE(l.produto_id, p.produto_id)

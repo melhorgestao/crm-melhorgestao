@@ -4,6 +4,7 @@
 BEGIN;
 
 -- 1. Criar funcao que retorna estoque com negativo dinamico
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(
   produto_id uuid,
@@ -19,10 +20,10 @@ AS $$
 BEGIN
   RETURN QUERY
   WITH base_lotes AS (
-    SELECT produto_id, uf, SUM(quantidade_atual) as total_lote
-    FROM public.lotes
-    WHERE quantidade_atual > 0
-    GROUP BY produto_id, uf
+    SELECT l.produto_id, l.uf, SUM(l.quantidade_atual) as total_lote
+    FROM public.lotes l
+    WHERE l.quantidade_atual > 0
+    GROUP BY l.produto_id, l.uf
   ),
   base_pedidos AS (
     SELECT 

@@ -207,6 +207,7 @@ AS $$
 DECLARE
   v_base_instance_id uuid;
   v_migrated_count integer := 0;
+  v_temp_count integer := 0;
   v_next_midnight timestamptz;
   v_data_sp date;
 BEGIN
@@ -247,7 +248,8 @@ BEGIN
       AND status_kanban = 'Pagou'
       AND ultima_venda_em = v_data_sp;
 
-  GET DIAGNOSTICS v_migrated_count = v_migrated_count + ROW_COUNT;
+  GET DIAGNOSTICS v_temp_count = ROW_COUNT;
+  v_migrated_count := v_migrated_count + v_temp_count;
 
   -- Desativa tags expiradas
   UPDATE public.contatos 

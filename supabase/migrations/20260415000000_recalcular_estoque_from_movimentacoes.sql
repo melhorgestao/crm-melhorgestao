@@ -4,7 +4,8 @@
 BEGIN;
 
 -- 1. Criar tabela de snapshot do estoque atual (backup)
-CREATE TABLE IF NOT EXISTS public.estoque_snapshot (
+DROP TABLE IF EXISTS public.estoque_snapshot;
+CREATE TABLE public.estoque_snapshot (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   produto_id uuid REFERENCES public.produtos(id),
   uf text,

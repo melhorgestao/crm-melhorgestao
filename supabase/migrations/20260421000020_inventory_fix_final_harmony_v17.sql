@@ -30,6 +30,7 @@ $$;
 
 -- 2. UNIFICAÇÃO DO RPC DOS CARDS COM O SNAPSHOT/MOVIMENTAÇÕES
 -- Como a lista de movimentações agora está 100% correta (7 CBDs), os cards devem lê-la diretamente.
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(prod_id uuid, prod_nome text, estado text, entrada int, saida int, saldo int)
 LANGUAGE plpgsql

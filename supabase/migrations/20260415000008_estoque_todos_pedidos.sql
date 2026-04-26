@@ -4,6 +4,7 @@
 BEGIN;
 
 -- 1. Função que considera TODOS os pedidos pagos (não apenas pendentes)
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(
   produto_id uuid,
@@ -19,9 +20,9 @@ AS $$
 BEGIN
   RETURN QUERY
   WITH base_lotes AS (
-    SELECT produto_id, uf, SUM(quantidade_atual) as total_lote
-    FROM public.lotes
-    GROUP BY produto_id, uf
+    SELECT l.produto_id, l.uf, SUM(l.quantidade_atual) as total_lote
+    FROM public.lotes l
+    GROUP BY l.produto_id, l.uf
   ),
   base_pedidos AS (
     SELECT 

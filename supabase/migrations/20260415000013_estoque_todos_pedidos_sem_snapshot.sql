@@ -7,6 +7,7 @@ BEGIN;
 UPDATE public.pedidos SET estoque_processado = NULL WHERE estoque_processado IS NOT NULL;
 
 -- Função que calcula: lotes - TODOS pedidos pagos (sem exception)
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(
   produto_id uuid,

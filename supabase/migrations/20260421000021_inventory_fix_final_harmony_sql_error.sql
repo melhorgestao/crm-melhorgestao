@@ -25,6 +25,7 @@ END;
 $$;
 
 -- 2. UNIFICAR CARDS COM A LISTA CERTA (Fim da divergência)
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(prod_id uuid, prod_nome text, estado text, entrada int, saida int, saldo int)
 LANGUAGE plpgsql STABLE SECURITY DEFINER AS $$

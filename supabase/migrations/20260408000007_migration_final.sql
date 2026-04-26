@@ -2,7 +2,12 @@
 --一步到位: renomeia coluna + corrige dados existentes + triggers + migração
 
 -- 1. Renomear coluna primeira_venda_em para ultima_venda_em
-ALTER TABLE public.contatos RENAME COLUMN primeira_venda_em TO ultima_venda_em;
+DO $$
+BEGIN
+  IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='contatos' AND column_name='primeira_venda_em') THEN
+      ALTER TABLE public.contatos RENAME COLUMN primeira_venda_em TO ultima_venda_em;
+  END IF;
+END $$;
 
 -- 2. Corrige dados existentes: atualiza ultima_venda_em com a data do ÚLTIMO pedido de cada contato
 UPDATE public.contatos c

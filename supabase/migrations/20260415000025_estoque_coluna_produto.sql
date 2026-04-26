@@ -4,6 +4,7 @@
 BEGIN;
 
 -- Função que calcula usando a coluna 'produto' do pedido (não pedido_itens)
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(
   prod_id uuid,

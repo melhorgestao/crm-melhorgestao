@@ -27,11 +27,11 @@ AS $$
 BEGIN
   RETURN QUERY
   WITH entradas_lotes AS (
-    SELECT produto_id, uf, SUM(quantidade_atual) as total
-    FROM public.lotes
+    SELECT l.produto_id, l.uf, SUM(l.quantidade_atual) as total
+    FROM public.lotes l
     WHERE p_produto_id IS NULL OR produto_id = p_produto_id
     AND (p_uf IS NULL OR uf = p_uf)
-    GROUP BY produto_id, uf
+    GROUP BY l.produto_id, l.uf
   ),
   saidas_pedidos_pendentes AS (
     SELECT pi.produto_id, p.uf_postagem as uf, SUM(pi.quantidade) as total
@@ -48,7 +48,7 @@ BEGIN
     WHERE tipo = 'saida'
     AND (p_produto_id IS NULL OR produto_id = p_produto_id)
     AND (p_uf IS NULL OR uf_origem = p_uf)
-    GROUP BY produto_id, uf_origem
+    GROUP BY l.produto_id, l.uf_origem
   )
   SELECT 
     COALESCE(el.produto_id, sp.produto_id, sm.produto_id) as produto_id,

@@ -10,6 +10,7 @@ BEGIN;
 ALTER TABLE public.estoque_movimentacoes ADD COLUMN IF NOT EXISTS criado_por text;
 
 -- 2. RPC: get_estoque_completo (CORREGIDA PARA NÃO DUPLICAR UF)
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(prod_id uuid, prod_nome text, estado text, entrada int, saida int, saldo int)
 LANGUAGE plpgsql

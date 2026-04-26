@@ -52,8 +52,8 @@ BEGIN
   SET locked_at = now()
   WHERE status_pedido = 'entregue'
     AND locked_at IS NULL
-    AND data < CURRENT_DATE
-  RETURNING count(*) INTO v_pedidos_locked;
+    AND data < CURRENT_DATE;
+  GET DIAGNOSTICS v_pedidos_locked = ROW_COUNT;
 
   -- Lock yesterday's paid vendas
   UPDATE public.lancamentos_socios
@@ -61,8 +61,8 @@ BEGIN
   WHERE tipo = 'VENDA'
     AND status_pagamento = 'pago'
     AND locked_at IS NULL
-    AND data < CURRENT_DATE
-  RETURNING count(*) INTO v_vendas_locked;
+    AND data < CURRENT_DATE;
+  GET DIAGNOSTICS v_vendas_locked = ROW_COUNT;
 
   RETURN json_build_object(
     'success', true,

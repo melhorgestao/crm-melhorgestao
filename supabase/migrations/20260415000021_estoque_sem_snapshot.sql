@@ -8,6 +8,7 @@ ALTER TABLE public.pedidos ALTER COLUMN estoque_processado DROP NOT NULL;
 ALTER TABLE public.pedidos ALTER COLUMN estoque_processado SET DEFAULT false;
 
 -- Função que calcula direto (SEM snapshot) - lotes - TODOS os pedidos
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(
   prod_id uuid,

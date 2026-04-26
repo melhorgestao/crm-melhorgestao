@@ -2,7 +2,12 @@
 -- Este SQL renomeia a coluna e executa a migração na mesma execução
 
 -- 1. Renomear coluna primeira_venda_em para ultima_venda_em
-ALTER TABLE public.contatos RENAME COLUMN primeira_venda_em TO ultima_venda_em;
+DO $$
+BEGIN
+  IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='contatos' AND column_name='primeira_venda_em') THEN
+      ALTER TABLE public.contatos RENAME COLUMN primeira_venda_em TO ultima_venda_em;
+  END IF;
+END $$;
 
 -- 2. Adicionar triggers para atualizar ultima_venda_em automaticamente
 

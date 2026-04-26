@@ -4,6 +4,7 @@
 BEGIN;
 
 -- 1. Função principal que calcula estoque = lotes - todos os pedidos pagos
+DROP FUNCTION IF EXISTS public.get_estoque_completo();
 CREATE OR REPLACE FUNCTION public.get_estoque_completo()
 RETURNS TABLE(
   produto_id uuid,
