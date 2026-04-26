@@ -4806,7 +4806,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'estoque_snapshot') THEN
     DELETE FROM public.estoque_snapshot;
-    INSERT INTO public.estoque_snapshot (produto_id, estado, entrada, saida, saldo, updated_at)
+    INSERT INTO public.estoque_snapshot (prod_id, estado, entrada, saida, saldo, updated_at)
     SELECT prod_id, estado, entrada, saida, saldo, now() FROM get_estoque_completo();
   END IF;
 END $$;
