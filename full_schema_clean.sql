@@ -4496,15 +4496,15 @@ BEGIN
     LIMIT 1;
 
     -- ADS -> BASE: migrate leads who paid yesterday
-    EXECUTE 'UPDATE public.contatos
+    UPDATE public.contatos
     SET 
-        canal_origem = ''BASE'',
-        status_kanban = ''Clientes'',
+        canal_origem = 'BASE',
+        status_kanban = 'Clientes',
         instancia_id = COALESCE(v_base_instance_id, instancia_id),
         updated_at = now()
     WHERE 
-        canal_origem = ''ADS'' 
-        AND ultima_venda_em = CURRENT_DATE - 1;';
+        canal_origem = 'ADS' 
+        AND ultima_venda_em = CURRENT_DATE - 1;
     GET DIAGNOSTICS v_ads_count = ROW_COUNT;
 
     -- BASE Pagou -> BASE Clientes
@@ -4557,8 +4557,8 @@ BEGIN
     SELECT id INTO v_base_instance_id FROM public.instancias WHERE tipo = 'base' AND ativo = true ORDER BY is_default_base DESC, created_at ASC LIMIT 1;
 
     -- ADS -> BASE
-    EXECUTE 'UPDATE public.contatos SET canal_origem = ''BASE'', status_kanban = ''Clientes'', instancia_id = COALESCE(v_base_instance_id, instancia_id), updated_at = now()
-    WHERE canal_origem = ''ADS'' AND ultima_venda_em = CURRENT_DATE - 1;';
+    UPDATE public.contatos SET canal_origem = 'BASE', status_kanban = 'Clientes', instancia_id = COALESCE(v_base_instance_id, instancia_id), updated_at = now()
+    WHERE canal_origem = 'ADS' AND ultima_venda_em = CURRENT_DATE - 1;
     GET DIAGNOSTICS v_ads_count = ROW_COUNT;
 
     -- BASE Pagou -> Clientes
@@ -4591,8 +4591,8 @@ BEGIN
     SELECT id INTO v_base_instance_id FROM public.instancias WHERE tipo = 'base' AND ativo = true ORDER BY is_default_base DESC, created_at ASC LIMIT 1;
 
     -- ADS -> BASE
-    EXECUTE 'UPDATE public.contatos SET canal_origem = ''BASE'', status_kanban = ''Clientes'', instancia_id = COALESCE(v_base_instance_id, instancia_id), updated_at = now()
-    WHERE canal_origem = ''ADS'' AND ultima_venda_em = CURRENT_DATE - 1;';
+    UPDATE public.contatos SET canal_origem = 'BASE', status_kanban = 'Clientes', instancia_id = COALESCE(v_base_instance_id, instancia_id), updated_at = now()
+    WHERE canal_origem = 'ADS' AND ultima_venda_em = CURRENT_DATE - 1;
     GET DIAGNOSTICS v_ads_count = ROW_COUNT;
 
     -- BASE Pagou -> Clientes
@@ -4625,8 +4625,8 @@ BEGIN
     SELECT id INTO v_base_instance_id FROM public.instancias WHERE tipo = 'base' AND ativo = true ORDER BY is_default_base DESC, created_at ASC LIMIT 1;
 
     -- ADS -> BASE (quem pagou ontem)
-    EXECUTE 'UPDATE public.contatos SET canal_origem = ''BASE'', status_kanban = ''Clientes'', instancia_id = COALESCE(v_base_instance_id, instancia_id), updated_at = now()
-    WHERE canal_origem = ''ADS'' AND ultima_venda_em = CURRENT_DATE - 1;';
+    UPDATE public.contatos SET canal_origem = 'BASE', status_kanban = 'Clientes', instancia_id = COALESCE(v_base_instance_id, instancia_id), updated_at = now()
+    WHERE canal_origem = 'ADS' AND ultima_venda_em = CURRENT_DATE - 1;
     GET DIAGNOSTICS v_ads_count = ROW_COUNT;
 
     -- BASE Pagou -> Clientes (quem pagou ontem)
@@ -4654,8 +4654,8 @@ BEGIN
     SELECT id INTO v_base_instance_id FROM public.instancias WHERE tipo = 'base' AND ativo = true ORDER BY is_default_base DESC, created_at ASC LIMIT 1;
 
     -- ADS -> BASE + Clientes
-    EXECUTE 'UPDATE public.contatos SET canal_origem = ''BASE'', status_kanban = ''Clientes'', instancia_id = COALESCE(v_base_instance_id, instancia_id), updated_at = now()
-    WHERE canal_origem = ''ADS'' AND ultima_venda_em = CURRENT_DATE - 1;';
+    UPDATE public.contatos SET canal_origem = 'BASE', status_kanban = 'Clientes', instancia_id = COALESCE(v_base_instance_id, instancia_id), updated_at = now()
+    WHERE canal_origem = 'ADS' AND ultima_venda_em = CURRENT_DATE - 1;
 
     -- BASE Pagou -> Clientes
     UPDATE public.contatos SET status_kanban = 'Clientes', updated_at = now()
@@ -4680,9 +4680,9 @@ BEGIN
     WHERE tipo = 'base' AND ativo = true ORDER BY is_default_base DESC, created_at ASC LIMIT 1;
     
     -- Atualiza REP com instância NULL para BASE
-    EXECUTE 'UPDATE public.contatos 
+    UPDATE public.contatos 
     SET instancia_id = v_base_instance_id, updated_at = now()
-    WHERE canal_origem = ''REP'' AND instancia_id IS NULL;';
+    WHERE canal_origem = 'REP' AND instancia_id IS NULL;
     
     -- Atualiza C-REP com instância NULL para BASE
     UPDATE public.contatos 
@@ -4699,8 +4699,8 @@ BEGIN
     SELECT id INTO v_base_instance_id FROM public.instancias WHERE tipo = 'base' AND ativo = true ORDER BY is_default_base DESC, created_at ASC LIMIT 1;
 
     -- ADS -> BASE + Clientes
-    EXECUTE 'UPDATE public.contatos SET canal_origem = ''BASE'', status_kanban = ''Clientes'', instancia_id = COALESCE(v_base_instance_id, instancia_id), updated_at = now()
-    WHERE canal_origem = ''ADS'' AND ultima_venda_em = CURRENT_DATE - 1;';
+    UPDATE public.contatos SET canal_origem = 'BASE', status_kanban = 'Clientes', instancia_id = COALESCE(v_base_instance_id, instancia_id), updated_at = now()
+    WHERE canal_origem = 'ADS' AND ultima_venda_em = CURRENT_DATE - 1;
 
     -- BASE Pagou -> Clientes (mantém instância BASE)
     UPDATE public.contatos SET status_kanban = 'Clientes', updated_at = now()
@@ -4728,8 +4728,8 @@ BEGIN
     WHERE tipo = 'base' AND ativo = true ORDER BY is_default_base DESC, created_at ASC LIMIT 1;
 
     -- Atualiza REP sem instância
-    EXECUTE 'UPDATE public.contatos SET instancia_id = v_base_instance_id, updated_at = now()
-    WHERE canal_origem = ''REP'' AND instancia_id IS NULL;';
+    UPDATE public.contatos SET instancia_id = v_base_instance_id, updated_at = now()
+    WHERE canal_origem = 'REP' AND instancia_id IS NULL;
 
     -- Atualiza C-REP sem instância
     UPDATE public.contatos SET instancia_id = v_base_instance_id, updated_at = now()
@@ -4750,11 +4750,11 @@ BEGIN
     WHERE tipo = 'base' AND ativo = true ORDER BY is_default_base DESC, created_at ASC LIMIT 1;
 
     -- ADS -> BASE + Clientes (quem pagou anteontem ou antes, baseado na ultima_venda)
-    EXECUTE 'UPDATE public.contatos 
-    SET canal_origem = ''BASE'', status_kanban = ''Clientes'', 
+    UPDATE public.contatos 
+    SET canal_origem = 'BASE', status_kanban = 'Clientes', 
         instancia_id = COALESCE(v_base_instance_id, instancia_id), updated_at = now()
-    WHERE canal_origem = ''ADS'' AND ultima_venda_em IS NOT NULL 
-    AND status_kanban = ''Pagou'';';
+    WHERE canal_origem = 'ADS' AND ultima_venda_em IS NOT NULL 
+    AND status_kanban = 'Pagou';
     GET DIAGNOSTICS v_count = ROW_COUNT;
     RAISE NOTICE 'ADS -> BASE Clientes: %', v_count;
 
