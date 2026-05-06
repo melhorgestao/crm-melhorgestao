@@ -8,6 +8,7 @@ services:
     labels:
       - 'traefik.enable=true'
       - 'traefik.http.routers.melhorgestao.rule=HostRegexp(`{catchall:.*}`)'
+      - 'traefik.http.routers.melhorgestao.entrypoints=hidden'
       - 'traefik.http.services.melhorgestao.loadbalancer.server.port=80'
     networks:
       - proxy
