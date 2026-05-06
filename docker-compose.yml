@@ -7,6 +7,7 @@ services:
     restart: always
     labels:
       - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy'
       - 'traefik.http.routers.melhorgestao.rule=HostRegexp(`{catchall:.*}`)'
       - 'traefik.http.routers.melhorgestao.entrypoints=hidden'
       - 'traefik.http.services.melhorgestao.loadbalancer.server.port=80'
