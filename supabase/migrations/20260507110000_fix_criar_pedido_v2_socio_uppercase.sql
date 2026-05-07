@@ -138,8 +138,12 @@ BEGIN
       IF FOUND THEN
         UPDATE public.lotes SET quantidade_atual = quantidade_atual - v_qtd WHERE id = v_lote_rec.id;
 
-        INSERT INTO public.estoque_movimentacoes (produto_id, quantidade, tipo, lote_id, uf_origem, observacao)
-        VALUES (v_produto_id, v_qtd, 'saida', v_lote_rec.id, v_lote_rec.uf, 'Pedido: ' || v_pedido_id);
+        INSERT INTO public.estoque_movimentacoes (pedido_id, produto_id, quantidade, tipo, lote_id, uf_origem, observacao)
+        VALUES (v_pedido_id, v_produto_id, v_qtd, 'saida', v_lote_rec.id, v_lote_rec.uf, 'Pedido #' || v_order_number::text);
+      ELSE
+        -- Sem lote: registra a saida mesmo assim para manter trilha de auditoria
+        INSERT INTO public.estoque_movimentacoes (pedido_id, produto_id, quantidade, tipo, uf_origem, observacao)
+        VALUES (v_pedido_id, v_produto_id, v_qtd, 'saida', v_uf_postagem_calc, 'Pedido #' || v_order_number::text || ' (sem lote)');
       END IF;
 
       INSERT INTO public.pedido_itens (pedido_id, produto_id, quantidade, preco)
