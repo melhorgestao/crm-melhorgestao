@@ -274,10 +274,7 @@ export default function ContatosPage() {
     try {
       const enderecoFull = [newEndereco, newNumero].filter(Boolean).join(', ');
       const cidadeUfString = [newCidade, newUf].filter(Boolean).join('/');
-      
-      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-      const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      
+
       const body = {
         p_nome: newNome,
         p_canal_origem: newCanal,
@@ -292,27 +289,14 @@ export default function ContatosPage() {
         p_uf: newUf || null,
         p_representante_id: newCanal === 'C-REP' ? newRepresentanteId : null,
       };
-      
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_contato`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Prefer': 'return=representation',
-        },
-        body: JSON.stringify(body),
-      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('RPC error:', errorText);
-        toast.error('Erro ao salvar: ' + errorText);
+      const { data: createdContact, error: rpcError } = await supabase.rpc('create_contato' as any, body);
+      if (rpcError) {
+        console.error('RPC error:', rpcError);
+        toast.error('Erro ao salvar: ' + rpcError.message);
         setNewSubmitting(false);
         return;
       }
-
-      const createdContact = await response.json();
       
       // Insert directly into React Query cache for instant display
       queryClient.setQueryData(['contatos_lista', debouncedSearch], (old: any) => {
