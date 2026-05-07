@@ -1,7 +1,7 @@
 {
-  "name": "Santa Flor CRM",
-  "short_name": "Santa Flor",
-  "description": "Sistema de gestão Santa Flor",
+  "name": "Melhor Gestão CRM",
+  "short_name": "Melhor Gestão",
+  "description": "Sistema de gestão Melhor Gestão",
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#2D5A27",
