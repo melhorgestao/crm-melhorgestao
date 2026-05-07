@@ -19,6 +19,11 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set -e
             cd ~/melhorgestao
-            git pull origin main
-            docker compose up -d --build
+            echo "==> Antes do pull: $(git rev-parse --short HEAD)"
+            git fetch origin main
+            git reset --hard origin/main
+            echo "==> Depois do pull: $(git rev-parse --short HEAD)"
+            docker compose build --no-cache app
+            docker compose up -d --force-recreate app
