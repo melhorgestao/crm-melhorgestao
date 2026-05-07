@@ -33,6 +33,8 @@ DECLARE
   v_canal_lancamento text;
   v_quantidade_total integer;
   v_produto_text text;
+  v_snapshot_v numeric;
+  v_snapshot_a numeric;
 BEGIN
   v_order_number := nextval('pedidos_order_number_seq');
   v_data_sp := (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::date;
@@ -146,14 +148,23 @@ BEGIN
   END IF;
 
   IF p_status_pagamento = 'pago' THEN
+    -- Snapshot dos saldos ANTES de inserir esta venda
+    SELECT
+      COALESCE(SUM(CASE WHEN socio = 'V' THEN valor ELSE 0 END), 0),
+      COALESCE(SUM(CASE WHEN socio = 'A' THEN valor ELSE 0 END), 0)
+    INTO v_snapshot_v, v_snapshot_a
+    FROM public.lancamentos_socios;
+
     INSERT INTO public.lancamentos_socios (
       socio, tipo, valor, canal, contato_id, quantidade, modalidade,
-      uf_postagem, status_pagamento, criado_por, pedido_id, data, descricao
+      uf_postagem, status_pagamento, criado_por, pedido_id, data, descricao,
+      snapshot_saldo_v, snapshot_saldo_a
     ) VALUES (
       v_socio, 'VENDA', p_valor, v_canal_lancamento, p_contato_id,
       v_quantidade_total, v_modalidade_calc, v_uf_postagem_calc, p_status_pagamento,
       v_criado_por_apelido, v_pedido_id, v_data_sp,
-      'Venda #' || v_order_number::text
+      'Venda #' || v_order_number::text,
+      v_snapshot_v, v_snapshot_a
     );
   END IF;
 
