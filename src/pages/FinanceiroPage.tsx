@@ -197,8 +197,8 @@ export default function FinanceiroPage() {
 
     // Set card balances from full sum
     dynamicSocios.forEach(s => { initialBalances[s.key] = balances[s.key] || 0; });
-    setSocioV(balances[dynamicSocios[0]?.key] || 0);
-    setSocioA(balances[dynamicSocios[1]?.key] || 0);
+    setSocioV(balances['V'] || 0);
+    setSocioA(balances['A'] || 0);
     
     // Agrupa transferências e lucros: 2 linhas viram 1
     // Pareamento estrito por: tipo + valor absoluto idêntico + sócios opostos + created_at mais próximo
