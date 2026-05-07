@@ -29,6 +29,7 @@ DECLARE
   v_uf_cliente text;
   v_modalidade_calc text;
   v_socio text;
+  v_criado_por_apelido text;
   v_canal_lancamento text;
   v_quantidade_total integer;
   v_produto_text text;
@@ -51,6 +52,13 @@ BEGIN
   ELSE
     v_socio := 'V';
   END IF;
+
+  -- Apelido (nome) do usuario logado para campo criado_por
+  SELECT nome INTO v_criado_por_apelido
+  FROM public.perfis_usuario
+  WHERE user_id = auth.uid()
+  LIMIT 1;
+  v_criado_por_apelido := COALESCE(NULLIF(v_criado_por_apelido, ''), v_socio);
 
   IF p_canal = 'REP' THEN v_canal_lancamento := 'REP';
   ELSIF p_canal = 'BASE' THEN v_canal_lancamento := 'BASE';
@@ -104,7 +112,7 @@ BEGIN
   )
   VALUES (
     p_contato_id, p_valor, p_canal, p_status_pagamento, v_modalidade_calc, v_uf_postagem_calc,
-    'aguardando_rastreio', COALESCE(p_obs, '')::text, v_socio, v_order_number, v_data_sp,
+    'aguardando_rastreio', COALESCE(p_obs, '')::text, v_criado_por_apelido, v_order_number, v_data_sp,
     false, now(),
     COALESCE(v_produto_text, ''), v_quantidade_total
   )
@@ -144,7 +152,7 @@ BEGIN
     ) VALUES (
       v_socio, 'VENDA', p_valor, v_canal_lancamento, p_contato_id,
       v_quantidade_total, v_modalidade_calc, v_uf_postagem_calc, p_status_pagamento,
-      v_socio, v_pedido_id, v_data_sp,
+      v_criado_por_apelido, v_pedido_id, v_data_sp,
       'Venda #' || v_order_number::text
     );
   END IF;
