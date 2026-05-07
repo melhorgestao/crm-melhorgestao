@@ -41,7 +41,7 @@ export default function Login() {
             <Label htmlFor="password">Senha</Label>
             <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
           </div>
-          <Button type="submit" disabled={loading} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground">
+          <Button type="submit" disabled={loading} className="w-full bg-[#C9A227] hover:bg-[#B58E1F] text-white">
             {loading ? 'Entrando...' : 'Entrar'}
           </Button>
         </form>
