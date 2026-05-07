@@ -920,7 +920,7 @@ export default function FinanceiroPage() {
       <div className="flex flex-col items-center gap-3">
         <div className={cn('grid gap-4 w-full', socios.length <= 2 ? 'grid-cols-2 max-w-sm' : socios.length <= 4 ? 'grid-cols-4 max-w-2xl' : 'grid-cols-3 md:grid-cols-6')}>
           {socios.map(s => {
-            const saldo = socioBalances[s.key] ?? (s.key === 'V' ? socioV : s.key === 'A' ? socioA : 0);
+            const saldo = socioBalances[s.key] ?? 0;
             return (
             <Card key={s.key}>
               <CardContent className="p-4 text-center">
