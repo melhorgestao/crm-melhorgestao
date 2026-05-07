@@ -101,6 +101,7 @@ export default function FinanceiroPage() {
   const [transferTo, setTransferTo] = useState('');
   const [transferValue, setTransferValue] = useState('');
   const [socios, setSocios] = useState<{ key: string; nome: string; user_id: string | null }[]>([]);
+  const [ufsCadastradas, setUfsCadastradas] = useState<string[]>([]);
 
   const PER_PAGE = 50;
 
@@ -132,7 +133,7 @@ export default function FinanceiroPage() {
 
     const dataLimiteFin = getDataLimiteFin();
 
-    const [lancsResult, lancsSaldoResult, prodsResult, repsResult, perfisResult, sociosResult] = await Promise.all([
+    const [lancsResult, lancsSaldoResult, prodsResult, repsResult, perfisResult, sociosResult, ufsResult] = await Promise.all([
       // LISTA visual: filtrada pelos últimos 180 dias (com joins pesados para exibição)
       supabase.from('lancamentos_socios')
         .select('*, produtos(nome_oficial), contatos(id, nome, telefone, canal_origem, tag_vip, endereco, complemento, bairro, cidade_uf, cidade, uf, cep, cpf, observacao, created_at)')
@@ -145,7 +146,10 @@ export default function FinanceiroPage() {
       supabase.from('contatos').select('id, nome').eq('canal_origem', 'REP').order('nome'),
       supabase.from('perfis_usuario').select('user_id, nome, socio_key').not('socio_key', 'is', null),
       supabase.from('perfis_usuario').select('user_id, nome, socio_key').not('socio_key', 'is', null).order('nome'),
+      supabase.from('estoque_ufs' as any).select('uf').order('uf'),
     ]);
+
+    setUfsCadastradas(((ufsResult.data || []) as any[]).map((r: any) => r.uf).filter(Boolean));
 
     // Build socio labels map: 'V' -> apelido, 'A' -> apelido
     const labels: Record<string, string> = {};
@@ -1305,10 +1309,13 @@ export default function FinanceiroPage() {
                   <Select value={formUfPostagem} onValueChange={setFormUfPostagem}>
                     <SelectTrigger className="min-h-[44px]"><SelectValue placeholder="Selecionar" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="SC">SC</SelectItem>
-                      <SelectItem value="RS">RS</SelectItem>
-                      <SelectItem value="SP">SP</SelectItem>
-                      <SelectItem value="GO">GO</SelectItem>
+                      {ufsCadastradas.length === 0 ? (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhuma UF cadastrada</div>
+                      ) : (
+                        ufsCadastradas.map(uf => (
+                          <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
