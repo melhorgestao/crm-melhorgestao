@@ -832,7 +832,9 @@ toast.success('Pedido marcado como postado');
         const alreadyPaid =
           lower.includes('paga') || lower.includes('already') ||
           lower.includes('released') || lower.includes('emitted') ||
-          lower.includes('checkout') || lower.includes('posted');
+          lower.includes('checkout') || lower.includes('posted') ||
+          lower.includes('comprad') || lower.includes('purchased') ||
+          lower.includes('ja foi') || lower.includes('já foi');
 
         if (alreadyPaid) {
           // Etiqueta ja estava paga no SuperFrete: sincroniza status no banco
