@@ -609,9 +609,19 @@ export default function LogisticaPage() {
       });
 
       if (!res.ok) {
-        const errData = await res.json();
-        console.error('gerar-etiqueta error:', errData);
-        toast.error(`Erro ao gerar etiqueta: ${errData.error || 'verifique a chave API'}`);
+        let errData: any = {};
+        let rawText = '';
+        try {
+          rawText = await res.text();
+          errData = JSON.parse(rawText);
+        } catch {
+          errData = { error: rawText || `HTTP ${res.status}` };
+        }
+        console.error('gerar-etiqueta error:', { status: res.status, errData });
+        const detalhes = errData.details
+          ? ' — ' + (typeof errData.details === 'string' ? errData.details : JSON.stringify(errData.details))
+          : '';
+        toast.error(`Erro ao gerar etiqueta (${res.status}): ${errData.error || 'verifique a chave API'}${detalhes}`);
         setGeneratingId(null);
         return;
       }

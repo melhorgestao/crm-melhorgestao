@@ -12,8 +12,8 @@ const corsHeaders = {
 };
 
 const SF_BASE = 'https://api.superfrete.com';
-const SF_USER_AGENT = 'CRM-Lovable-SuperFrete-Sync/1.2 (suporte@crm.local)';
-const PUBLIC_UA = 'Mozilla/5.0 (compatible; CRM-TrackingBot/1.0; +https://crm.local)';
+const SF_USER_AGENT = 'MelhorGestaoCRM-Sync/1.2 (contato@melhorgestao.online)';
+const PUBLIC_UA = 'Mozilla/5.0 (compatible; MelhorGestao-TrackingBot/1.0; +https://crm.melhorgestao.online)';
 
 function normalize(s: any): string {
   if (s == null) return '';

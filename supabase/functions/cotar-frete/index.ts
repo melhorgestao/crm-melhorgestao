@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
         'Authorization': `Bearer ${api_key}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': 'CRM-Lovable-SuperFrete/1.0 (suporte@crm.local)',
+        'User-Agent': 'MelhorGestaoCRM/1.0 (contato@melhorgestao.online)',
       },
       body: JSON.stringify(payload),
     })

@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
         insurance_value: 0,
         // DAC (Declaração Auxiliar de Conteúdo) — preenche descrição/qtd/valor na etiqueta
         ...(Array.isArray(products) && products.length > 0 ? { 
-          platform: 'CRM-Lovable',
+          platform: 'MelhorGestaoCRM',
           tags: [{ tag: 'crm', url: '' }],
         } : {}),
       },
@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
         'Authorization': `Bearer ${api_key}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': 'CRM-Lovable-SuperFrete/1.0 (suporte@crm.local)',
+        'User-Agent': 'MelhorGestaoCRM/1.0 (contato@melhorgestao.online)',
       },
       body: JSON.stringify(payload),
     })
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
           headers: {
             'Authorization': `Bearer ${api_key}`,
             'Accept': 'application/json',
-            'User-Agent': 'CRM-Lovable-SuperFrete/1.0 (suporte@crm.local)',
+            'User-Agent': 'MelhorGestaoCRM/1.0 (contato@melhorgestao.online)',
           },
         });
         if (infoRes.ok) {

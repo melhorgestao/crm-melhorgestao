@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
         'Authorization': `Bearer ${api_key}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': 'CRM-Lovable-SuperFrete/1.0 (suporte@crm.local)',
+        'User-Agent': 'MelhorGestaoCRM/1.0 (contato@melhorgestao.online)',
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     const infoHeaders = {
       'Authorization': `Bearer ${api_key}`,
       'Accept': 'application/json',
-      'User-Agent': 'CRM-Lovable-SuperFrete/1.0 (suporte@crm.local)',
+      'User-Agent': 'MelhorGestaoCRM/1.0 (contato@melhorgestao.online)',
     }
 
     for (let attempt = 0; attempt < 4; attempt++) {
