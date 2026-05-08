@@ -828,7 +828,36 @@ toast.success('Pedido marcado como postado');
       if (!res.ok) {
         const errData = await res.json();
         const errorMsg = errData.error || errData.message || 'Erro ao pagar';
-        if (errorMsg.toLowerCase().includes('saldo') || errorMsg.toLowerCase().includes('insufficient')) {
+        const lower = errorMsg.toLowerCase();
+        const alreadyPaid =
+          lower.includes('paga') || lower.includes('already') ||
+          lower.includes('released') || lower.includes('emitted') ||
+          lower.includes('checkout') || lower.includes('posted');
+
+        if (alreadyPaid) {
+          // Etiqueta ja estava paga no SuperFrete: sincroniza status no banco
+          try {
+            const infoRes = await fetch(`${SUPABASE_URL}/functions/v1/imprimir-etiqueta`, {
+              method: 'POST',
+              headers: await getEdgeFnHeaders(),
+              body: JSON.stringify({ order_id: codigo, api_key: config.valor }),
+            });
+            if (infoRes.ok) {
+              const info = await infoRes.json();
+              const updates: any = { etiqueta_paga: true };
+              if (info.tracking) updates.codigo_rastreio = info.tracking;
+              if (info.url) updates.etiqueta_url = info.url;
+              await supabase.from('pedidos').update(updates).eq('id', pedido.id);
+              toast.success('Etiqueta ja estava paga — status sincronizado');
+              fetchPedidos();
+              return;
+            }
+          } catch (syncErr) {
+            console.error('Falha ao sincronizar etiqueta paga:', syncErr);
+          }
+        }
+
+        if (lower.includes('saldo') || lower.includes('insufficient')) {
           toast.error('Saldo insuficiente no Super Frete!');
         } else {
           toast.error(`Erro ao pagar etiqueta: ${errorMsg}`);
