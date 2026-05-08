@@ -27,6 +27,18 @@ type PedidoProdutoItem = {
   quantidade?: number;
 };
 
+const getEdgeFnHeaders = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  const key =
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    import.meta.env.VITE_SUPABASE_ANON_KEY;
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${session?.access_token || key}`,
+    'apikey': key,
+  };
+};
+
 
 export default function LogisticaPage() {
   const { profile, user } = useAuth();
@@ -262,7 +274,7 @@ export default function LogisticaPage() {
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/cotar-frete`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getEdgeFnHeaders(),
         body: JSON.stringify({
           from_cep: rem.cep_origem.replace(/\D/g, ''),
           to_cep: contato.cep.replace(/\D/g, ''),
@@ -566,7 +578,7 @@ export default function LogisticaPage() {
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
       const res = await fetch(`${SUPABASE_URL}/functions/v1/gerar-etiqueta`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getEdgeFnHeaders(),
         body: JSON.stringify({
           from_name: rem.nome_remetente,
           from_document: rem.cpf,
@@ -621,7 +633,7 @@ export default function LogisticaPage() {
         const detalhes = errData.details
           ? ' — ' + (typeof errData.details === 'string' ? errData.details : JSON.stringify(errData.details))
           : '';
-        toast.error(`Erro ao gerar etiqueta (${res.status}): ${errData.error || 'verifique a chave API'}${detalhes}`);
+        toast.error(`Erro ao gerar etiqueta (${res.status}): ${errData.error || errData.message || 'verifique a chave API'}${detalhes}`);
         setGeneratingId(null);
         return;
       }
@@ -738,7 +750,7 @@ toast.success('Pedido marcado como postado');
       const tid = setTimeout(() => ctrl.abort(), 15000);
       const res = await fetch(`${SUPABASE_URL}/functions/v1/imprimir-etiqueta`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getEdgeFnHeaders(),
         body: JSON.stringify({ order_id: codigo, api_key: config.valor }),
         signal: ctrl.signal,
       }).finally(() => clearTimeout(tid));
@@ -805,7 +817,7 @@ toast.success('Pedido marcado como postado');
       const tid = setTimeout(() => ctrl.abort(), 25000);
       const res = await fetch(`${SUPABASE_URL}/functions/v1/pagar-etiqueta`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getEdgeFnHeaders(),
         body: JSON.stringify({
           order_id: codigo,
           api_key: config.valor,
@@ -887,7 +899,7 @@ toast.success('Pedido marcado como postado');
         const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
         const res = await fetch(`${SUPABASE_URL}/functions/v1/pagar-etiqueta`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await getEdgeFnHeaders(),
           body: JSON.stringify({ order_id: codigo, api_key: config.valor }),
         });
 
@@ -936,7 +948,7 @@ toast.success('Pedido marcado como postado');
           const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
           const res = await fetch(`${SUPABASE_URL}/functions/v1/cancelar-etiqueta`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await getEdgeFnHeaders(),
             body: JSON.stringify({
               order_id: codigo,
               api_key: config.valor,
