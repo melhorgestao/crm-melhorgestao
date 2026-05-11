@@ -593,7 +593,8 @@ export default function LogisticaPage() {
           to_name: contato.nome,
           to_document: contato.cpf,
           // contato.endereco vem como "Rua X, 123" (joined no cadastro).
-          // Separa rua e numero para a etiqueta. Se nao houver numero, deixa vazio (NUNCA "S/N").
+          // Separa rua e numero para a etiqueta. Aceita digitos ('123') OU S/N
+          // como numero valido para evitar duplicacao na etiqueta.
           ...(() => {
             const rawEnd = (contato.endereco || '').trim();
             const lastCommaIdx = rawEnd.lastIndexOf(',');
@@ -601,7 +602,8 @@ export default function LogisticaPage() {
             let numero = '';
             if (lastCommaIdx !== -1) {
               const tail = rawEnd.slice(lastCommaIdx + 1).trim();
-              if (/^\d/.test(tail)) {
+              // Aceita digitos ('123', '45-A') ou variantes de S/N
+              if (/^\d/.test(tail) || /^s[\s\/\\.-]*n$/i.test(tail)) {
                 rua = rawEnd.slice(0, lastCommaIdx).trim();
                 numero = tail;
               }
