@@ -592,7 +592,26 @@ export default function LogisticaPage() {
           from_phone: rem.contato_remetente,
           to_name: contato.nome,
           to_document: contato.cpf,
-          to_address: contato.endereco,
+          // contato.endereco vem como "Rua X, 123" (joined no cadastro).
+          // Separa rua e numero para a etiqueta. Se nao houver numero, deixa vazio (NUNCA "S/N").
+          ...(() => {
+            const rawEnd = (contato.endereco || '').trim();
+            const lastCommaIdx = rawEnd.lastIndexOf(',');
+            let rua = rawEnd;
+            let numero = '';
+            if (lastCommaIdx !== -1) {
+              const tail = rawEnd.slice(lastCommaIdx + 1).trim();
+              if (/^\d/.test(tail)) {
+                rua = rawEnd.slice(0, lastCommaIdx).trim();
+                numero = tail;
+              }
+            }
+            return {
+              to_address: rua,
+              to_number: numero,
+              to_complement: contato.complemento || '',
+            };
+          })(),
           to_district: contato.bairro,
           to_city: contato.cidade_uf?.replace(/\/\w+$/, ''),
           to_state: contato.cidade_uf?.slice(-2),

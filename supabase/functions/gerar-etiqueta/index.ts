@@ -25,11 +25,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { 
-      from_name, from_document, from_address, from_number, from_complement, 
+    const {
+      from_name, from_document, from_address, from_number, from_complement,
       from_district, from_city, from_state, from_cep, from_phone,
-      to_name, to_document, to_address, to_district, 
-      to_city, to_state, to_cep, to_phone,
+      to_name, to_document, to_address, to_number, to_complement,
+      to_district, to_city, to_state, to_cep, to_phone,
       peso, width, height, length, service, api_key,
       valor_frete_cotado, products
     } = await req.json()
@@ -90,8 +90,8 @@ Deno.serve(async (req) => {
         name: from_name,
         document: from_document,
         address: from_address,
-        number: from_number,
-        complement: from_complement,
+        ...(from_number && String(from_number).trim() !== '' ? { number: String(from_number).trim() } : {}),
+        ...(from_complement && String(from_complement).trim() !== '' ? { complement: String(from_complement).trim() } : {}),
         district: from_district,
         city: from_city,
         state_abbr: from_state,
@@ -102,6 +102,10 @@ Deno.serve(async (req) => {
         name: to_name,
         document: to_document,
         address: to_address,
+        // Envia number/complement somente quando tem valor.
+        // Nunca enviar 'S/N': se nao houver numero ou complemento, omitimos o campo.
+        ...(to_number && String(to_number).trim() !== '' ? { number: String(to_number).trim() } : {}),
+        ...(to_complement && String(to_complement).trim() !== '' ? { complement: String(to_complement).trim() } : {}),
         district: to_district,
         city: to_city,
         state_abbr: to_state,
