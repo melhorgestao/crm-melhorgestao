@@ -149,7 +149,7 @@ export default function PedidosPage() {
         endDate = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
       }
       const { data } = await supabase.from('pedidos')
-        .select('id, data, canal, order_number, valor, status_pedido, status_pagamento, produto, quantidade, uf_postagem, codigo_rastreio, contato_id, entrega_em_maos, estoque_debitado, locked_at, contatos(nome, telefone, tag_vip, cpf, endereco, complemento, bairro, cidade_uf, cep)')
+        .select('id, data, canal, order_number, valor, status_pedido, status_pagamento, produto, quantidade, uf_postagem, codigo_rastreio, contato_id, entrega_em_maos, estoque_debitado, locked_at, is_free, contatos(nome, telefone, tag_vip, cpf, endereco, complemento, bairro, cidade_uf, cep, canal_origem)')
         .gte('data', startDate).lt('data', endDate)
         .order('order_number', { ascending: false })
         .range(pageParam * PER_PAGE_FETCH, (pageParam + 1) * PER_PAGE_FETCH - 1);
@@ -173,7 +173,7 @@ export default function PedidosPage() {
     queryKey: ['pedidos_pendentes'],
     queryFn: async ({ pageParam = 0 }) => {
       const { data } = await supabase.from('pedidos')
-        .select('id, data, canal, order_number, valor, status_pedido, status_pagamento, modalidade, uf_postagem, quantidade, contato_id, observacao, criado_por, codigo_rastreio, produto, locked_at, contatos(nome, telefone, cpf, endereco, complemento, bairro, cidade_uf, cep)')
+        .select('id, data, canal, order_number, valor, status_pedido, status_pagamento, modalidade, uf_postagem, quantidade, contato_id, observacao, criado_por, codigo_rastreio, produto, locked_at, is_free, contatos(nome, telefone, cpf, endereco, complemento, bairro, cidade_uf, cep, canal_origem)')
         .eq('status_pagamento', 'pendente')
         .order('order_number', { ascending: false })
         .range(pageParam * PER_PAGE_FETCH, (pageParam + 1) * PER_PAGE_FETCH - 1);
@@ -273,7 +273,7 @@ export default function PedidosPage() {
   const exportCSV = () => {
     const rows = [['#', 'Data', 'Nome', 'Canal', 'Valor', 'Status', 'Telefone']];
     filteredPedidos.forEach(p => {
-      rows.push([`#${p.order_number}`, formatDateShort(p.data), (p.contatos as any)?.nome || '', p.canal, String(p.valor), p.status_pedido === 'postado' ? 'Postado' : p.status_pedido === 'entregue' ? 'Entregue' : 'Aguardando Postagem', (p.contatos as any)?.telefone || '']);
+      rows.push([`#${p.order_number}`, formatDateShort(p.data), (p.contatos as any)?.nome || '', (p.contatos as any)?.canal_origem || p.canal || '', String(p.valor), p.status_pedido === 'postado' ? 'Postado' : p.status_pedido === 'entregue' ? 'Entregue' : 'Aguardando Postagem', (p.contatos as any)?.telefone || '']);
     });
     const csv = rows.map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -463,7 +463,7 @@ export default function PedidosPage() {
                       {(p.contatos as any)?.tag_vip && <Trophy className="inline w-3 h-3 ml-1 text-sf-gold" />}
                     </td>
                     <td className="py-2">
-                      <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{(p.contatos as any)?.canal_origem || p.canal || '—'}</Badge>
                     </td>
                     <td className="py-2 text-right pr-8 font-medium">{p.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(p.valor))}</td>
                     <td className="py-2" onClick={e => e.stopPropagation()}>
@@ -542,7 +542,7 @@ export default function PedidosPage() {
                       <Package className="w-4 h-4 text-muted-foreground/40" />
                     )}
                     <div className="flex flex-wrap items-center gap-1">
-                      <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{(p.contatos as any)?.canal_origem || p.canal || '—'}</Badge>
                       {p.entrega_em_maos && <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-600">🤝 Mãos</Badge>}
                       {p.is_free && <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100 border-sky-300 text-[10px] font-bold px-1.5 py-0">FREE</Badge>}
                     </div>
@@ -612,7 +612,7 @@ export default function PedidosPage() {
                     <td className="py-2">{formatDateShort(p.data)}</td>
                     <td className="py-2 font-medium">{(p.contatos as any)?.nome || '—'}</td>
                     <td className="py-2">
-                      <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{(p.contatos as any)?.canal_origem || p.canal || '—'}</Badge>
                     </td>
                     <td className="py-2 text-right pr-8 font-medium">{p.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(p.valor))}</td>
                     <td className="py-2">
@@ -674,7 +674,7 @@ export default function PedidosPage() {
                           <p className="whitespace-pre-wrap">{p.observacao || 'Nenhuma observação informada.'}</p>
                         </PopoverContent>
                       </Popover>
-                      <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{(p.contatos as any)?.canal_origem || p.canal || '—'}</Badge>
                     </div>
                   </div>
                   <div className="text-sm font-medium mb-1">{(p.contatos as any)?.nome || '—'}</div>

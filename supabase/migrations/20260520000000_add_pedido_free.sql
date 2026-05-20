@@ -20,6 +20,7 @@ DECLARE
   v_lote_rec record; v_order_number integer; v_data_sp date;
   v_uf_postagem_calc text; v_modalidade_calc text;
   v_criado_por_apelido text; v_quantidade_total integer; v_produto_text text;
+  v_canal text;
 BEGIN
   v_order_number := nextval('pedidos_order_number_seq');
   v_data_sp := (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::date;
@@ -31,6 +32,11 @@ BEGIN
 
   SELECT nome INTO v_criado_por_apelido FROM public.perfis_usuario WHERE user_id = auth.uid() LIMIT 1;
   v_criado_por_apelido := COALESCE(NULLIF(v_criado_por_apelido, ''), 'sistema');
+
+  -- Canal: pega do contato (canal_origem) com fallback para 'BASE'.
+  -- NUNCA hardcode 'ADS' aqui — pedido FREE nao deve forcar canal.
+  SELECT UPPER(canal_origem) INTO v_canal FROM public.contatos WHERE id = p_contato_id LIMIT 1;
+  v_canal := COALESCE(NULLIF(v_canal, ''), 'BASE');
 
   v_uf_postagem_calc := COALESCE(p_uf_postagem, 'SC');
   v_modalidade_calc := COALESCE(p_modalidade, 'mini');
@@ -60,7 +66,7 @@ BEGIN
     is_free
   )
   VALUES (
-    p_contato_id, 0, 'ADS', 'pago', v_modalidade_calc, v_uf_postagem_calc,
+    p_contato_id, 0, v_canal, 'pago', v_modalidade_calc, v_uf_postagem_calc,
     'aguardando_rastreio', COALESCE(p_obs, '')::text, v_criado_por_apelido, v_order_number, v_data_sp,
     false, now(), COALESCE(v_produto_text, ''), v_quantidade_total,
     true
