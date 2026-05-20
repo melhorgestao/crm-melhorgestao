@@ -207,6 +207,8 @@ export default function PedidosPage() {
     if (!data) return;
     const byContact: Record<string, { nome: string; totalValor: number; totalQtd: number }> = {};
     data.forEach((p: any) => {
+      // FREE nao soma em ranking de valor nem de quantidade
+      if (p.is_free) return;
       const id = p.contato_id;
       if (!byContact[id]) byContact[id] = { nome: p.contatos?.nome || '—', totalValor: 0, totalQtd: 0 };
       byContact[id].totalValor += Number(p.valor) || 0;
@@ -361,8 +363,10 @@ export default function PedidosPage() {
     }
   };
 
-  const totalSum = filteredPedidos.reduce((s, p) => s + (Number(p.valor) || 0), 0);
-  const ticketMedio = filteredPedidos.length > 0 ? totalSum / filteredPedidos.length : 0;
+  // FREE nunca entra em totais nem em ticket medio
+  const totalSum = filteredPedidos.reduce((s, p) => s + (p.is_free ? 0 : (Number(p.valor) || 0)), 0);
+  const pagosNonFree = filteredPedidos.filter(p => !p.is_free).length;
+  const ticketMedio = pagosNonFree > 0 ? totalSum / pagosNonFree : 0;
 
   const getProductBreakdown = () => {
     if (statusFilter !== 'aguardando_rastreio') return null;
@@ -461,7 +465,7 @@ export default function PedidosPage() {
                     <td className="py-2">
                       <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
                     </td>
-                    <td className="py-2 text-right pr-8 font-medium">{formatBRL(Number(p.valor))}</td>
+                    <td className="py-2 text-right pr-8 font-medium">{p.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(p.valor))}</td>
                     <td className="py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Select value={p.status_pedido || 'aguardando_rastreio'} onValueChange={v => updateStatus(p.id, v, isStatusLocked(p))} disabled={isStatusLocked(p)}>
@@ -540,16 +544,17 @@ export default function PedidosPage() {
                     <div className="flex flex-wrap items-center gap-1">
                       <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
                       {p.entrega_em_maos && <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-600">🤝 Mãos</Badge>}
+                      {p.is_free && <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100 border-sky-300 text-[10px] font-bold px-1.5 py-0">FREE</Badge>}
                     </div>
                   </div>
                 </div>
-                <div className="text-sm font-medium mb-1">
+                <div className="text-sm font-medium mb-1 flex items-center gap-2">
                   <button onClick={e => { e.stopPropagation(); openContactDetail(p.contato_id); }} className="hover:underline text-primary">
                     {(p.contatos as any)?.nome || '—'}
                   </button>
                 </div>
                 <div className="flex justify-between items-center gap-2">
-                  <span className="text-sm font-bold cursor-pointer" onClick={() => setDetailPedido(p)}>{formatBRL(Number(p.valor))}</span>
+                  <span className="text-sm font-bold cursor-pointer" onClick={() => setDetailPedido(p)}>{p.is_free ? <span className="text-sky-600">FREE</span> : formatBRL(Number(p.valor))}</span>
                   <div className="flex items-center gap-1 flex-wrap justify-end">
                     {p.status_pagamento === 'pendente' && (
                       <Badge variant="outline" className="text-[9px] border-amber-500 text-amber-600 py-0 h-5 px-1.5">
@@ -609,7 +614,7 @@ export default function PedidosPage() {
                     <td className="py-2">
                       <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
                     </td>
-                    <td className="py-2 text-right pr-8 font-medium">{formatBRL(Number(p.valor))}</td>
+                    <td className="py-2 text-right pr-8 font-medium">{p.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(p.valor))}</td>
                     <td className="py-2">
                       <Badge variant="secondary">
                         {p.status_pedido === 'entregue' ? '✅ Entregue' : p.status_pedido === 'postado' ? 'Postado' : 'Aguardando'}
@@ -674,7 +679,7 @@ export default function PedidosPage() {
                   </div>
                   <div className="text-sm font-medium mb-1">{(p.contatos as any)?.nome || '—'}</div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold">{formatBRL(Number(p.valor))}</span>
+                    <span className="text-sm font-bold">{p.is_free ? <span className="text-sky-600">FREE</span> : formatBRL(Number(p.valor))}</span>
                     <Badge variant="secondary" className="text-[10px]">
                       {p.status_pedido === 'entregue' ? '✅ Entregue' : p.status_pedido === 'postado' ? 'Postado' : 'Aguardando'}
                     </Badge>

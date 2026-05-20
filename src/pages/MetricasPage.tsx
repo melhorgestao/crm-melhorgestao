@@ -16,7 +16,8 @@ export default function MetricasPage() {
   useEffect(() => { fetchData(); fetchPendentes(); }, [month, year]);
 
   const fetchPendentes = async () => {
-    const { data } = await supabase.from('pedidos').select('valor').eq('status_pagamento', 'pendente');
+    // Exclui pedidos FREE (sem impacto financeiro)
+    const { data } = await supabase.from('pedidos').select('valor, is_free').eq('status_pagamento', 'pendente').neq('is_free', true);
     setPendentesTotal(data?.reduce((s, p) => s + (Number(p.valor) || 0), 0) || 0);
   };
 
@@ -27,7 +28,9 @@ export default function MetricasPage() {
     const nextY = month === 12 ? year + 1 : year;
     const end = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
 
-    const { data: ped } = await supabase.from('pedidos').select('*').gte('data', start).lt('data', end);
+    // Exclui pedidos FREE: nao contam em faturamento, produtos, ticket medio, etc.
+    const { data: pedAll } = await supabase.from('pedidos').select('*').gte('data', start).lt('data', end);
+    const ped = (pedAll || []).filter((p: any) => !p.is_free);
     const { data: fin } = await supabase.from('financeiro').select('*').gte('data', start).lt('data', end);
 
     // Faturamento vem de pedidos (vendas)

@@ -9,13 +9,29 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { formatBRL } from '@/lib/format';
-import { Printer, Lock, Truck, Loader2, Download, Trash2, MoreVertical, CheckCircle, CircleDollarSign, XCircle } from 'lucide-react';
-import { getTagDisplayName } from '@/lib/productDisplayNames';
+import { Printer, Lock, Truck, Loader2, Download, Trash2, MoreVertical, CheckCircle, CircleDollarSign, XCircle, Plus, Pencil, Check } from 'lucide-react';
+import { getTagDisplayName, getProductDisplayName } from '@/lib/productDisplayNames';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+
+const applyCepMask = (val: string) => {
+  const d = (val || '').replace(/\D/g, '').slice(0, 8);
+  if (d.length <= 5) return d;
+  return d.slice(0, 5) + '-' + d.slice(5);
+};
+
+const applyPhoneMask = (val: string) => {
+  const d = (val || '').replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+};
 
 type ProdutoPesoRow = {
   tag: string;
@@ -67,6 +83,33 @@ export default function LogisticaPage() {
   const [produtosInfo, setProdutosInfo] = useState<Record<string, { box_size: string | null; box_qty_max: number | null }>>({});
   const [gatewaysConectados, setGatewaysConectados] = useState<{ superfrete: boolean; melhorenvio: boolean }>({ superfrete: false, melhorenvio: false });
   const [updatingGateway, setUpdatingGateway] = useState<string | null>(null);
+
+  // ============ Pedido FREE (Reposicao/Reenvio/Brinde) ============
+  const [showFreeForm, setShowFreeForm] = useState(false);
+  const [freeSubmitting, setFreeSubmitting] = useState(false);
+  const [freeContactSearch, setFreeContactSearch] = useState('');
+  const [freeContactResults, setFreeContactResults] = useState<any[]>([]);
+  const [freeSelectedContact, setFreeSelectedContact] = useState<any>(null);
+  const [freeNewContactMode, setFreeNewContactMode] = useState(false);
+  const [freeClientSaved, setFreeClientSaved] = useState(false);
+  // Novo cliente
+  const [freeNomeNew, setFreeNomeNew] = useState('');
+  const [freeCpfNew, setFreeCpfNew] = useState('');
+  const [freeTelefoneNew, setFreeTelefoneNew] = useState('');
+  const [freeEnderecoNew, setFreeEnderecoNew] = useState('');
+  const [freeNumeroNew, setFreeNumeroNew] = useState('');
+  const [freeCepNew, setFreeCepNew] = useState('');
+  const [freeComplementoNew, setFreeComplementoNew] = useState('');
+  const [freeBairroNew, setFreeBairroNew] = useState('');
+  const [freeCidadeNew, setFreeCidadeNew] = useState('');
+  const [freeUfClienteNew, setFreeUfClienteNew] = useState('');
+  const [freeCepLoading, setFreeCepLoading] = useState(false);
+  // Itens
+  const [freeProdutos, setFreeProdutos] = useState<{ produto_id: string; quantidade: number }[]>([{ produto_id: '', quantidade: 1 }]);
+  const [freeModalidade, setFreeModalidade] = useState<string>('mini');
+  const [freeUfPostagem, setFreeUfPostagem] = useState<string>('');
+  const [freeObs, setFreeObs] = useState('');
+  const [allProdutosFree, setAllProdutosFree] = useState<any[]>([]);
 
   // Auto-zoom out apenas em mobile para que todos os botões do card caibam sem scroll horizontal
   useEffect(() => {
@@ -352,10 +395,11 @@ export default function LogisticaPage() {
   };
 
   const fetchUfs = async () => {
-    const [{ data }, { data: regionsData }, { data: prodData }] = await Promise.all([
+    const [{ data }, { data: regionsData }, { data: prodData }, { data: prodFull }] = await Promise.all([
       supabase.from('estoque_ufs' as any).select('uf').order('uf'),
       supabase.from('uf_regioes' as any).select('*').order('codigo'),
       supabase.from('produtos').select('tag, box_size, box_qty_max'),
+      supabase.from('produtos').select('id, tag, nome_oficial, ativo, produtos_grupos(nome)').eq('ativo', true).order('nome_oficial'),
     ]);
     if (data && data.length > 0) {
       setEstoqueUfs((data as any[]).map((u: any) => u.uf));
@@ -366,12 +410,119 @@ export default function LogisticaPage() {
       map[p.tag] = { box_size: p.box_size, box_qty_max: p.box_qty_max };
     }
     setProdutosInfo(map);
+    setAllProdutosFree((prodFull as any[]) || []);
+  };
+
+  // ============ Funcoes do Pedido FREE ============
+  const searchFreeContacts = async (q: string) => {
+    setFreeContactSearch(q);
+    if (!q || q.trim().length < 2) { setFreeContactResults([]); return; }
+    const { data } = await supabase.from('contatos').select('id, nome, telefone, cpf, endereco, complemento, bairro, cidade_uf, cidade, uf, cep').or(`nome.ilike.%${q}%,telefone.ilike.%${q}%`).limit(8);
+    setFreeContactResults(data || []);
+  };
+
+  const selectFreeContact = (c: any) => {
+    setFreeSelectedContact(c);
+    setFreeNewContactMode(false);
+    setFreeContactResults([]);
+    setFreeContactSearch('');
+    setFreeClientSaved(true);
+  };
+
+  const lookupFreeCep = async (cep: string) => {
+    const d = cep.replace(/\D/g, '');
+    if (d.length !== 8) return;
+    setFreeCepLoading(true);
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${d}/json/`);
+      const j = await r.json();
+      if (!j.erro) {
+        if (j.logradouro) setFreeEnderecoNew(j.logradouro);
+        if (j.bairro) setFreeBairroNew(j.bairro);
+        if (j.localidade) setFreeCidadeNew(j.localidade);
+        if (j.uf) setFreeUfClienteNew(j.uf);
+      }
+    } catch {}
+    finally { setFreeCepLoading(false); }
+  };
+
+  const saveFreeClient = async () => {
+    if (!freeNomeNew.trim()) { toast.error('Nome obrigatorio'); return; }
+    const enderecoFull = [freeEnderecoNew, freeNumeroNew].filter(Boolean).join(', ');
+    const cidadeUfString = [freeCidadeNew, freeUfClienteNew].filter(Boolean).join('/');
+    const body: any = {
+      p_nome: freeNomeNew,
+      p_canal_origem: 'BASE',
+      p_telefone: freeTelefoneNew || null,
+      p_cpf: freeCpfNew || null,
+      p_endereco: enderecoFull || null,
+      p_complemento: freeComplementoNew || null,
+      p_bairro: freeBairroNew || null,
+      p_cidade_uf: cidadeUfString || null,
+      p_cep: freeCepNew || null,
+      p_cidade: freeCidadeNew || null,
+      p_uf: freeUfClienteNew || null,
+      p_representante_id: null,
+    };
+    const { data, error } = await supabase.rpc('create_contato' as any, body);
+    if (error) { toast.error('Erro ao salvar cliente: ' + error.message); return; }
+    setFreeSelectedContact(data);
+    setFreeNewContactMode(false);
+    setFreeClientSaved(true);
+    toast.success('Cliente criado');
+  };
+
+  const resetFreeForm = () => {
+    setShowFreeForm(false);
+    setFreeContactSearch(''); setFreeContactResults([]); setFreeSelectedContact(null);
+    setFreeNewContactMode(false); setFreeClientSaved(false);
+    setFreeNomeNew(''); setFreeCpfNew(''); setFreeTelefoneNew(''); setFreeEnderecoNew('');
+    setFreeNumeroNew(''); setFreeCepNew(''); setFreeComplementoNew(''); setFreeBairroNew('');
+    setFreeCidadeNew(''); setFreeUfClienteNew('');
+    setFreeProdutos([{ produto_id: '', quantidade: 1 }]);
+    setFreeModalidade('mini'); setFreeUfPostagem(''); setFreeObs('');
+  };
+
+  const submitFreePedido = async () => {
+    if (!freeSelectedContact) { toast.error('Selecione ou crie um cliente'); return; }
+    const validProdutos = freeProdutos.filter(p => p.produto_id && p.quantidade > 0);
+    if (validProdutos.length === 0) { toast.error('Adicione pelo menos um produto'); return; }
+    if (!freeUfPostagem) { toast.error('Selecione a UF de postagem'); return; }
+
+    const produtosRpc = validProdutos.map(p => {
+      const prod = allProdutosFree.find((x: any) => x.id === p.produto_id);
+      return {
+        produto_id: p.produto_id,
+        produto: prod?.tag || prod?.nome_oficial || '',
+        quantidade: p.quantidade,
+      };
+    });
+
+    setFreeSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc('criar_pedido_free' as any, {
+        p_contato_id: freeSelectedContact.id,
+        p_modalidade: freeModalidade,
+        p_uf_postagem: freeUfPostagem,
+        p_obs: freeObs || null,
+        p_produtos: produtosRpc as any,
+      });
+      if (error) throw error;
+      toast.success(`Pedido FREE criado! #${(data as any)?.order_number ?? ''}`);
+      resetFreeForm();
+      await fetchPedidos();
+    } catch (err: any) {
+      toast.error('Erro ao criar pedido FREE: ' + (err.message || 'desconhecido'));
+      console.error(err);
+    } finally {
+      setFreeSubmitting(false);
+    }
   };
 
   const fetchPedidos = async () => {
     let query = supabase
       .from('pedidos')
-      .select('*, contatos(nome, cpf, endereco, complemento, bairro, cidade_uf, cep, telefone), etiqueta_paga, etiqueta_codigo, etiqueta_url, etiqueta_valor')
+      .select('*, contatos(nome, cpf, endereco, complemento, bairro, cidade_uf, cep, telefone), etiqueta_paga, etiqueta_codigo, etiqueta_url, etiqueta_valor, is_free')
       .eq('status_pedido', 'aguardando_rastreio')
       .neq('modalidade', 'entrega_maos')
       .order('data', { ascending: false });
@@ -1251,7 +1402,12 @@ toast.success('Pedido marcado como postado');
           <Card key={p.id} className={cn('border-2 border-border relative overflow-hidden min-w-0', p.status_pagamento === 'pendente' && 'border-amber-400 border-dashed')}>
             <CardContent className="p-3 sm:p-4 space-y-2 min-w-0">
               <div className="flex justify-between items-start">
-                <p className="font-bold text-base">{(p.contatos as any)?.nome || '—'}</p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="font-bold text-base truncate">{(p.contatos as any)?.nome || '—'}</p>
+                  {p.is_free && (
+                    <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100 border-sky-300 text-[10px] font-bold px-1.5 py-0">FREE</Badge>
+                  )}
+                </div>
                 {isAdmin && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -1535,6 +1691,175 @@ toast.success('Pedido marcado como postado');
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* FAB: Adicionar Reposição/Reenvio/Brinde */}
+      {!isRepresentante && (
+        <Button onClick={() => { resetFreeForm(); setShowFreeForm(true); }} className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-sf-green hover:bg-sf-green/90 text-primary-foreground z-50" size="icon">
+          <Plus className="w-6 h-6" />
+        </Button>
+      )}
+
+      {/* Dialog: Adicionar Reposição/Reenvio/Brinde */}
+      <Dialog open={showFreeForm} onOpenChange={(o) => { if (!o) resetFreeForm(); }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Adicionar Reposição, Reenvio ou Brinde</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Cliente */}
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Cliente</Label>
+              {!freeNewContactMode && !freeSelectedContact && !freeClientSaved ? (
+                <>
+                  <Input placeholder="Buscar cliente..." value={freeContactSearch} onChange={e => searchFreeContacts(e.target.value)} className="min-h-[44px] mt-1" />
+                  {freeContactResults.length > 0 && (
+                    <div className="border rounded mt-1 max-h-32 overflow-y-auto">
+                      {freeContactResults.map((c: any) => (
+                        <button key={c.id} type="button" className="w-full text-left px-3 py-2 hover:bg-muted text-sm min-h-[44px]" onClick={() => selectFreeContact(c)}>
+                          {c.nome} — {c.telefone || 's/ tel'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <Button variant="link" size="sm" className="mt-1 px-0" onClick={() => { setFreeNewContactMode(true); setFreeClientSaved(false); }}>+ Adicionar cliente</Button>
+                </>
+              ) : freeClientSaved && freeSelectedContact ? (
+                <div className="border rounded-md p-3 bg-muted/30 mt-2">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm truncate">{freeSelectedContact.nome}</p>
+                      <p className="text-xs text-muted-foreground truncate">{freeSelectedContact.telefone || 'sem telefone'}</p>
+                      {(freeSelectedContact.cidade_uf || freeSelectedContact.cidade) && (
+                        <p className="text-xs text-muted-foreground truncate">{freeSelectedContact.cidade_uf || `${freeSelectedContact.cidade || ''}${freeSelectedContact.uf ? '/' + freeSelectedContact.uf : ''}`}</p>
+                      )}
+                    </div>
+                  </div>
+                  <Button variant="link" size="sm" className="px-0 mt-1 h-auto" onClick={() => { setFreeSelectedContact(null); setFreeClientSaved(false); setFreeNewContactMode(false); }}>
+                    Trocar cliente
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2 mt-2">
+                  <Input placeholder="Nome" value={freeNomeNew} onChange={e => setFreeNomeNew(e.target.value)} className="min-h-[44px]" />
+                  <Input placeholder="CPF" value={freeCpfNew} onChange={e => setFreeCpfNew(e.target.value)} className="min-h-[44px]" />
+                  <div className="flex gap-2">
+                    <div className="flex items-center justify-center px-3 border rounded-md bg-muted text-sm min-h-[44px]">🇧🇷 +55</div>
+                    <Input
+                      placeholder="(XX) XXXXX-XXXX"
+                      value={freeTelefoneNew}
+                      onChange={e => setFreeTelefoneNew(applyPhoneMask(e.target.value))}
+                      className="min-h-[44px] flex-1"
+                    />
+                  </div>
+                  <Input placeholder="Endereço (Rua)" value={freeEnderecoNew} onChange={e => setFreeEnderecoNew(e.target.value)} className="min-h-[44px]" />
+                  <Input placeholder="Número" value={freeNumeroNew} onChange={e => setFreeNumeroNew(e.target.value)} className="min-h-[44px]" />
+                  <div className="relative">
+                    <Input
+                      placeholder="CEP (XXXXX-XXX)"
+                      value={freeCepNew}
+                      onChange={e => {
+                        const masked = applyCepMask(e.target.value);
+                        setFreeCepNew(masked);
+                        if (masked.replace(/\D/g, '').length === 8) lookupFreeCep(masked);
+                      }}
+                      className="min-h-[44px]"
+                    />
+                    {freeCepLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
+                  </div>
+                  <Input placeholder="Complemento (opcional)" value={freeComplementoNew} onChange={e => setFreeComplementoNew(e.target.value)} className="min-h-[44px]" />
+                  <Input placeholder="Bairro" value={freeBairroNew} onChange={e => setFreeBairroNew(e.target.value)} className="min-h-[44px]" />
+                  <div className="flex gap-2">
+                    <Input placeholder="Cidade" value={freeCidadeNew} onChange={e => setFreeCidadeNew(e.target.value)} className="min-h-[44px] flex-1" />
+                    <Input placeholder="UF" maxLength={2} value={freeUfClienteNew} onChange={e => setFreeUfClienteNew(e.target.value.toUpperCase())} className="min-h-[44px] w-20" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px] flex-1" onClick={saveFreeClient}>
+                      <Check className="w-4 h-4 mr-1" /> Salvar Cliente
+                    </Button>
+                    <Button variant="link" size="sm" onClick={() => { setFreeNewContactMode(false); }}>Buscar cliente existente</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Produtos */}
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Produtos</Label>
+              {freeProdutos.map((fp, idx) => (
+                <div key={idx} className="mt-2 flex gap-2">
+                  <Select value={fp.produto_id} onValueChange={v => { const n = [...freeProdutos]; n[idx].produto_id = v; setFreeProdutos(n); }}>
+                    <SelectTrigger className="min-h-[44px] flex-1"><SelectValue placeholder="Produto" /></SelectTrigger>
+                    <SelectContent>
+                      {allProdutosFree.map((pr: any) => (
+                        <SelectItem key={pr.id} value={pr.id}>
+                          {getProductDisplayName(pr)}
+                          {pr.produtos_grupos?.nome && <span className="text-muted-foreground ml-1 text-xs">({pr.produtos_grupos.nome})</span>}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input type="number" min={1} value={fp.quantidade} onChange={e => { const n = [...freeProdutos]; n[idx].quantidade = Number(e.target.value); setFreeProdutos(n); }} className="min-h-[44px] w-20" placeholder="Qtd" />
+                  {freeProdutos.length > 1 && (
+                    <Button variant="ghost" size="icon" className="min-h-[44px]" onClick={() => setFreeProdutos(freeProdutos.filter((_, i) => i !== idx))}>
+                      <XCircle className="w-4 h-4 text-destructive" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <Button variant="link" size="sm" className="px-0" onClick={() => setFreeProdutos([...freeProdutos, { produto_id: '', quantidade: 1 }])}>+ Adicionar linha</Button>
+            </div>
+
+            <Separator />
+
+            {/* Modalidade */}
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Modalidade</Label>
+              <Select value={freeModalidade} onValueChange={setFreeModalidade}>
+                <SelectTrigger className="min-h-[44px] mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mini">Mini</SelectItem>
+                  <SelectItem value="pac">PAC</SelectItem>
+                  <SelectItem value="sedex">SEDEX</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* UF de Postagem */}
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Origem (UF Postagem)</Label>
+              <Select value={freeUfPostagem} onValueChange={setFreeUfPostagem}>
+                <SelectTrigger className="min-h-[44px] mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                <SelectContent>
+                  {estoqueUfs.length === 0 && ufRegioes.length === 0 ? (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhuma UF cadastrada</div>
+                  ) : (
+                    <>
+                      {estoqueUfs.map(uf => (
+                        <SelectItem key={'uf-' + uf} value={uf}>{uf}</SelectItem>
+                      ))}
+                      {ufRegioes.map(r => (
+                        <SelectItem key={'rg-' + r.id} value={r.uf + r.codigo}>{r.uf} — {r.codigo}</SelectItem>
+                      ))}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Obs */}
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Observação (Opcional)</Label>
+              <Input value={freeObs} onChange={e => setFreeObs(e.target.value)} placeholder="Ex: Reposição lote defeituoso" className="min-h-[44px] mt-1" />
+            </div>
+
+            <Button onClick={submitFreePedido} disabled={freeSubmitting} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]">
+              {freeSubmitting ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
