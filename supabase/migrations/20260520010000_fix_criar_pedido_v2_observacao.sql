@@ -1,6 +1,7 @@
--- Fix: criar_pedido_v2 inseria socio em lowercase ('v', 'a', 'ver'),
--- violando o CHECK constraint lancamentos_socios_socio_check (V/A).
--- Normaliza para uppercase 'V' ou 'A' antes do INSERT.
+-- Fix: criar_pedido_v2 salvava observacao apenas em pedidos.obs.
+-- O frontend (PedidosPage > icone Notas) le de pedidos.observacao.
+-- Atualizamos a RPC para gravar nas duas colunas e fazemos backfill
+-- dos pedidos existentes que tinham obs preenchido mas observacao vazio.
 
 CREATE OR REPLACE FUNCTION public.criar_pedido_v2(
   p_contato_id uuid,
@@ -48,18 +49,14 @@ BEGIN
     RAISE EXCEPTION 'Contato nao encontrado: %', p_contato_id;
   END IF;
 
-  -- Normaliza socio para CHECK constraint (V/A apenas)
   IF UPPER(LEFT(COALESCE(p_criado_por, ''), 1)) = 'A' THEN
     v_socio := 'A';
   ELSE
     v_socio := 'V';
   END IF;
 
-  -- Apelido (nome) do usuario logado para campo criado_por
   SELECT nome INTO v_criado_por_apelido
-  FROM public.perfis_usuario
-  WHERE user_id = auth.uid()
-  LIMIT 1;
+  FROM public.perfis_usuario WHERE user_id = auth.uid() LIMIT 1;
   v_criado_por_apelido := COALESCE(NULLIF(v_criado_por_apelido, ''), v_socio);
 
   IF p_canal = 'REP' THEN v_canal_lancamento := 'REP';
@@ -106,6 +103,7 @@ BEGIN
     v_produto_text := '';
   END IF;
 
+  -- Grava observacao tanto em obs (legado) quanto em observacao (canonico do frontend)
   INSERT INTO public.pedidos (
     contato_id, valor, canal, status_pagamento, modalidade, uf_postagem,
     status_pedido, obs, observacao, criado_por, order_number, data,
@@ -114,7 +112,10 @@ BEGIN
   )
   VALUES (
     p_contato_id, p_valor, p_canal, p_status_pagamento, v_modalidade_calc, v_uf_postagem_calc,
-    'aguardando_rastreio', COALESCE(p_obs, '')::text, COALESCE(p_obs, '')::text, v_criado_por_apelido, v_order_number, v_data_sp,
+    'aguardando_rastreio',
+    COALESCE(p_obs, '')::text,
+    COALESCE(p_obs, '')::text,
+    v_criado_por_apelido, v_order_number, v_data_sp,
     false, now(),
     COALESCE(v_produto_text, ''), v_quantidade_total
   )
@@ -137,11 +138,9 @@ BEGIN
 
       IF FOUND THEN
         UPDATE public.lotes SET quantidade_atual = quantidade_atual - v_qtd WHERE id = v_lote_rec.id;
-
         INSERT INTO public.estoque_movimentacoes (pedido_id, produto_id, quantidade, tipo, lote_id, uf_origem, observacao)
         VALUES (v_pedido_id, v_produto_id, v_qtd, 'saida', v_lote_rec.id, v_lote_rec.uf, 'Pedido #' || v_order_number::text);
       ELSE
-        -- Sem lote: registra a saida mesmo assim para manter trilha de auditoria
         INSERT INTO public.estoque_movimentacoes (pedido_id, produto_id, quantidade, tipo, uf_origem, observacao)
         VALUES (v_pedido_id, v_produto_id, v_qtd, 'saida', v_uf_postagem_calc, 'Pedido #' || v_order_number::text || ' (sem lote)');
       END IF;
@@ -152,7 +151,6 @@ BEGIN
   END IF;
 
   IF p_status_pagamento = 'pago' THEN
-    -- Snapshot dos saldos ANTES de inserir esta venda
     SELECT
       COALESCE(SUM(CASE WHEN socio = 'V' THEN valor ELSE 0 END), 0),
       COALESCE(SUM(CASE WHEN socio = 'A' THEN valor ELSE 0 END), 0)
@@ -180,3 +178,8 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.criar_pedido_v2 TO anon, authenticated, service_role;
+
+-- Backfill: pedidos antigos com obs mas sem observacao
+UPDATE public.pedidos
+SET observacao = obs
+WHERE COALESCE(observacao, '') = '' AND COALESCE(obs, '') <> '';
