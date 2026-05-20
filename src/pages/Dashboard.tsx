@@ -152,8 +152,9 @@ export default function Dashboard() {
         .select('valor, canal')
         .in('canal', channels)
         .neq('is_free', true)
-        .gte('data', dateFrom)
-        .lte('data', dateTo);
+        .eq('status_pagamento', 'pago')
+        .gte('data_pago', dateFrom)
+        .lte('data_pago', dateTo);
       
       if (error) throw error;
 
@@ -181,7 +182,7 @@ export default function Dashboard() {
       const { count: adsTotal } = await supabase.from('contatos').select('id', { count: 'exact', head: true })
         .eq('canal_origem', 'ADS').gte('created_at', rangeStart).lte('created_at', rangeEnd);
       const { count: adsPagou } = await supabase.from('pedidos').select('id', { count: 'exact', head: true })
-        .eq('canal', 'ADS').eq('status_pagamento', 'pago').neq('is_free', true).gte('data', dateFrom).lte('data', dateTo);
+        .eq('canal', 'ADS').eq('status_pagamento', 'pago').neq('is_free', true).gte('data_pago', dateFrom).lte('data_pago', dateTo);
       return { total: adsTotal || 0, pagou: adsPagou || 0 };
     },
     staleTime: 5 * 60 * 1000,
@@ -222,8 +223,9 @@ export default function Dashboard() {
       const currentMonthStart = `${year}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
 
       const [pedRangeData, channelData] = await Promise.all([
-        supabase.from('pedidos').select('id, valor, quantidade, canal, contato_id, data, produto, contatos(nome)').neq('is_free', true).gte('data', dateFrom).lte('data', dateTo),
-        supabase.from('pedidos').select('valor, canal').neq('is_free', true).gte('data', currentMonthStart)
+        // Faturamento/produtos/recorrentes — somente pagos, usando data_pago (data do recebimento)
+        supabase.from('pedidos').select('id, valor, quantidade, canal, contato_id, data_pago, produto, contatos(nome)').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', dateFrom).lte('data_pago', dateTo),
+        supabase.from('pedidos').select('valor, canal').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', currentMonthStart)
       ]);
 
       const fat = pedRangeData.data?.reduce((s, p) => s + Number(p.valor || 0), 0) || 0;
@@ -252,8 +254,8 @@ export default function Dashboard() {
       const yesterdayStr = `${yesterdayDate.getFullYear()}-${String(yesterdayDate.getMonth() + 1).padStart(2, '0')}-${String(yesterdayDate.getDate()).padStart(2, '0')}`;
       
       const [todayData, yesterdayData] = await Promise.all([
-        supabase.from('pedidos').select('valor').neq('is_free', true).gte('data', todayStr).lte('data', todayStr),
-        supabase.from('pedidos').select('valor').neq('is_free', true).gte('data', yesterdayStr).lte('data', yesterdayStr)
+        supabase.from('pedidos').select('valor').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', todayStr).lte('data_pago', todayStr),
+        supabase.from('pedidos').select('valor').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', yesterdayStr).lte('data_pago', yesterdayStr)
       ]);
 
       const todayFat = todayData.data?.reduce((s, r) => s + Number(r.valor), 0) || 0;
@@ -270,7 +272,7 @@ export default function Dashboard() {
       for (let m = 1; m <= 12; m++) {
         const start = `${year}-${String(m).padStart(2, '0')}-01`;
         const end = m === 12 ? `${year + 1}-01-01` : `${year}-${String(m + 1).padStart(2, '0')}-01`;
-        monthPromises.push(supabase.from('pedidos').select('valor').neq('is_free', true).gte('data', start).lt('data', end));
+        monthPromises.push(supabase.from('pedidos').select('valor').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', start).lt('data_pago', end));
       }
       const monthResults = await Promise.all(monthPromises);
       monthResults.forEach((res, m) => {

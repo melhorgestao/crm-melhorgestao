@@ -286,13 +286,15 @@ export default function PedidosPage() {
     setMarkingPago(true);
     const p = marcarPagoTarget;
     try {
-      // 1. Update pedido status
+      // 1. Update pedido status — data_pago = hoje (data do recebimento)
+      const todayISO = new Date().toISOString().slice(0, 10);
       const { error: pError } = await supabase.from('pedidos')
-        .update({ 
-          status_pagamento: 'pago', 
+        .update({
+          status_pagamento: 'pago',
           status_pedido: 'aguardando_rastreio',
-          recebido_por: marcarPagoSocio
-        })
+          recebido_por: marcarPagoSocio,
+          data_pago: todayISO,
+        } as any)
         .eq('id', p.id);
       if (pError) throw pError;
 

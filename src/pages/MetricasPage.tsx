@@ -28,8 +28,9 @@ export default function MetricasPage() {
     const nextY = month === 12 ? year + 1 : year;
     const end = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
 
-    // Exclui pedidos FREE: nao contam em faturamento, produtos, ticket medio, etc.
-    const { data: pedAll } = await supabase.from('pedidos').select('*').gte('data', start).lt('data', end);
+    // Faturamento/produtos so contam pedidos PAGOS, computados no dia do recebimento (data_pago).
+    // Exclui pedidos FREE.
+    const { data: pedAll } = await supabase.from('pedidos').select('*').eq('status_pagamento', 'pago').gte('data_pago', start).lt('data_pago', end);
     const ped = (pedAll || []).filter((p: any) => !p.is_free);
     const { data: fin } = await supabase.from('financeiro').select('*').gte('data', start).lt('data', end);
 
