@@ -806,7 +806,7 @@ export default function PedidosPage() {
               }
               return (
                 <div key={p.id} className="border-b border-border/50 py-2">
-                  <p>{prodDisplay} — {formatBRL(Number(p.valor))} — {formatDateShort(p.data)} — {p.status_pedido === 'entregue' ? '✅ Entregue' : p.status_pedido === 'postado' ? 'Postado' : 'Aguardando'}</p>
+                  <p>{prodDisplay} — {p.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(p.valor))} — {formatDateShort(p.data)} — {p.status_pedido === 'entregue' ? '✅ Entregue' : p.status_pedido === 'postado' ? 'Postado' : 'Aguardando'}</p>
                 </div>
               );
             })}
@@ -835,7 +835,7 @@ export default function PedidosPage() {
                   return <p className="ml-2">{getTagDisplayName(detailPedido.produto)} × {detailPedido.quantidade}</p>;
                 })()}
               </div>
-              <p><strong>Valor Total:</strong> {formatBRL(Number(detailPedido.valor))}</p>
+              <p><strong>Valor Total:</strong> {detailPedido.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(detailPedido.valor))}</p>
               <p><strong>CPF:</strong> {(detailPedido.contatos as any)?.cpf || '—'}</p>
               <p><strong>Endereço:</strong> {(detailPedido.contatos as any)?.endereco || '—'}</p>
               <p><strong>Complemento:</strong> {(detailPedido.contatos as any)?.complemento || '—'}</p>
