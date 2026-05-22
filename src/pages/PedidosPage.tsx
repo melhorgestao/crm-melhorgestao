@@ -39,6 +39,15 @@ export default function PedidosPage() {
   const [markingPago, setMarkingPago] = useState(false);
   const [socios, setSocios] = useState<{ key: string; nome: string }[]>([]);
 
+  // Parcela / Desconto
+  const [parcelaTarget, setParcelaTarget] = useState<any>(null);
+  const [parcelaValor, setParcelaValor] = useState<string>('');
+  const [parcelaSocio, setParcelaSocio] = useState<string | null>(null);
+  const [applyingParcela, setApplyingParcela] = useState(false);
+  const [descontoTarget, setDescontoTarget] = useState<any>(null);
+  const [descontoValor, setDescontoValor] = useState<string>('');
+  const [applyingDesconto, setApplyingDesconto] = useState(false);
+
   // Ranking
   const [rankStart, setRankStart] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [rankEnd, setRankEnd] = useState(new Date().toISOString().split('T')[0]);
@@ -365,6 +374,63 @@ export default function PedidosPage() {
     }
   };
 
+  const handleAplicarParcela = async () => {
+    if (!parcelaTarget || !parcelaSocio || !parcelaValor) return;
+    const valor = Number(parcelaValor);
+    if (!Number.isFinite(valor) || valor <= 0) { toast.error('Valor inválido'); return; }
+    setApplyingParcela(true);
+    try {
+      const { data, error } = await supabase.rpc('aplicar_parcela_pedido' as any, {
+        p_pedido_id: parcelaTarget.id,
+        p_valor: valor,
+        p_socio: parcelaSocio,
+      });
+      if (error) throw error;
+      const res = data as any;
+      if (res?.status === 'pago') {
+        toast.success(`Parcela aplicada — pedido quitado!`);
+      } else {
+        toast.success(`Parcela de ${formatBRL(valor)} aplicada. Saldo: ${formatBRL(Number(res?.saldo_atual || 0))}`);
+      }
+      setParcelaTarget(null); setParcelaValor(''); setParcelaSocio(null);
+      queryClient.invalidateQueries({ queryKey: ['pedidos_lista'] });
+      queryClient.invalidateQueries({ queryKey: ['pedidos_pendentes'] });
+    } catch (err: any) {
+      toast.error('Erro ao aplicar parcela: ' + (err.message || 'desconhecido'));
+      console.error(err);
+    } finally {
+      setApplyingParcela(false);
+    }
+  };
+
+  const handleAplicarDesconto = async () => {
+    if (!descontoTarget || !descontoValor) return;
+    const valor = Number(descontoValor);
+    if (!Number.isFinite(valor) || valor <= 0) { toast.error('Valor inválido'); return; }
+    setApplyingDesconto(true);
+    try {
+      const { data, error } = await supabase.rpc('aplicar_desconto_pedido' as any, {
+        p_pedido_id: descontoTarget.id,
+        p_valor: valor,
+      });
+      if (error) throw error;
+      const res = data as any;
+      if (res?.status === 'pago') {
+        toast.success(`Desconto aplicado — pedido quitado!`);
+      } else {
+        toast.success(`Desconto de ${formatBRL(valor)} aplicado. Saldo: ${formatBRL(Number(res?.saldo_atual || 0))}`);
+      }
+      setDescontoTarget(null); setDescontoValor('');
+      queryClient.invalidateQueries({ queryKey: ['pedidos_lista'] });
+      queryClient.invalidateQueries({ queryKey: ['pedidos_pendentes'] });
+    } catch (err: any) {
+      toast.error('Erro ao aplicar desconto: ' + (err.message || 'desconhecido'));
+      console.error(err);
+    } finally {
+      setApplyingDesconto(false);
+    }
+  };
+
   // FREE nunca entra em totais nem em ticket medio
   const totalSum = filteredPedidos.reduce((s, p) => s + (p.is_free ? 0 : (Number(p.valor) || 0)), 0);
   const pagosNonFree = filteredPedidos.filter(p => !p.is_free).length;
@@ -636,9 +702,17 @@ export default function PedidosPage() {
                       </Popover>
                     </td>
                     <td className="py-2">
-                      <Button size="sm" className="min-h-[44px] bg-sf-green hover:bg-sf-green/90 text-primary-foreground" onClick={() => setMarcarPagoTarget(p)}>
-                        Marcar como Pago
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <Button size="sm" className="min-h-[40px] bg-sf-green hover:bg-sf-green/90 text-primary-foreground" onClick={() => setMarcarPagoTarget(p)}>
+                          Pago
+                        </Button>
+                        <Button size="sm" variant="outline" className="min-h-[40px]" onClick={() => setParcelaTarget(p)}>
+                          Parcela
+                        </Button>
+                        <Button size="sm" variant="outline" className="min-h-[40px]" onClick={() => setDescontoTarget(p)}>
+                          Desconto
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -686,9 +760,15 @@ export default function PedidosPage() {
                       {p.status_pedido === 'entregue' ? '✅ Entregue' : p.status_pedido === 'postado' ? 'Postado' : 'Aguardando'}
                     </Badge>
                   </div>
-                  <div className="mt-2">
-                    <Button size="sm" className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground text-xs" onClick={() => setMarcarPagoTarget(p)}>
-                      Marcar como Pago
+                  <div className="mt-2 flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+                    <Button size="sm" className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground text-xs min-h-[40px]" onClick={() => setMarcarPagoTarget(p)}>
+                      Pago
+                    </Button>
+                    <Button size="sm" variant="outline" className="w-full text-xs min-h-[40px]" onClick={() => setParcelaTarget(p)}>
+                      Parcela
+                    </Button>
+                    <Button size="sm" variant="outline" className="w-full text-xs min-h-[40px]" onClick={() => setDescontoTarget(p)}>
+                      Desconto
                     </Button>
                   </div>
                 </div>
@@ -768,8 +848,8 @@ export default function PedidosPage() {
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setMarcarPagoSocio(null)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleMarcarPago} 
+            <AlertDialogAction
+              onClick={handleMarcarPago}
               disabled={!marcarPagoSocio || markingPago}
               className="bg-sf-green hover:bg-sf-green/90"
             >
@@ -778,6 +858,98 @@ export default function PedidosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Parcela Dialog */}
+      <Dialog open={!!parcelaTarget} onOpenChange={(o) => { if (!o) { setParcelaTarget(null); setParcelaValor(''); setParcelaSocio(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Receber Parcela</DialogTitle>
+          </DialogHeader>
+          {parcelaTarget && (
+            <div className="space-y-4 py-2">
+              <div className="text-sm text-muted-foreground">
+                Pedido #{parcelaTarget.order_number} — {(parcelaTarget.contatos as any)?.nome || '—'}<br />
+                <span>Saldo devedor: <strong className="text-foreground">{formatBRL(Number(parcelaTarget.valor || 0))}</strong></span>
+              </div>
+              <div>
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">Valor da parcela</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  max={Number(parcelaTarget.valor || 0)}
+                  value={parcelaValor}
+                  onChange={e => setParcelaValor(e.target.value)}
+                  placeholder="0,00"
+                  className="min-h-[44px] mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">Sócio que recebeu</Label>
+                <div className="flex gap-2 mt-2">
+                  {socios.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">Nenhum sócio cadastrado.</div>
+                  ) : socios.map(s => (
+                    <Button
+                      key={s.key}
+                      variant={parcelaSocio === s.key ? 'default' : 'outline'}
+                      className={cn('flex-1 min-h-[44px]', parcelaSocio === s.key && 'bg-sf-green hover:bg-sf-green/90')}
+                      onClick={() => setParcelaSocio(s.key)}
+                    >
+                      {s.nome}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <Button
+                className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]"
+                disabled={applyingParcela || !parcelaSocio || !parcelaValor || Number(parcelaValor) <= 0 || Number(parcelaValor) > Number(parcelaTarget.valor || 0)}
+                onClick={handleAplicarParcela}
+              >
+                {applyingParcela ? 'Processando...' : 'Aplicar Parcela'}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Desconto Dialog */}
+      <Dialog open={!!descontoTarget} onOpenChange={(o) => { if (!o) { setDescontoTarget(null); setDescontoValor(''); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Aplicar Desconto</DialogTitle>
+          </DialogHeader>
+          {descontoTarget && (
+            <div className="space-y-4 py-2">
+              <div className="text-sm text-muted-foreground">
+                Pedido #{descontoTarget.order_number} — {(descontoTarget.contatos as any)?.nome || '—'}<br />
+                <span>Saldo devedor: <strong className="text-foreground">{formatBRL(Number(descontoTarget.valor || 0))}</strong></span>
+              </div>
+              <div>
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">Valor do desconto</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  max={Number(descontoTarget.valor || 0)}
+                  value={descontoValor}
+                  onChange={e => setDescontoValor(e.target.value)}
+                  placeholder="0,00"
+                  className="min-h-[44px] mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Máximo: {formatBRL(Number(descontoTarget.valor || 0))}</p>
+              </div>
+              <Button
+                className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]"
+                disabled={applyingDesconto || !descontoValor || Number(descontoValor) <= 0 || Number(descontoValor) > Number(descontoTarget.valor || 0)}
+                onClick={handleAplicarDesconto}
+              >
+                {applyingDesconto ? 'Processando...' : 'Aplicar Desconto'}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Contact detail dialog */}
       <Dialog open={!!selectedContact} onOpenChange={() => setSelectedContact(null)}>
