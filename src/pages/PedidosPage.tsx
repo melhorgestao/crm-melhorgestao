@@ -6,6 +6,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -47,6 +48,11 @@ export default function PedidosPage() {
   const [descontoTarget, setDescontoTarget] = useState<any>(null);
   const [descontoValor, setDescontoValor] = useState<string>('');
   const [applyingDesconto, setApplyingDesconto] = useState(false);
+
+  // Notas editaveis
+  const [notasTarget, setNotasTarget] = useState<any>(null);
+  const [notasTexto, setNotasTexto] = useState<string>('');
+  const [savingNotas, setSavingNotas] = useState(false);
 
   // Ranking
   const [rankStart, setRankStart] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
@@ -431,6 +437,42 @@ export default function PedidosPage() {
     }
   };
 
+  const openNotasEditor = (p: any) => {
+    setNotasTarget(p);
+    setNotasTexto(p?.observacao || '');
+  };
+
+  const handleSalvarNotas = async () => {
+    if (!notasTarget) return;
+    setSavingNotas(true);
+    try {
+      const novoTexto = (notasTexto || '').trim();
+      const { error } = await supabase.from('pedidos')
+        .update({ observacao: novoTexto || null, obs: novoTexto || null } as any)
+        .eq('id', notasTarget.id);
+      if (error) throw error;
+
+      await supabase.from('log_atividades').insert({
+        usuario: profile?.nome || 'Sistema',
+        acao: novoTexto ? 'Atualizou observação do pedido' : 'Removeu observação do pedido',
+        tabela_afetada: 'pedidos',
+        registro_id: notasTarget.id,
+        detalhe: `Pedido #${notasTarget.order_number}`,
+      });
+
+      toast.success('Observação salva');
+      setNotasTarget(null);
+      setNotasTexto('');
+      queryClient.invalidateQueries({ queryKey: ['pedidos_lista'] });
+      queryClient.invalidateQueries({ queryKey: ['pedidos_pendentes'] });
+    } catch (err: any) {
+      toast.error('Erro ao salvar observação: ' + (err.message || 'desconhecido'));
+      console.error(err);
+    } finally {
+      setSavingNotas(false);
+    }
+  };
+
   // FREE nunca entra em totais nem em ticket medio
   const totalSum = filteredPedidos.reduce((s, p) => s + (p.is_free ? 0 : (Number(p.valor) || 0)), 0);
   const pagosNonFree = filteredPedidos.filter(p => !p.is_free).length;
@@ -689,17 +731,15 @@ export default function PedidosPage() {
                       </Badge>
                     </td>
                     <td className="py-2 text-center">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="ghost" size="icon" className={cn("h-8 w-8", !p.observacao && "opacity-20 hover:opacity-100")}>
-                            <StickyNote className={cn("w-4 h-4", p.observacao ? "text-orange-500" : "text-muted-foreground")} />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-3 text-sm">
-                          <p className="font-bold text-xs text-muted-foreground mb-1 uppercase tracking-wider">Observações</p>
-                          <p className="whitespace-pre-wrap">{p.observacao || 'Nenhuma observação informada.'}</p>
-                        </PopoverContent>
-                      </Popover>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn("h-8 w-8", !p.observacao && "opacity-20 hover:opacity-100")}
+                        onClick={() => openNotasEditor(p)}
+                        title="Editar observação"
+                      >
+                        <StickyNote className={cn("w-4 h-4", p.observacao ? "text-orange-500" : "text-muted-foreground")} />
+                      </Button>
                     </td>
                     <td className="py-2">
                       <div className="flex items-center gap-1.5">
@@ -739,17 +779,15 @@ export default function PedidosPage() {
                       <span className="text-xs text-muted-foreground ml-2">{formatDateShort(p.data)}</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="ghost" size="icon" className={cn("h-6 w-6 p-0", !p.observacao && "opacity-30 hover:opacity-100")} onClick={e => e.stopPropagation()}>
-                            <StickyNote className={cn("w-4 h-4", p.observacao ? "text-orange-500" : "text-muted-foreground")} />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-3 text-sm">
-                          <p className="font-bold text-xs text-muted-foreground mb-1 uppercase tracking-wider">Observações</p>
-                          <p className="whitespace-pre-wrap">{p.observacao || 'Nenhuma observação informada.'}</p>
-                        </PopoverContent>
-                      </Popover>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn("h-6 w-6 p-0", !p.observacao && "opacity-30 hover:opacity-100")}
+                        onClick={e => { e.stopPropagation(); openNotasEditor(p); }}
+                        title="Editar observação"
+                      >
+                        <StickyNote className={cn("w-4 h-4", p.observacao ? "text-orange-500" : "text-muted-foreground")} />
+                      </Button>
                       <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
                     </div>
                   </div>
@@ -858,6 +896,46 @@ export default function PedidosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Notas / Observação editável */}
+      <Dialog open={!!notasTarget} onOpenChange={(o) => { if (!o) { setNotasTarget(null); setNotasTexto(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Observação — Pedido #{notasTarget?.order_number}</DialogTitle>
+          </DialogHeader>
+          {notasTarget && (
+            <div className="space-y-3 py-2">
+              <div className="text-sm text-muted-foreground">
+                Cliente: <strong className="text-foreground">{(notasTarget.contatos as any)?.nome || '—'}</strong>
+              </div>
+              <Textarea
+                value={notasTexto}
+                onChange={e => setNotasTexto(e.target.value)}
+                placeholder="Anote informações relevantes do pedido..."
+                rows={6}
+                className="min-h-[140px] resize-y"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 min-h-[44px]"
+                  onClick={() => { setNotasTarget(null); setNotasTexto(''); }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1 bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]"
+                  disabled={savingNotas}
+                  onClick={handleSalvarNotas}
+                >
+                  {savingNotas ? 'Salvando...' : 'Salvar'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Parcela Dialog */}
       <Dialog open={!!parcelaTarget} onOpenChange={(o) => { if (!o) { setParcelaTarget(null); setParcelaValor(''); setParcelaSocio(null); } }}>
