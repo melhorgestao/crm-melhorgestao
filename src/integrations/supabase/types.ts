@@ -427,6 +427,7 @@ export type Database = {
       }
       instancias: {
         Row: {
+          acesso_kanban: string | null
           ativo: boolean
           created_at: string
           dono_tipo: string | null
@@ -438,6 +439,7 @@ export type Database = {
           tipo: string
         }
         Insert: {
+          acesso_kanban?: string | null
           ativo?: boolean
           created_at?: string
           dono_tipo?: string | null
@@ -449,6 +451,7 @@ export type Database = {
           tipo: string
         }
         Update: {
+          acesso_kanban?: string | null
           ativo?: boolean
           created_at?: string
           dono_tipo?: string | null
@@ -746,6 +749,8 @@ export type Database = {
           created_at: string
           criado_por: string | null
           data: string
+          data_pago: string | null
+          desconto_total: number | null
           endereco_entrega: string | null
           entrega_em_maos: boolean | null
           estoque_debitado: boolean | null
@@ -758,6 +763,7 @@ export type Database = {
           gateway_etiqueta: string | null
           id: string
           instancia_id: string | null
+          is_free: boolean | null
           largura_caixa: number | null
           locked_at: string | null
           modalidade: string | null
@@ -778,6 +784,7 @@ export type Database = {
           uf_cliente: string | null
           uf_postagem: string | null
           valor: number | null
+          valor_original: number | null
         }
         Insert: {
           altura_caixa?: number | null
@@ -790,6 +797,8 @@ export type Database = {
           created_at?: string
           criado_por?: string | null
           data?: string
+          data_pago?: string | null
+          desconto_total?: number | null
           endereco_entrega?: string | null
           entrega_em_maos?: boolean | null
           estoque_debitado?: boolean | null
@@ -802,6 +811,7 @@ export type Database = {
           gateway_etiqueta?: string | null
           id?: string
           instancia_id?: string | null
+          is_free?: boolean | null
           largura_caixa?: number | null
           locked_at?: string | null
           modalidade?: string | null
@@ -822,6 +832,7 @@ export type Database = {
           uf_cliente?: string | null
           uf_postagem?: string | null
           valor?: number | null
+          valor_original?: number | null
         }
         Update: {
           altura_caixa?: number | null
@@ -834,6 +845,8 @@ export type Database = {
           created_at?: string
           criado_por?: string | null
           data?: string
+          data_pago?: string | null
+          desconto_total?: number | null
           endereco_entrega?: string | null
           entrega_em_maos?: boolean | null
           estoque_debitado?: boolean | null
@@ -846,6 +859,7 @@ export type Database = {
           gateway_etiqueta?: string | null
           id?: string
           instancia_id?: string | null
+          is_free?: boolean | null
           largura_caixa?: number | null
           locked_at?: string | null
           modalidade?: string | null
@@ -866,6 +880,7 @@ export type Database = {
           uf_cliente?: string | null
           uf_postagem?: string | null
           valor?: number | null
+          valor_original?: number | null
         }
         Relationships: [
           {
