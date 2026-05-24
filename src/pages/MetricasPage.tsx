@@ -28,10 +28,20 @@ export default function MetricasPage() {
     const nextY = month === 12 ? year + 1 : year;
     const end = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
 
-    // Faturamento/produtos so contam pedidos PAGOS, computados no dia do recebimento (data_pago).
-    // Exclui pedidos FREE.
+    // Faturamento/lucros/medidas: pedidos PAGOS, computados no dia do recebimento (data_pago).
+    // Exclui FREE (canal a parte) — esses NUNCA afetam lucro/margem/medLucro por canal.
     const { data: pedAll } = await supabase.from('pedidos').select('*').eq('status_pagamento', 'pago').gte('data_pago', start).lt('data_pago', end);
     const ped = (pedAll || []).filter((p: any) => !p.is_free);
+
+    // Produtos FREE do periodo (canal a parte) — entram so no total geral de produtos
+    const { data: pedFree } = await supabase.from('pedidos').select('quantidade, data_pago')
+      .eq('is_free', true).gte('data_pago', start).lt('data_pago', end);
+
+    // Produtos PENDENTES do periodo (data de criacao, ja que data_pago e NULL)
+    // Ja foram enviados, estoque ja consumido — entram no total geral
+    const { data: pedPend } = await supabase.from('pedidos').select('quantidade, data')
+      .eq('status_pagamento', 'pendente').neq('is_free', true).gte('data', start).lt('data', end);
+
     const { data: fin } = await supabase.from('financeiro').select('*').gte('data', start).lt('data', end);
 
     // Faturamento vem de pedidos (vendas)
@@ -50,10 +60,18 @@ export default function MetricasPage() {
     const logTotal = despesas.filter(d => d.categoria === 'logistica').reduce((s, d) => s + Number(d.valor), 0);
     const materialTotal = despesas.filter(d => d.categoria === 'material').reduce((s, d) => s + Number(d.valor), 0);
 
+    // Produtos por canal: SO pagos non-FREE. Mantem todas as metricas de lucro intactas.
     const prodTotal = (ped || []).reduce((s, p) => s + (p.quantidade || 0), 0);
     const prodAds = (ped || []).filter(p => p.canal === 'ADS').reduce((s, p) => s + (p.quantidade || 0), 0);
     const prodBase = (ped || []).filter(p => p.canal === 'BASE').reduce((s, p) => s + (p.quantidade || 0), 0);
     const prodRep = (ped || []).filter(p => p.canal === 'REP').reduce((s, p) => s + (p.quantidade || 0), 0);
+
+    // Produtos do canal FREE (brindes/reposicoes) — separado, NAO afeta lucro
+    const prodFree = (pedFree || []).reduce((s, p) => s + (p.quantidade || 0), 0);
+    // Produtos de pedidos pendentes (ja enviados, custos ja incorridos)
+    const prodPendentes = (pedPend || []).reduce((s, p) => s + (p.quantidade || 0), 0);
+    // Total realista: pagos + free + pendentes — visao operacional completa
+    const prodTotalRealistico = prodTotal + prodFree + prodPendentes;
 
     const lucro = fatTotal - custoTotal;
     const margem = fatTotal > 0 ? (lucro / fatTotal) * 100 : 0;
@@ -70,7 +88,7 @@ export default function MetricasPage() {
     setData({
       fatTotal, fatBase, fatAds, fatRep,
       custoTotal, custoAds, etiquetaTotal, logTotal, materialTotal,
-      prodTotal, prodAds, prodBase, prodRep,
+      prodTotal, prodAds, prodBase, prodRep, prodFree, prodPendentes, prodTotalRealistico,
       lucro, margem, icm, cpaUnAds, custoOpUn, custoProdUn,
       medLucroBase, medLucroAds, medLucroRep, medLucroGeral,
     });
@@ -107,7 +125,7 @@ export default function MetricasPage() {
       {/* Top 3 */}
       <div className="grid grid-cols-3 gap-4">
         <MetricCard label="💰 Faturamento Total" value={formatBRL(data.fatTotal)} color="bg-card border-l-4 border-l-primary" />
-        <MetricCard label="📦 Total de Produtos" value={String(data.prodTotal)} color="bg-card border-l-4 border-l-primary" />
+        <MetricCard label="📦 Total de Produtos" value={String(data.prodTotalRealistico ?? data.prodTotal)} color="bg-card border-l-4 border-l-primary" />
         <MetricCard label="💵 Lucro" value={formatBRL(data.lucro)} color="bg-card border-l-4 border-l-primary" />
       </div>
 
@@ -168,11 +186,13 @@ export default function MetricasPage() {
       {/* Produtos */}
       <div>
         <h2 className="font-bold mb-2" style={{ color: '#1976D2' }}>PRODUTOS</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <MetricCard label="Total de Produtos" value={String(data.prodTotal)} color="bg-card border-l-4 border-l-blue-500" />
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+          <MetricCard label="Total de Produtos" value={String(data.prodTotalRealistico ?? data.prodTotal)} color="bg-card border-l-4 border-l-blue-500" />
           <MetricCard label="Prod. ADS" value={String(data.prodAds)} color="bg-card border-l-4 border-l-blue-500" />
           <MetricCard label="Prod. Base" value={String(data.prodBase)} color="bg-card border-l-4 border-l-blue-500" />
           <MetricCard label="Prod. Rep" value={String(data.prodRep)} color="bg-card border-l-4 border-l-blue-500" />
+          <MetricCard label="Prod. Pendentes" value={String(data.prodPendentes ?? 0)} color="bg-card border-l-4 border-l-amber-500" />
+          <MetricCard label="Prod. Free" value={String(data.prodFree ?? 0)} color="bg-card border-l-4 border-l-sky-500" />
         </div>
       </div>
     </div>
