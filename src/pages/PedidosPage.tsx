@@ -753,13 +753,13 @@ export default function PedidosPage() {
                     </td>
                     <td className="py-2">
                       <div className="flex items-center gap-1.5">
-                        <Button size="sm" className="min-h-[40px] bg-destructive hover:bg-destructive/90 text-destructive-foreground" onClick={() => setMarcarPagoTarget(p)}>
+                        <Button size="sm" className="min-h-[40px] bg-sf-green hover:bg-sf-green/90 text-primary-foreground" onClick={() => setMarcarPagoTarget(p)}>
                           Pago
                         </Button>
                         <Button size="sm" className="min-h-[40px] bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setParcelaTarget(p)}>
                           Parcela
                         </Button>
-                        <Button size="sm" variant="outline" className="min-h-[40px]" onClick={() => setDescontoTarget(p)}>
+                        <Button size="sm" className="min-h-[40px] bg-destructive hover:bg-destructive/90 text-destructive-foreground" onClick={() => setDescontoTarget(p)}>
                           Desconto
                         </Button>
                       </div>
@@ -809,13 +809,13 @@ export default function PedidosPage() {
                     </Badge>
                   </div>
                   <div className="mt-2 flex flex-col gap-2" onClick={e => e.stopPropagation()}>
-                    <Button size="sm" className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs min-h-[40px]" onClick={() => setMarcarPagoTarget(p)}>
+                    <Button size="sm" className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground text-xs min-h-[40px]" onClick={() => setMarcarPagoTarget(p)}>
                       Pago
                     </Button>
                     <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs min-h-[40px]" onClick={() => setParcelaTarget(p)}>
                       Parcela
                     </Button>
-                    <Button size="sm" variant="outline" className="w-full text-xs min-h-[40px]" onClick={() => setDescontoTarget(p)}>
+                    <Button size="sm" className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs min-h-[40px]" onClick={() => setDescontoTarget(p)}>
                       Desconto
                     </Button>
                   </div>
