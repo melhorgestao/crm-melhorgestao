@@ -966,7 +966,7 @@ export default function FinanceiroPage() {
                   l.tipo === 'VENDA' ? 'bg-green-100/60 dark:bg-green-900/20' :
                   l.tipo === 'PARCELA_VENDA' ? 'bg-green-100/60 dark:bg-green-900/20' :
                   l.tipo === 'TRANSFERENCIA' ? 'bg-blue-100/50 dark:bg-blue-900/20' :
-                  l.tipo === 'LUCRO' ? 'bg-purple-100/60 dark:bg-purple-900/20' :
+                  l.tipo === 'LUCRO' ? 'bg-yellow-100/70 dark:bg-yellow-900/25' :
                   (l.tipo === 'MATERIAL' || l.tipo === 'ETIQUETA' || l.tipo === 'ADS' || l.tipo === 'LOGISTICA') ? 'bg-red-100/60 dark:bg-red-900/20' :
                   'bg-muted/30'
                 )}

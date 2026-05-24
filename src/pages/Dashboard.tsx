@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { formatBRL } from '@/lib/format';
-import { DollarSign, Tag, Package, UserPlus, RefreshCw, TrendingUp, TrendingDown, Target, CreditCard } from 'lucide-react';
+import { DollarSign, Tag, Package, UserPlus, RefreshCw, TrendingUp, TrendingDown, Target, CreditCard, Users } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -239,32 +239,50 @@ export default function Dashboard() {
         if (p.canal === 'ADS' && p.contato_id) novosSet.add(p.contato_id);
       });
 
-      // Clientes Recorrentes = contatos únicos com pedido no período onde canal IN (BASE, REP, C-REP)
+      // Clientes Recorrentes = contatos únicos com pedido no período onde canal = BASE
       const recorrentesSet = new Set<string>();
       pedRange.forEach(p => {
-        if ((p.canal === 'BASE' || p.canal === 'REP' || p.canal === 'C-REP') && p.contato_id) recorrentesSet.add(p.contato_id);
+        if (p.canal === 'BASE' && p.contato_id) recorrentesSet.add(p.contato_id);
       });
 
-      const dayStats = { faturamento: fat, ticket: totalPedidos ? fat / totalPedidos : 0, produtos: totalProdutos, novos: novosSet.size, recorrentes: recorrentesSet.size };
+      // Clientes Representantes = contatos únicos com pedido no período onde canal IN (REP, C-REP)
+      const repSet = new Set<string>();
+      pedRange.forEach(p => {
+        if ((p.canal === 'REP' || p.canal === 'C-REP') && p.contato_id) repSet.add(p.contato_id);
+      });
+
+      const dayStats = { faturamento: fat, ticket: totalPedidos ? fat / totalPedidos : 0, produtos: totalProdutos, novos: novosSet.size, recorrentes: recorrentesSet.size, representantes: repSet.size };
       
       const faturamentoMes = channelData.data?.reduce((s, r) => s + Number(r.valor || 0), 0) || 0;
 
-      const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-      const yesterdayDate = new Date(Date.now() - 86400000);
-      const yesterdayStr = `${yesterdayDate.getFullYear()}-${String(yesterdayDate.getMonth() + 1).padStart(2, '0')}-${String(yesterdayDate.getDate()).padStart(2, '0')}`;
-      
-      const [todayData, yesterdayData] = await Promise.all([
-        supabase.from('pedidos').select('valor').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', todayStr).lte('data_pago', todayStr),
-        supabase.from('pedidos').select('valor').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', yesterdayStr).lte('data_pago', yesterdayStr)
+      // Periodo de comparacao espelha o periodo atual com o mesmo numero de dias.
+      // 'hoje' -> ontem | 'ontem' -> anteontem | 'semana' -> semana passada | '15dias' -> 15 anteriores
+      const toISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const fromDate = new Date(`${dateFrom}T00:00:00`);
+      const toDate = new Date(`${dateTo}T00:00:00`);
+      const spanDays = Math.round((toDate.getTime() - fromDate.getTime()) / 86400000) + 1;
+      const prevToDate = new Date(fromDate.getTime() - 86400000);
+      const prevFromDate = new Date(prevToDate.getTime() - (spanDays - 1) * 86400000);
+      const prevFromStr = toISO(prevFromDate);
+      const prevToStr = toISO(prevToDate);
+
+      const [currentData, prevData] = await Promise.all([
+        supabase.from('pedidos').select('valor').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', dateFrom).lte('data_pago', dateTo),
+        supabase.from('pedidos').select('valor').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', prevFromStr).lte('data_pago', prevToStr),
       ]);
 
-      const todayFat = todayData.data?.reduce((s, r) => s + Number(r.valor), 0) || 0;
-      const yesterdayFat = yesterdayData.data?.reduce((s, r) => s + Number(r.valor), 0) || 0;
+      const currentFat = currentData.data?.reduce((s, r) => s + Number(r.valor), 0) || 0;
+      const prevFat = prevData.data?.reduce((s, r) => s + Number(r.valor), 0) || 0;
 
-      let fatIndicator = { percent: 0, direction: 'neutral' as 'up'|'down'|'neutral' };
-      if (yesterdayFat !== 0) {
-        const pct = ((todayFat - yesterdayFat) / yesterdayFat) * 100;
-        fatIndicator = { percent: Math.abs(pct), direction: pct > 0 ? 'up' : pct < 0 ? 'down' : 'neutral' };
+      const compareLabel = period === 'hoje' ? 'vs ontem'
+        : period === 'ontem' ? 'vs anteontem'
+        : period === 'semana' ? 'vs Semana Passada'
+        : 'vs 15 dias anteriores';
+
+      let fatIndicator = { percent: 0, direction: 'neutral' as 'up'|'down'|'neutral', label: compareLabel };
+      if (prevFat !== 0) {
+        const pct = ((currentFat - prevFat) / prevFat) * 100;
+        fatIndicator = { percent: Math.abs(pct), direction: pct > 0 ? 'up' : pct < 0 ? 'down' : 'neutral', label: compareLabel };
       }
 
       const months: { mes: string; valor: number }[] = [];
@@ -285,9 +303,9 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const dayStats = dashboardData?.dayStats || { faturamento: 0, ticket: 0, produtos: 0, novos: 0, recorrentes: 0 };
+  const dayStats = dashboardData?.dayStats || { faturamento: 0, ticket: 0, produtos: 0, novos: 0, recorrentes: 0, representantes: 0 };
   const pedidosDia = dashboardData?.pedidosDia || [];
-  const fatIndicator = dashboardData?.fatIndicator || { percent: 0, direction: 'neutral' };
+  const fatIndicator = dashboardData?.fatIndicator || { percent: 0, direction: 'neutral', label: 'vs ontem' };
   const monthlyChart = dashboardData?.monthlyChart || [];
   const faturamentoMesVal = dashboardData?.faturamentoMes || 0;;
 
@@ -299,6 +317,7 @@ export default function Dashboard() {
     { icon: Package, label: 'Total de Produtos Vendidos', value: dayStats.produtos },
     { icon: UserPlus, label: 'Clientes Novos', value: dayStats.novos },
     { icon: RefreshCw, label: 'Clientes Recorrentes', value: dayStats.recorrentes },
+    { icon: Users, label: 'Clientes Representantes', value: dayStats.representantes },
   ];
 
   const metaPercent = metaValor ? Math.min((faturamentoMesVal / metaValor) * 100, 100) : 0;
@@ -337,7 +356,7 @@ export default function Dashboard() {
               {i === 0 && fatIndicator.direction !== 'neutral' && (
                 <div className={`flex items-center gap-1 text-xs mt-1 ${fatIndicator.direction === 'up' ? 'text-green-600' : 'text-destructive'}`}>
                   {fatIndicator.direction === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  <span>{fatIndicator.direction === 'up' ? '▲' : '▼'} {fatIndicator.percent.toFixed(0)}% vs ontem</span>
+                  <span>{fatIndicator.direction === 'up' ? '▲' : '▼'} {fatIndicator.percent.toFixed(0)}% {fatIndicator.label}</span>
                 </div>
               )}
             </CardContent>

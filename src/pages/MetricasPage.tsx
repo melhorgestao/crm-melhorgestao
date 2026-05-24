@@ -138,9 +138,9 @@ export default function MetricasPage() {
         <MetricCard label="💵 Lucro" value={formatBRL(data.lucro)} color="bg-card border-l-4 border-l-primary" />
       </div>
 
-      {/* Métricas */}
+      {/* Indicadores */}
       <div>
-        <h2 className="font-bold mb-2 text-sf-gold">MÉTRICAS</h2>
+        <h2 className="font-bold mb-2 text-sf-gold">INDICADORES</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <MetricCard label="ICM" value={formatPercent(data.icm)} color="bg-card border-l-4 border-l-sf-gold" />
           <MetricCard label="CPA Un. ADS" value={formatBRL(data.cpaUnAds)} color="bg-card border-l-4 border-l-sf-gold" />
