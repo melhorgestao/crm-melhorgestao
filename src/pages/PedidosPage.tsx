@@ -165,7 +165,7 @@ export default function PedidosPage() {
         endDate = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
       }
       const { data } = await supabase.from('pedidos')
-        .select('id, data, canal, order_number, valor, status_pedido, status_pagamento, produto, quantidade, uf_postagem, codigo_rastreio, contato_id, entrega_em_maos, estoque_debitado, locked_at, is_free, contatos(nome, telefone, tag_vip, cpf, endereco, complemento, bairro, cidade_uf, cep, canal_origem)')
+        .select('id, data, canal, order_number, valor, valor_original, status_pedido, status_pagamento, produto, quantidade, uf_postagem, codigo_rastreio, contato_id, entrega_em_maos, estoque_debitado, locked_at, is_free, contatos(nome, telefone, tag_vip, cpf, endereco, complemento, bairro, cidade_uf, cep, canal_origem)')
         .gte('data', startDate).lt('data', endDate)
         .order('order_number', { ascending: false })
         .range(pageParam * PER_PAGE_FETCH, (pageParam + 1) * PER_PAGE_FETCH - 1);
@@ -189,7 +189,7 @@ export default function PedidosPage() {
     queryKey: ['pedidos_pendentes'],
     queryFn: async ({ pageParam = 0 }) => {
       const { data } = await supabase.from('pedidos')
-        .select('id, data, canal, order_number, valor, status_pedido, status_pagamento, modalidade, uf_postagem, quantidade, contato_id, observacao, criado_por, codigo_rastreio, produto, locked_at, is_free, contatos(nome, telefone, cpf, endereco, complemento, bairro, cidade_uf, cep, canal_origem)')
+        .select('id, data, canal, order_number, valor, valor_original, status_pedido, status_pagamento, modalidade, uf_postagem, quantidade, contato_id, observacao, criado_por, codigo_rastreio, produto, locked_at, is_free, contatos(nome, telefone, cpf, endereco, complemento, bairro, cidade_uf, cep, canal_origem)')
         .eq('status_pagamento', 'pendente')
         .order('order_number', { ascending: false })
         .range(pageParam * PER_PAGE_FETCH, (pageParam + 1) * PER_PAGE_FETCH - 1);
@@ -227,7 +227,7 @@ export default function PedidosPage() {
       if (p.is_free) return;
       const id = p.contato_id;
       if (!byContact[id]) byContact[id] = { nome: p.contatos?.nome || '—', totalValor: 0, totalQtd: 0 };
-      byContact[id].totalValor += Number(p.valor) || 0;
+      byContact[id].totalValor += Number(p.valor_original ?? p.valor) || 0;
       byContact[id].totalQtd += 1;
     });
     const arr = Object.values(byContact);
@@ -289,7 +289,7 @@ export default function PedidosPage() {
   const exportCSV = () => {
     const rows = [['#', 'Data', 'Nome', 'Canal', 'Valor', 'Status', 'Telefone']];
     filteredPedidos.forEach(p => {
-      rows.push([`#${p.order_number}`, formatDateShort(p.data), (p.contatos as any)?.nome || '', p.canal, String(p.valor), p.status_pedido === 'postado' ? 'Postado' : p.status_pedido === 'entregue' ? 'Entregue' : 'Aguardando Postagem', (p.contatos as any)?.telefone || '']);
+      rows.push([`#${p.order_number}`, formatDateShort(p.data), (p.contatos as any)?.nome || '', p.canal, String(p.valor_original ?? p.valor), p.status_pedido === 'postado' ? 'Postado' : p.status_pedido === 'entregue' ? 'Entregue' : 'Aguardando Postagem', (p.contatos as any)?.telefone || '']);
     });
     const csv = rows.map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -475,7 +475,7 @@ export default function PedidosPage() {
   };
 
   // FREE nunca entra em totais nem em ticket medio
-  const totalSum = filteredPedidos.reduce((s, p) => s + (p.is_free ? 0 : (Number(p.valor) || 0)), 0);
+  const totalSum = filteredPedidos.reduce((s, p) => s + (p.is_free ? 0 : (Number((p as any).valor_original ?? p.valor) || 0)), 0);
   const pagosNonFree = filteredPedidos.filter(p => !p.is_free).length;
   const ticketMedio = pagosNonFree > 0 ? totalSum / pagosNonFree : 0;
 
@@ -576,7 +576,7 @@ export default function PedidosPage() {
                     <td className="py-2">
                       <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
                     </td>
-                    <td className="py-2 text-right pr-8 font-medium">{p.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(p.valor))}</td>
+                    <td className="py-2 text-right pr-8 font-medium">{p.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(p.valor_original ?? p.valor))}</td>
                     <td className="py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Select value={p.status_pedido || 'aguardando_rastreio'} onValueChange={v => updateStatus(p.id, v, isStatusLocked(p))} disabled={isStatusLocked(p)}>
@@ -665,7 +665,7 @@ export default function PedidosPage() {
                   </button>
                 </div>
                 <div className="flex justify-between items-center gap-2">
-                  <span className="text-sm font-bold cursor-pointer" onClick={() => setDetailPedido(p)}>{p.is_free ? <span className="text-sky-600">FREE</span> : formatBRL(Number(p.valor))}</span>
+                  <span className="text-sm font-bold cursor-pointer" onClick={() => setDetailPedido(p)}>{p.is_free ? <span className="text-sky-600">FREE</span> : formatBRL(Number(p.valor_original ?? p.valor))}</span>
                   <div className="flex items-center gap-1 flex-wrap justify-end">
                     {p.status_pagamento === 'pendente' && (
                       <Badge variant="outline" className="text-[9px] border-amber-500 text-amber-600 py-0 h-5 px-1.5">
@@ -1059,7 +1059,7 @@ export default function PedidosPage() {
               }
               return (
                 <div key={p.id} className="border-b border-border/50 py-2">
-                  <p>{prodDisplay} — {p.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(p.valor))} — {formatDateShort(p.data)} — {p.status_pedido === 'entregue' ? '✅ Entregue' : p.status_pedido === 'postado' ? 'Postado' : 'Aguardando'}</p>
+                  <p>{prodDisplay} — {p.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(p.valor_original ?? p.valor))} — {formatDateShort(p.data)} — {p.status_pedido === 'entregue' ? '✅ Entregue' : p.status_pedido === 'postado' ? 'Postado' : 'Aguardando'}</p>
                 </div>
               );
             })}
@@ -1088,7 +1088,7 @@ export default function PedidosPage() {
                   return <p className="ml-2">{getTagDisplayName(detailPedido.produto)} × {detailPedido.quantidade}</p>;
                 })()}
               </div>
-              <p><strong>Valor Total:</strong> {detailPedido.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(detailPedido.valor))}</p>
+              <p><strong>Valor Total:</strong> {detailPedido.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(detailPedido.valor_original ?? detailPedido.valor))}</p>
               <p><strong>CPF:</strong> {(detailPedido.contatos as any)?.cpf || '—'}</p>
               <p><strong>Endereço:</strong> {(detailPedido.contatos as any)?.endereco || '—'}</p>
               <p><strong>Complemento:</strong> {(detailPedido.contatos as any)?.complemento || '—'}</p>
