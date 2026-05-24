@@ -28,19 +28,23 @@ export default function MetricasPage() {
     const nextY = month === 12 ? year + 1 : year;
     const end = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
 
-    // Faturamento/lucros/medidas: pedidos PAGOS, computados no dia do recebimento (data_pago).
-    // Exclui FREE (canal a parte) — esses NUNCA afetam lucro/margem/medLucro por canal.
-    const { data: pedAll } = await supabase.from('pedidos').select('*').eq('status_pagamento', 'pago').gte('data_pago', start).lt('data_pago', end);
-    const ped = (pedAll || []).filter((p: any) => !p.is_free);
+    // PAGOS non-free do periodo (por data_pago = data do recebimento)
+    const { data: pedPagos } = await supabase.from('pedidos').select('*')
+      .eq('status_pagamento', 'pago').neq('is_free', true)
+      .gte('data_pago', start).lt('data_pago', end);
 
-    // Produtos FREE do periodo (canal a parte) — entram so no total geral de produtos
+    // PENDENTES non-free do periodo (por data de criacao — ja foram enviados,
+    // valor entra no faturamento total e no canal correspondente)
+    const { data: pedPend } = await supabase.from('pedidos').select('*')
+      .eq('status_pagamento', 'pendente').neq('is_free', true)
+      .gte('data', start).lt('data', end);
+
+    // FREE do periodo (canal a parte — nao afeta lucro/canais, so totaliza)
     const { data: pedFree } = await supabase.from('pedidos').select('quantidade, data_pago')
       .eq('is_free', true).gte('data_pago', start).lt('data_pago', end);
 
-    // Produtos PENDENTES do periodo (data de criacao, ja que data_pago e NULL)
-    // Ja foram enviados, estoque ja consumido — entram no total geral
-    const { data: pedPend } = await supabase.from('pedidos').select('quantidade, data')
-      .eq('status_pagamento', 'pendente').neq('is_free', true).gte('data', start).lt('data', end);
+    // ped = pagos + pendentes (non-free) — base para faturamento e produtos por canal
+    const ped = [...(pedPagos || []), ...(pedPend || [])];
 
     const { data: fin } = await supabase.from('financeiro').select('*').gte('data', start).lt('data', end);
 
@@ -60,35 +64,40 @@ export default function MetricasPage() {
     const logTotal = despesas.filter(d => d.categoria === 'logistica').reduce((s, d) => s + Number(d.valor), 0);
     const materialTotal = despesas.filter(d => d.categoria === 'material').reduce((s, d) => s + Number(d.valor), 0);
 
-    // Produtos por canal: SO pagos non-FREE. Mantem todas as metricas de lucro intactas.
+    // Produtos por canal: pagos + pendentes (non-FREE) — pedidos pendentes ja
+    // foram enviados, somam aos canais de venda.
     const prodTotal = (ped || []).reduce((s, p) => s + (p.quantidade || 0), 0);
     const prodAds = (ped || []).filter(p => p.canal === 'ADS').reduce((s, p) => s + (p.quantidade || 0), 0);
     const prodBase = (ped || []).filter(p => p.canal === 'BASE').reduce((s, p) => s + (p.quantidade || 0), 0);
     const prodRep = (ped || []).filter(p => p.canal === 'REP').reduce((s, p) => s + (p.quantidade || 0), 0);
 
-    // Produtos do canal FREE (brindes/reposicoes) — separado, NAO afeta lucro
+    // FREE separado: nao afeta lucro/margem/medLucro por canal
     const prodFree = (pedFree || []).reduce((s, p) => s + (p.quantidade || 0), 0);
-    // Produtos de pedidos pendentes (ja enviados, custos ja incorridos)
-    const prodPendentes = (pedPend || []).reduce((s, p) => s + (p.quantidade || 0), 0);
-    // Total realista: pagos + free + pendentes — visao operacional completa
-    const prodTotalRealistico = prodTotal + prodFree + prodPendentes;
+    // Total realista (topo + secao PRODUTOS): pagos + pendentes + free
+    const prodTotalRealistico = prodTotal + prodFree;
 
+    // Custos unitarios: usam prodTotalRealistico (inclui FREE) — refletem operacao
+    // real, ja que custos de etiqueta/log/material foram incorridos para todas as
+    // unidades efetivamente movimentadas.
+    const denomCustos = prodTotalRealistico > 0 ? prodTotalRealistico : 1;
     const lucro = fatTotal - custoTotal;
     const margem = fatTotal > 0 ? (lucro / fatTotal) * 100 : 0;
     const icm = (lucro + custoAds) > 0 ? (custoAds / (lucro + custoAds)) * 100 : 0;
-    const cpaUnAds = prodAds > 0 ? custoAds / prodAds : 0;
-    const custoOpUn = prodTotal > 0 ? (etiquetaTotal + logTotal) / prodTotal : 0;
-    const custoProdUn = prodTotal > 0 ? materialTotal / prodTotal : 0;
+    const cpaUnAds = custoAds / denomCustos;
+    const custoOpUn = (etiquetaTotal + logTotal) / denomCustos;
+    const custoProdUn = materialTotal / denomCustos;
 
+    // Med. lucro por canal: cada canal usa seus proprios produtos (pagos+pendentes)
     const medLucroBase = prodBase > 0 ? (fatBase / prodBase) - custoProdUn - custoOpUn : 0;
     const medLucroAds = prodAds > 0 ? (fatAds / prodAds) - custoProdUn - custoOpUn - cpaUnAds : 0;
     const medLucroRep = prodRep > 0 ? (fatRep / prodRep) - custoProdUn - custoOpUn : 0;
+    // Geral: exclui FREE, inclui pendentes (= prodTotal non-free)
     const medLucroGeral = prodTotal > 0 ? lucro / prodTotal : 0;
 
     setData({
       fatTotal, fatBase, fatAds, fatRep,
       custoTotal, custoAds, etiquetaTotal, logTotal, materialTotal,
-      prodTotal, prodAds, prodBase, prodRep, prodFree, prodPendentes, prodTotalRealistico,
+      prodTotal, prodAds, prodBase, prodRep, prodFree, prodTotalRealistico,
       lucro, margem, icm, cpaUnAds, custoOpUn, custoProdUn,
       medLucroBase, medLucroAds, medLucroRep, medLucroGeral,
     });
@@ -124,7 +133,7 @@ export default function MetricasPage() {
 
       {/* Top 3 */}
       <div className="grid grid-cols-3 gap-4">
-        <MetricCard label="💰 Faturamento Total" value={formatBRL(data.fatTotal)} color="bg-card border-l-4 border-l-primary" />
+        <MetricCard label="💰 Faturamento Total (Inclui Pendentes)" value={formatBRL(data.fatTotal)} color="bg-card border-l-4 border-l-primary" />
         <MetricCard label="📦 Total de Produtos" value={String(data.prodTotalRealistico ?? data.prodTotal)} color="bg-card border-l-4 border-l-primary" />
         <MetricCard label="💵 Lucro" value={formatBRL(data.lucro)} color="bg-card border-l-4 border-l-primary" />
       </div>
@@ -156,7 +165,7 @@ export default function MetricasPage() {
       <div>
         <h2 className="font-bold mb-2" style={{ color: '#7B1FA2' }}>FATURAMENTO</h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <MetricCard label="Fat. Total" value={formatBRL(data.fatTotal)} color="bg-card border border-purple-200" />
+          <MetricCard label="Fat. Total (Inclui Pendentes)" value={formatBRL(data.fatTotal)} color="bg-card border border-purple-200" />
           <Card className="bg-card border-2 border-purple-300">
             <CardContent className="p-3">
               <p className="text-xs text-muted-foreground">💳 Pendentes</p>
@@ -186,12 +195,11 @@ export default function MetricasPage() {
       {/* Produtos */}
       <div>
         <h2 className="font-bold mb-2" style={{ color: '#1976D2' }}>PRODUTOS</h2>
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <MetricCard label="Total de Produtos" value={String(data.prodTotalRealistico ?? data.prodTotal)} color="bg-card border-l-4 border-l-blue-500" />
           <MetricCard label="Prod. ADS" value={String(data.prodAds)} color="bg-card border-l-4 border-l-blue-500" />
           <MetricCard label="Prod. Base" value={String(data.prodBase)} color="bg-card border-l-4 border-l-blue-500" />
           <MetricCard label="Prod. Rep" value={String(data.prodRep)} color="bg-card border-l-4 border-l-blue-500" />
-          <MetricCard label="Prod. Pendentes" value={String(data.prodPendentes ?? 0)} color="bg-card border-l-4 border-l-amber-500" />
           <MetricCard label="Prod. Free" value={String(data.prodFree ?? 0)} color="bg-card border-l-4 border-l-sky-500" />
         </div>
       </div>
