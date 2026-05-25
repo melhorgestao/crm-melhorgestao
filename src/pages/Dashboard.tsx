@@ -222,12 +222,22 @@ export default function Dashboard() {
       const year = new Date().getFullYear();
       const currentMonthStart = `${year}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
 
-      const [pedRangeData, channelData] = await Promise.all([
-        // Faturamento/produtos/recorrentes — somente pagos, usando data_pago (data do recebimento)
-        supabase.from('pedidos').select('id, valor, quantidade, canal, contato_id, data_pago, produto, contatos(nome)').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', dateFrom).lte('data_pago', dateTo),
-        supabase.from('pedidos').select('valor, canal').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', currentMonthStart)
+      // Pedidos do mes inteiro (pagos + pendentes non-FREE) — para Realizado da Meta
+      // Realizado = dinheiro que ja entrou em caixa este mes:
+      //   - Pagos: (valor_original - desconto) = total entrou
+      //   - Pendentes: (valor_original - desconto - valor) = parcelas ja recebidas
+      // Total = Faturamento Total do mes - Saldo restante a receber
+
+      const [pedRangeData, mesPagosData, mesPendData] = await Promise.all([
+        // Faturamento/produtos/recorrentes — somente pagos no PERIODO atual (hoje/ontem/semana/15d)
+        supabase.from('pedidos').select('id, valor, valor_original, desconto_total, quantidade, canal, contato_id, data_pago, produto, contatos(nome)').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', dateFrom).lte('data_pago', dateTo),
+        // Pagos do MES (data_pago) — para Realizado da Meta
+        supabase.from('pedidos').select('valor, valor_original, desconto_total, canal').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', currentMonthStart),
+        // Pendentes criados no MES — pra somar parcelas ja pagas
+        supabase.from('pedidos').select('valor, valor_original, desconto_total').neq('is_free', true).eq('status_pagamento', 'pendente').gte('data', currentMonthStart),
       ]);
 
+      // Faturamento do periodo (hoje/ontem/...): apenas pagos, usa pedidos.valor
       const fat = pedRangeData.data?.reduce((s, p) => s + Number(p.valor || 0), 0) || 0;
       const pedRange = pedRangeData.data || [];
       const totalPedidos = pedRange.length;
@@ -252,8 +262,20 @@ export default function Dashboard() {
       });
 
       const dayStats = { faturamento: fat, ticket: totalPedidos ? fat / totalPedidos : 0, produtos: totalProdutos, novos: novosSet.size, recorrentes: recorrentesSet.size, representantes: repSet.size };
-      
-      const faturamentoMes = channelData.data?.reduce((s, r) => s + Number(r.valor || 0), 0) || 0;
+
+      // Realizado do mes (Meta) = dinheiro que ja entrou em caixa:
+      //   Pagos: (valor_original - desconto)  -> total da venda entrou em caixa
+      //   Pendentes: (valor_original - desconto) - valor  -> parcelas ja pagas
+      const realizadoPagos = (mesPagosData.data || []).reduce((s: number, p: any) => {
+        const venda = (Number(p.valor_original ?? p.valor) || 0) - (Number(p.desconto_total) || 0);
+        return s + venda;
+      }, 0);
+      const realizadoParcelas = (mesPendData.data || []).reduce((s: number, p: any) => {
+        const venda = (Number(p.valor_original ?? p.valor) || 0) - (Number(p.desconto_total) || 0);
+        const saldoRestante = Number(p.valor) || 0;
+        return s + Math.max(0, venda - saldoRestante);
+      }, 0);
+      const faturamentoMes = realizadoPagos + realizadoParcelas;
 
       // Periodo de comparacao espelha o periodo atual com o mesmo numero de dias.
       // 'hoje' -> ontem | 'ontem' -> anteontem | 'semana' -> semana passada | '15dias' -> 15 anteriores
