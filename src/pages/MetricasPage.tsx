@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
 import { PieChart, Pie, Cell, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { Info, TrendingUp, TrendingDown } from 'lucide-react';
+import { Info, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { formatBRL, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +22,22 @@ const COLORS = {
   LOGISTICA: '#dc2626',// red darker
   MATERIAL: '#f59e0b', // amber
 } as const;
+
+// Limiares dos insights automaticos — ajustar aqui muda comportamento global
+const INSIGHT_THRESHOLDS = {
+  icm_alerta: 20,           // % — ICM acima disso = atencao
+  margem_alerta: 30,        // % — margem abaixo disso = atencao
+  margem_excelente: 50,     // % — acima disso = destaque positivo
+  variacao_minima: 5,       // % — Delta abaixo disso e ignorado
+  variacao_critica: 25,     // % — Delta acima disso ganha prioridade
+  pendentes_atencao: 1000,  // R$ — pendentes acima disso entram em insight
+  taxa_recompra_baixa: 30,  // %
+  taxa_recompra_otima: 60,  // %
+  roi_excelente: 3,         // 1 ADS gera 3+ em receita
+  roi_baixo: 1,             // ROI abaixo de 1 = prejuizo
+};
+
+type Insight = { id: string; emoji: string; title: string; description?: string; priority: number; tone: 'positive' | 'negative' | 'warning' | 'info' };
 
 type DeltaInfo = { percent: number; direction: 'up' | 'down' | 'neutral' } | null;
 
@@ -38,6 +55,18 @@ export default function MetricasPage() {
     contatosBase: number; contatosRep: number; contatosTotal: number;
   } | null>(null);
   const [monthlyData, setMonthlyData] = useState<Array<{ mes: string; total: number; base: number; ads: number; rep: number }>>([]);
+  const [insightsExpanded, setInsightsExpanded] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('metricas_insights_hidden') !== '1';
+  });
+
+  const toggleInsights = () => {
+    setInsightsExpanded(v => {
+      const next = !v;
+      try { localStorage.setItem('metricas_insights_hidden', next ? '0' : '1'); } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => { fetchData(); fetchPendentes(); fetchRecompraMetrics(); fetchMonthlyData(); }, [month, year]);
 
@@ -64,6 +93,206 @@ export default function MetricasPage() {
       else if (p.canal === 'REP' || p.canal === 'C-REP') agg[m].rep += v;
     });
     setMonthlyData(agg);
+  };
+
+  // Motor de insights: gera lista priorizada a partir dos dados atuais.
+  // Cada regra cria 0..N insights. Score final ordena.
+  const generateInsights = (): Insight[] => {
+    const out: Insight[] = [];
+    if (!data || Object.keys(data).length === 0) return out;
+    const T = INSIGHT_THRESHOLDS;
+
+    // 1. Delta de Faturamento / Lucro / Produtos (vs mes anterior)
+    if (deltas.fat && deltas.fat.direction !== 'neutral' && deltas.fat.percent >= T.variacao_minima) {
+      const isUp = deltas.fat.direction === 'up';
+      out.push({
+        id: 'fat_delta',
+        emoji: isUp ? '📈' : '📉',
+        title: `Faturamento ${isUp ? 'cresceu' : 'caiu'} ${deltas.fat.percent.toFixed(0)}%`,
+        description: 'vs mês anterior (mesmo período)',
+        priority: isUp ? 5 : 8,
+        tone: isUp ? 'positive' : 'negative',
+      });
+    }
+    if (deltas.lucro && deltas.lucro.direction !== 'neutral' && deltas.lucro.percent >= T.variacao_minima) {
+      const isUp = deltas.lucro.direction === 'up';
+      out.push({
+        id: 'lucro_delta',
+        emoji: isUp ? '💎' : '💔',
+        title: `Lucro ${isUp ? 'subiu' : 'caiu'} ${deltas.lucro.percent.toFixed(0)}%`,
+        description: 'vs mês anterior',
+        priority: isUp ? 6 : 9,
+        tone: isUp ? 'positive' : 'negative',
+      });
+    }
+
+    // 2. Alertas de eficiencia / margem
+    if (data.icm > T.icm_alerta) {
+      out.push({
+        id: 'icm_alerta',
+        emoji: '⚠️',
+        title: `ICM em ${data.icm.toFixed(1)}%`,
+        description: `Limite saudável: < ${T.icm_alerta}%`,
+        priority: 10,
+        tone: 'warning',
+      });
+    }
+    if (data.margem > 0 && data.margem < T.margem_alerta && data.fatTotal > 0) {
+      out.push({
+        id: 'margem_baixa',
+        emoji: '⚠️',
+        title: `Margem em ${data.margem.toFixed(1)}%`,
+        description: `Abaixo do alvo (${T.margem_alerta}%)`,
+        priority: 9,
+        tone: 'warning',
+      });
+    } else if (data.margem >= T.margem_excelente) {
+      out.push({
+        id: 'margem_excelente',
+        emoji: '💎',
+        title: `Margem excelente: ${data.margem.toFixed(1)}%`,
+        description: `Acima de ${T.margem_excelente}%`,
+        priority: 6,
+        tone: 'positive',
+      });
+    }
+
+    // 3. Canal dominante do mes
+    const fatBase = data.fatBase || 0, fatAds = data.fatAds || 0, fatRep = data.fatRep || 0;
+    const totalCanais = fatBase + fatAds + fatRep;
+    if (totalCanais > 0) {
+      const winner = [['BASE', fatBase], ['ADS', fatAds], ['REP', fatRep]].sort((a, b) => (b[1] as number) - (a[1] as number))[0];
+      const pct = (winner[1] as number) / totalCanais * 100;
+      if (pct >= 40) {
+        out.push({
+          id: 'canal_dominante',
+          emoji: '🥇',
+          title: `${winner[0]} foi seu maior canal`,
+          description: `${pct.toFixed(0)}% do faturamento`,
+          priority: 4,
+          tone: 'info',
+        });
+      }
+      if (fatRep > 0 && totalCanais > 0) {
+        const pctRep = (fatRep / totalCanais) * 100;
+        if (pctRep >= 20) {
+          out.push({
+            id: 'rep_destaque',
+            emoji: '👥',
+            title: `Representantes geraram ${pctRep.toFixed(0)}%`,
+            description: 'do faturamento total',
+            priority: 4,
+            tone: 'info',
+          });
+        }
+      }
+    }
+
+    // 4. Eficiencia ADS (ROI: receita ADS / custo ADS)
+    if (data.custoAds > 0) {
+      const roi = (data.fatAds || 0) / data.custoAds;
+      if (roi >= T.roi_excelente) {
+        out.push({
+          id: 'roi_top',
+          emoji: '🎯',
+          title: `ROI ADS: ${roi.toFixed(1)}x`,
+          description: `R$ 1 em ads → R$ ${roi.toFixed(2)} em receita`,
+          priority: 7,
+          tone: 'positive',
+        });
+      } else if (roi < T.roi_baixo) {
+        out.push({
+          id: 'roi_baixo',
+          emoji: '🔥',
+          title: `ROI ADS em ${roi.toFixed(2)}x`,
+          description: 'Custo ADS supera receita ADS',
+          priority: 10,
+          tone: 'negative',
+        });
+      }
+    }
+
+    // 5. Recordes mensais (vs ultimos 11 meses)
+    if (monthlyData.length === 12) {
+      const currentMonthIdx = month - 1;
+      const currentVal = monthlyData[currentMonthIdx]?.total || 0;
+      if (currentVal > 0) {
+        const otherMonths = monthlyData.filter((_, i) => i !== currentMonthIdx).map(m => m.total);
+        const maxOthers = Math.max(...otherMonths, 0);
+        if (currentVal > maxOthers && currentVal > 0) {
+          out.push({
+            id: 'recorde_mes',
+            emoji: '🏆',
+            title: 'Melhor mês do ano em faturamento!',
+            description: `${formatBRL(currentVal)} — recorde de ${year}`,
+            priority: 8,
+            tone: 'positive',
+          });
+        }
+      }
+    }
+
+    // 6. Pendentes (independente do periodo)
+    if (pendentesTotal >= T.pendentes_atencao) {
+      out.push({
+        id: 'pendentes',
+        emoji: '⏰',
+        title: `${formatBRL(pendentesTotal)} em pendentes`,
+        description: 'Atenção a recebimentos atrasados',
+        priority: 6,
+        tone: 'warning',
+      });
+    }
+
+    // 7. Taxa de recompra (historica)
+    if (recompraMetrics) {
+      const tx = recompraMetrics.taxaRecompraHistorica;
+      if (tx >= T.taxa_recompra_otima) {
+        out.push({
+          id: 'recompra_alta',
+          emoji: '💚',
+          title: `Recompra histórica em ${tx.toFixed(0)}%`,
+          description: 'Excelente retenção de clientes',
+          priority: 5,
+          tone: 'positive',
+        });
+      } else if (tx > 0 && tx < T.taxa_recompra_baixa) {
+        out.push({
+          id: 'recompra_baixa',
+          emoji: '⚠️',
+          title: `Recompra histórica em ${tx.toFixed(0)}%`,
+          description: 'Oportunidade de melhorar fidelização',
+          priority: 7,
+          tone: 'warning',
+        });
+      }
+    }
+
+    // 8. Med. Lucro Un. ADS negativa
+    if (data.medLucroAds !== undefined && data.medLucroAds < 0 && data.prodAds > 0) {
+      out.push({
+        id: 'lucro_ads_neg',
+        emoji: '🚨',
+        title: 'Lucro Un. ADS negativo',
+        description: `Você está pagando ${formatBRL(Math.abs(data.medLucroAds))} por unidade ADS`,
+        priority: 11,
+        tone: 'negative',
+      });
+    }
+
+    // 9. ADS sem custo (gastou 0 mas vendeu pelo canal)
+    if (data.custoAds === 0 && data.fatAds > 0) {
+      out.push({
+        id: 'ads_sem_custo',
+        emoji: '🆓',
+        title: `${formatBRL(data.fatAds)} em vendas ADS sem custo`,
+        description: 'Confira se há lançamentos de ADS faltando',
+        priority: 3,
+        tone: 'info',
+      });
+    }
+
+    return out.sort((a, b) => b.priority - a.priority).slice(0, 5);
   };
 
   const fetchPendentes = async () => {
@@ -314,6 +543,29 @@ export default function MetricasPage() {
     fetchDeltas(start, end).catch(console.error);
   };
 
+  // ---------- Insight banner ----------
+  const InsightCard = ({ insight }: { insight: Insight }) => {
+    const tones: Record<Insight['tone'], string> = {
+      positive: 'border-l-emerald-500 bg-emerald-50/40 dark:bg-emerald-900/10',
+      negative: 'border-l-red-500 bg-red-50/40 dark:bg-red-900/10',
+      warning: 'border-l-amber-500 bg-amber-50/40 dark:bg-amber-900/10',
+      info: 'border-l-sky-500 bg-sky-50/40 dark:bg-sky-900/10',
+    };
+    return (
+      <Card className={cn('border-l-4 transition hover:shadow-md', tones[insight.tone])}>
+        <CardContent className="p-3">
+          <div className="flex items-start gap-2">
+            <span className="text-xl leading-none mt-0.5">{insight.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold leading-tight">{insight.title}</p>
+              {insight.description && <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{insight.description}</p>}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   // ---------- Chart components ----------
   const PizzaChart = ({ title, items, formatter }: {
     title: string;
@@ -475,12 +727,37 @@ export default function MetricasPage() {
             />
           </div>
 
-          {/* Placeholder Insights (Fase 4) */}
-          <Card className="border-dashed">
-            <CardContent className="p-4 text-center text-muted-foreground text-xs">
-              💡 Insights automáticos chegam na próxima fase.
-            </CardContent>
-          </Card>
+          {/* === INSIGHTS AUTOMÁTICOS === */}
+          {(() => {
+            const insights = generateInsights();
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">
+                    💡 Alertas e Destaques {insights.length > 0 && <span className="text-xs font-normal">({insights.length})</span>}
+                  </h2>
+                  {insights.length > 0 && (
+                    <Button variant="ghost" size="sm" onClick={toggleInsights} className="h-7 text-xs">
+                      {insightsExpanded ? <><ChevronUp className="w-3.5 h-3.5 mr-1" /> Esconder</> : <><ChevronDown className="w-3.5 h-3.5 mr-1" /> Mostrar</>}
+                    </Button>
+                  )}
+                </div>
+                {insightsExpanded && (
+                  insights.length === 0 ? (
+                    <Card className="border-dashed">
+                      <CardContent className="p-4 text-center text-muted-foreground text-xs">
+                        Tudo dentro da normalidade neste período 👌
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
+                      {insights.map(ins => <InsightCard key={ins.id} insight={ins} />)}
+                    </div>
+                  )
+                )}
+              </div>
+            );
+          })()}
 
           {/* === GRÁFICOS PIZZA === */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
