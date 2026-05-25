@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ExternalLink, ArrowRight } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
@@ -55,6 +58,13 @@ export default function MetricasPage() {
     contatosBase: number; contatosRep: number; contatosTotal: number;
   } | null>(null);
   const [monthlyData, setMonthlyData] = useState<Array<{ mes: string; total: number; base: number; ads: number; rep: number }>>([]);
+  const [detail, setDetail] = useState<
+    | { type: 'formula'; title: string; body: React.ReactNode }
+    | { type: 'pedidos'; title: string; filter: { canal?: string; isFreeOnly?: boolean; isPendente?: boolean; isPagoOnly?: boolean } }
+    | { type: 'lancamentos'; title: string; categoria?: string }
+    | null
+  >(null);
+  const navigate = useNavigate();
   const [insightsExpanded, setInsightsExpanded] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('metricas_insights_hidden') !== '1';
@@ -543,6 +553,147 @@ export default function MetricasPage() {
     fetchDeltas(start, end).catch(console.error);
   };
 
+  // ---------- Drill-down: formula display ----------
+  const FormulaRow = ({ label, value, isResult }: { label: string; value: string; isResult?: boolean }) => (
+    <div className={cn('flex justify-between items-center text-sm py-1.5', isResult && 'pt-2 mt-1 border-t font-bold text-base')}>
+      <span className={cn('text-muted-foreground', isResult && 'text-foreground')}>{label}</span>
+      <span className={cn('font-medium', isResult && 'text-primary')}>{value}</span>
+    </div>
+  );
+
+  // ---------- Drill-down: lista de pedidos ----------
+  const PedidosDetail = ({ filter }: { filter: { canal?: string; isFreeOnly?: boolean; isPendente?: boolean; isPagoOnly?: boolean } }) => {
+    const [rows, setRows] = useState<any[] | null>(null);
+    useEffect(() => {
+      const start = `${year}-${String(month).padStart(2, '0')}-01`;
+      const nextM = month === 12 ? 1 : month + 1;
+      const nextY = month === 12 ? year + 1 : year;
+      const end = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+      const fetch = async () => {
+        // Constroi a query base
+        let q = supabase.from('pedidos').select('id, order_number, data, data_pago, valor, valor_original, desconto_total, canal, status_pagamento, quantidade, produto, is_free, contatos(nome)');
+        if (filter.isFreeOnly) {
+          q = q.eq('is_free', true).gte('data_pago', start).lt('data_pago', end);
+        } else {
+          q = q.neq('is_free', true);
+          if (filter.isPendente) {
+            q = q.eq('status_pagamento', 'pendente').gte('data', start).lt('data', end);
+          } else {
+            // pagos + pendentes do periodo (mesma logica do faturamento)
+            // executa 2 queries em paralelo
+            const [pagos, pend] = await Promise.all([
+              supabase.from('pedidos')
+                .select('id, order_number, data, data_pago, valor, valor_original, desconto_total, canal, status_pagamento, quantidade, produto, is_free, contatos(nome)')
+                .eq('status_pagamento', 'pago').neq('is_free', true)
+                .gte('data_pago', start).lt('data_pago', end),
+              ...(filter.isPagoOnly ? [{ data: [] as any[] }] :
+                [supabase.from('pedidos')
+                  .select('id, order_number, data, data_pago, valor, valor_original, desconto_total, canal, status_pagamento, quantidade, produto, is_free, contatos(nome)')
+                  .eq('status_pagamento', 'pendente').neq('is_free', true)
+                  .gte('data', start).lt('data', end)
+                ]),
+            ]);
+            let all = [...(pagos.data || []), ...(pend.data || [])];
+            if (filter.canal) all = all.filter((p: any) => p.canal === filter.canal);
+            all.sort((a: any, b: any) => (b.order_number || 0) - (a.order_number || 0));
+            setRows(all);
+            return;
+          }
+        }
+        const { data } = await q;
+        let arr = (data || []) as any[];
+        if (filter.canal) arr = arr.filter(p => p.canal === filter.canal);
+        arr.sort((a, b) => (b.order_number || 0) - (a.order_number || 0));
+        setRows(arr);
+      };
+      fetch();
+    }, [filter.canal, filter.isFreeOnly, filter.isPendente, filter.isPagoOnly]);
+
+    if (rows === null) return <p className="text-center text-muted-foreground py-6 text-sm">Carregando...</p>;
+    if (rows.length === 0) return <p className="text-center text-muted-foreground py-6 text-sm">Nenhum pedido encontrado neste filtro.</p>;
+
+    const totalValor = rows.reduce((s, r) => s + (r.is_free ? 0 : Number((r.valor_original ?? r.valor) || 0) - Number(r.desconto_total || 0)), 0);
+    const totalQtd = rows.reduce((s, r) => s + (Number(r.quantidade) || 0), 0);
+
+    return (
+      <div className="space-y-2">
+        <div className="text-xs text-muted-foreground flex justify-between border-b pb-2">
+          <span>{rows.length} pedido(s) · {totalQtd} unidade(s)</span>
+          <span className="font-medium text-foreground">{formatBRL(totalValor)}</span>
+        </div>
+        <div className="max-h-[420px] overflow-y-auto space-y-1.5 pr-1">
+          {rows.map((p: any) => (
+            <button
+              key={p.id}
+              onClick={() => { setDetail(null); navigate('/pedidos'); }}
+              className="w-full text-left flex justify-between items-center text-xs p-2 rounded hover:bg-muted/50 transition border border-transparent hover:border-border"
+            >
+              <div className="flex flex-col items-start min-w-0 flex-1">
+                <span className="font-semibold">#{p.order_number} · {p.contatos?.nome || '—'}</span>
+                <span className="text-muted-foreground text-[10px]">{p.canal} · {p.quantidade} un · {p.status_pagamento}</span>
+              </div>
+              <span className={cn('font-medium ml-2 shrink-0', p.is_free && 'text-sky-600')}>
+                {p.is_free ? 'FREE' : formatBRL(Number((p.valor_original ?? p.valor) || 0) - Number(p.desconto_total || 0))}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- Drill-down: lista de lançamentos do financeiro ----------
+  const LancamentosDetail = ({ categoria }: { categoria?: string }) => {
+    const [rows, setRows] = useState<any[] | null>(null);
+    useEffect(() => {
+      const start = `${year}-${String(month).padStart(2, '0')}-01`;
+      const nextM = month === 12 ? 1 : month + 1;
+      const nextY = month === 12 ? year + 1 : year;
+      const end = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+      const fetch = async () => {
+        let q = supabase.from('financeiro').select('id, tipo, valor, categoria, descricao, data')
+          .eq('tipo', 'despesa')
+          .gte('data', start).lt('data', end)
+          .order('data', { ascending: false });
+        if (categoria) q = q.eq('categoria', categoria);
+        const { data } = await q;
+        setRows((data || []) as any[]);
+      };
+      fetch();
+    }, [categoria]);
+
+    if (rows === null) return <p className="text-center text-muted-foreground py-6 text-sm">Carregando...</p>;
+    if (rows.length === 0) return <p className="text-center text-muted-foreground py-6 text-sm">Nenhum lançamento neste filtro.</p>;
+
+    const total = rows.reduce((s, r) => s + Number(r.valor || 0), 0);
+
+    return (
+      <div className="space-y-2">
+        <div className="text-xs text-muted-foreground flex justify-between border-b pb-2">
+          <span>{rows.length} lançamento(s)</span>
+          <span className="font-medium text-foreground">{formatBRL(total)}</span>
+        </div>
+        <div className="max-h-[380px] overflow-y-auto space-y-1.5 pr-1">
+          {rows.map((r: any) => (
+            <div key={r.id} className="flex justify-between items-center text-xs p-2 rounded bg-muted/30">
+              <div className="flex flex-col items-start min-w-0 flex-1">
+                <span className="font-semibold uppercase text-[10px] text-muted-foreground">{r.categoria}</span>
+                <span className="truncate max-w-full">{r.descricao || '—'}</span>
+                <span className="text-[10px] text-muted-foreground">{new Date(r.data).toLocaleDateString('pt-BR')}</span>
+              </div>
+              <span className="font-medium text-destructive ml-2 shrink-0">{formatBRL(Number(r.valor))}</span>
+            </div>
+          ))}
+        </div>
+        <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => { setDetail(null); navigate('/financeiro'); }}>
+          <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+          Abrir Financeiro pra editar
+        </Button>
+        <p className="text-[10px] text-center text-muted-foreground">Edição segue a regra de mesmo-dia já aplicada</p>
+      </div>
+    );
+  };
+
   // ---------- Insight banner ----------
   const InsightCard = ({ insight }: { insight: Insight }) => {
     const tones: Record<Insight['tone'], string> = {
@@ -644,24 +795,24 @@ export default function MetricasPage() {
     </TooltipProvider>
   );
 
-  const MetricCard = ({ label, value, color = 'bg-card', tip }: { label: string; value: string; color?: string; tip?: React.ReactNode }) => (
-    <Card className={cn(color)}>
+  const MetricCard = ({ label, value, color = 'bg-card', tip, onClick }: { label: string; value: string; color?: string; tip?: React.ReactNode; onClick?: () => void }) => (
+    <Card className={cn(color, onClick && 'cursor-pointer hover:shadow-md transition')} onClick={onClick}>
       <CardContent className="p-3">
         <div className="flex items-center gap-1.5">
           <p className="text-xs text-muted-foreground">{label}</p>
-          {tip && <InfoTip>{tip}</InfoTip>}
+          {tip && <span onClick={e => e.stopPropagation()}><InfoTip>{tip}</InfoTip></span>}
         </div>
         <p className="text-lg font-bold">{value}</p>
       </CardContent>
     </Card>
   );
 
-  const TopCard = ({ label, value, delta, color, tip }: { label: string; value: string; delta: DeltaInfo; color: string; tip?: React.ReactNode }) => (
-    <Card className={cn(color)}>
+  const TopCard = ({ label, value, delta, color, tip, onClick }: { label: string; value: string; delta: DeltaInfo; color: string; tip?: React.ReactNode; onClick?: () => void }) => (
+    <Card className={cn(color, onClick && 'cursor-pointer hover:shadow-md transition')} onClick={onClick}>
       <CardContent className="p-4">
         <div className="flex items-center gap-1.5">
           <p className="text-sm text-muted-foreground font-medium">{label}</p>
-          {tip && <InfoTip>{tip}</InfoTip>}
+          {tip && <span onClick={e => e.stopPropagation()}><InfoTip>{tip}</InfoTip></span>}
         </div>
         <p className="text-2xl font-bold mt-1">{value}</p>
         {delta && delta.direction !== 'neutral' && (
@@ -673,6 +824,91 @@ export default function MetricasPage() {
         {!delta && <p className="text-[10px] text-muted-foreground mt-1">— sem dado anterior pra comparar</p>}
       </CardContent>
     </Card>
+  );
+
+  // Helpers para abrir o dialog
+  const showFormula = (title: string, body: React.ReactNode) => setDetail({ type: 'formula', title, body });
+  const showPedidos = (title: string, filter: { canal?: string; isFreeOnly?: boolean; isPendente?: boolean; isPagoOnly?: boolean }) => setDetail({ type: 'pedidos', title, filter });
+  const showLancamentos = (title: string, categoria?: string) => setDetail({ type: 'lancamentos', title, categoria });
+
+  // Bodies de formula (pre-computados) — alguns sao usados varias vezes
+  const formulaLucro = (
+    <div className="text-sm">
+      <FormulaRow label="Faturamento Total" value={formatBRL(data.fatTotal)} />
+      <FormulaRow label="− Custo Total" value={formatBRL(-data.custoTotal)} />
+      <FormulaRow label="Lucro" value={formatBRL(data.lucro)} isResult />
+      <p className="text-xs text-muted-foreground mt-3">Faturamento (pagos + pendentes do período, exclui FREE) menos todas as despesas do período (financeiro tipo despesa).</p>
+    </div>
+  );
+  const formulaMargem = (
+    <div className="text-sm">
+      <FormulaRow label="Lucro" value={formatBRL(data.lucro)} />
+      <FormulaRow label="÷ Faturamento" value={formatBRL(data.fatTotal)} />
+      <FormulaRow label="× 100" value="" />
+      <FormulaRow label="Margem" value={`${data.margem?.toFixed(2)}%`} isResult />
+      <p className="text-xs text-muted-foreground mt-3">% do faturamento que sobra como lucro líquido após custos.</p>
+    </div>
+  );
+  const formulaIcm = (
+    <div className="text-sm">
+      <FormulaRow label="Custo ADS" value={formatBRL(data.custoAds)} />
+      <FormulaRow label="÷ (Lucro + Custo ADS)" value={formatBRL((data.lucro || 0) + (data.custoAds || 0))} />
+      <FormulaRow label="× 100" value="" />
+      <FormulaRow label="ICM" value={`${data.icm?.toFixed(2)}%`} isResult />
+      <p className="text-xs text-muted-foreground mt-3">Índice de Custo de Marketing — quanto menor, melhor. Alerta acima de 20%.</p>
+    </div>
+  );
+  const formulaCpa = (
+    <div className="text-sm">
+      <FormulaRow label="Custo ADS" value={formatBRL(data.custoAds)} />
+      <FormulaRow label="÷ Unidades ADS" value={String(data.prodAds)} />
+      <FormulaRow label="CPA Un. ADS" value={formatBRL(data.cpaUnAds)} isResult />
+      <p className="text-xs text-muted-foreground mt-3">Custo de anúncio por unidade vendida no canal ADS.</p>
+    </div>
+  );
+  const formulaCac = (
+    <div className="text-sm">
+      <FormulaRow label="Custo ADS" value={formatBRL(data.custoAds)} />
+      <FormulaRow label="÷ Pedidos ADS" value={String(data.pedidosAds)} />
+      <FormulaRow label="CAC" value={formatBRL(data.cac)} isResult />
+      <p className="text-xs text-muted-foreground mt-3">Custo de Aquisição: quanto custou cada venda (transação) ADS.</p>
+    </div>
+  );
+  const formulaCustoOp = (
+    <div className="text-sm">
+      <FormulaRow label="Etiqueta Total" value={formatBRL(data.etiquetaTotal)} />
+      <FormulaRow label="+ Logística Total" value={formatBRL(data.logTotal)} />
+      <FormulaRow label="÷ Total de unidades (inclui FREE)" value={String(data.prodTotalRealistico)} />
+      <FormulaRow label="Custo Operacional Un." value={formatBRL(data.custoOpUn)} isResult />
+      <p className="text-xs text-muted-foreground mt-3">Custos operacionais (etiqueta + logística) diluídos por unidade efetivamente movimentada.</p>
+    </div>
+  );
+  const formulaCustoProd = (
+    <div className="text-sm">
+      <FormulaRow label="Material Total" value={formatBRL(data.materialTotal)} />
+      <FormulaRow label="÷ Total de unidades (inclui FREE)" value={String(data.prodTotalRealistico)} />
+      <FormulaRow label="Custo Produto Un." value={formatBRL(data.custoProdUn)} isResult />
+      <p className="text-xs text-muted-foreground mt-3">Material de produção diluído por unidade efetivamente movimentada.</p>
+    </div>
+  );
+  const medLucroFormula = (canal: 'BASE' | 'ADS' | 'REP', fat: number, prod: number, valor: number) => (
+    <div className="text-sm">
+      <FormulaRow label={`Fat. ${canal}`} value={formatBRL(fat)} />
+      <FormulaRow label={`÷ Prod. ${canal}`} value={String(prod)} />
+      <FormulaRow label="Ticket médio unitário" value={prod > 0 ? formatBRL(fat / prod) : '—'} />
+      <FormulaRow label="− Custo Produto Un." value={formatBRL(-data.custoProdUn)} />
+      <FormulaRow label="− Custo Operacional Un." value={formatBRL(-data.custoOpUn)} />
+      {canal === 'ADS' && <FormulaRow label="− CPA Un. ADS" value={formatBRL(-data.cpaUnAds)} />}
+      <FormulaRow label={`Med. Lucro Un. ${canal}`} value={formatBRL(valor)} isResult />
+    </div>
+  );
+  const formulaMedLucroGeral = (
+    <div className="text-sm">
+      <FormulaRow label="Lucro" value={formatBRL(data.lucro)} />
+      <FormulaRow label="÷ Produtos non-FREE" value={String(data.prodTotal)} />
+      <FormulaRow label="Med. Lucro Un. Geral" value={formatBRL(data.medLucroGeral)} isResult />
+      <p className="text-xs text-muted-foreground mt-3">Lucro total dividido pelas unidades comercializadas (exclui FREE).</p>
+    </div>
   );
 
   if (loading) return <Skeleton className="h-96" />;
@@ -710,6 +946,7 @@ export default function MetricasPage() {
               delta={deltas.fat}
               color="bg-card border-l-4 border-l-primary"
               tip="Soma de pedidos pagos (por data do recebimento) + pendentes (por data de criação) do período. Exclui FREE."
+              onClick={() => showPedidos('Pedidos do período (Faturamento)', {})}
             />
             <TopCard
               label="📦 Total de Produtos"
@@ -717,6 +954,7 @@ export default function MetricasPage() {
               delta={deltas.prod}
               color="bg-card border-l-4 border-l-primary"
               tip="Unidades movimentadas no período: pagos + pendentes + FREE. Reflete operação real."
+              onClick={() => showPedidos('Pedidos do período (Produtos)', {})}
             />
             <TopCard
               label="💵 Lucro"
@@ -724,6 +962,7 @@ export default function MetricasPage() {
               delta={deltas.lucro}
               color="bg-card border-l-4 border-l-primary"
               tip="Faturamento (com pendentes) − Custos do período."
+              onClick={() => showFormula('Lucro do período', formulaLucro)}
             />
           </div>
 
@@ -892,20 +1131,21 @@ export default function MetricasPage() {
                 value={formatBRL(data.fatTotal)}
                 color="bg-card border border-purple-200"
                 tip="Soma de pedidos pagos (por data_pago) + pendentes (por data de criação)."
+                onClick={() => showPedidos('Faturamento Total (pagos + pendentes)', {})}
               />
-              <Card className="bg-card border-2 border-purple-300">
+              <Card className="bg-card border-2 border-purple-300 cursor-pointer hover:shadow-md transition" onClick={() => showPedidos('Pedidos Pendentes (todos)', { isPendente: true })}>
                 <CardContent className="p-3">
                   <div className="flex items-center gap-1.5">
                     <p className="text-xs text-muted-foreground">💳 Pendentes</p>
-                    <InfoTip>Soma de pedidos pendentes (todos os períodos). Apenas visualização — já está incluso no Fat. Total acima.</InfoTip>
+                    <span onClick={e => e.stopPropagation()}><InfoTip>Soma de pedidos pendentes (todos os períodos). Apenas visualização — já está incluso no Fat. Total acima.</InfoTip></span>
                   </div>
                   <p className="text-lg font-bold text-purple-700">{formatBRL(pendentesTotal)}</p>
                   <p className="text-[10px] text-muted-foreground">Global — independente do período</p>
                 </CardContent>
               </Card>
-              <MetricCard label="Fat. Base" value={formatBRL(data.fatBase)} color="bg-card border border-purple-200" tip="Soma valor de pedidos do canal BASE no período." />
-              <MetricCard label="Fat. ADS" value={formatBRL(data.fatAds)} color="bg-card border border-purple-200" tip="Soma valor de pedidos do canal ADS no período." />
-              <MetricCard label="Fat. Rep" value={formatBRL(data.fatRep)} color="bg-card border border-purple-200" tip="Soma valor de pedidos do canal REP no período." />
+              <MetricCard label="Fat. Base" value={formatBRL(data.fatBase)} color="bg-card border border-purple-200" tip="Soma valor de pedidos do canal BASE no período." onClick={() => showPedidos('Faturamento BASE', { canal: 'BASE' })} />
+              <MetricCard label="Fat. ADS" value={formatBRL(data.fatAds)} color="bg-card border border-purple-200" tip="Soma valor de pedidos do canal ADS no período." onClick={() => showPedidos('Faturamento ADS', { canal: 'ADS' })} />
+              <MetricCard label="Fat. Rep" value={formatBRL(data.fatRep)} color="bg-card border border-purple-200" tip="Soma valor de pedidos do canal REP no período." onClick={() => showPedidos('Faturamento REP', { canal: 'REP' })} />
             </div>
           </div>
 
@@ -913,11 +1153,11 @@ export default function MetricasPage() {
           <div>
             <h2 className="font-bold mb-2 text-destructive">CUSTOS</h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <MetricCard label="Custo Total" value={formatBRL(data.custoTotal)} color="bg-card border-l-4 border-l-destructive" tip="Soma de todos os lançamentos tipo 'despesa' em Financeiro no período." />
-              <MetricCard label="Custo ADS" value={formatBRL(data.custoAds)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'ads' em Financeiro." />
-              <MetricCard label="Etiqueta Total" value={formatBRL(data.etiquetaTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'etiqueta' em Financeiro." />
-              <MetricCard label="Log Total" value={formatBRL(data.logTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'logistica' em Financeiro." />
-              <MetricCard label="Material Total" value={formatBRL(data.materialTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'material' em Financeiro." />
+              <MetricCard label="Custo Total" value={formatBRL(data.custoTotal)} color="bg-card border-l-4 border-l-destructive" tip="Soma de todos os lançamentos tipo 'despesa' em Financeiro no período." onClick={() => showLancamentos('Custo Total — Lançamentos')} />
+              <MetricCard label="Custo ADS" value={formatBRL(data.custoAds)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'ads' em Financeiro." onClick={() => showLancamentos('Custo ADS — Lançamentos', 'ads')} />
+              <MetricCard label="Etiqueta Total" value={formatBRL(data.etiquetaTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'etiqueta' em Financeiro." onClick={() => showLancamentos('Etiqueta — Lançamentos', 'etiqueta')} />
+              <MetricCard label="Log Total" value={formatBRL(data.logTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'logistica' em Financeiro." onClick={() => showLancamentos('Logística — Lançamentos', 'logistica')} />
+              <MetricCard label="Material Total" value={formatBRL(data.materialTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'material' em Financeiro." onClick={() => showLancamentos('Material — Lançamentos', 'material')} />
             </div>
           </div>
 
@@ -925,12 +1165,12 @@ export default function MetricasPage() {
           <div>
             <h2 className="font-bold mb-2 text-primary">RESULTADO</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <MetricCard label="Lucro" value={formatBRL(data.lucro)} color="bg-card border-l-4 border-l-primary" tip="Faturamento − Custo Total." />
-              <MetricCard label="Margem" value={formatPercent(data.margem)} color="bg-card border-l-4 border-l-primary" tip="(Lucro ÷ Faturamento) × 100" />
-              <MetricCard label="Med. Lucro Un. Base" value={formatBRL(data.medLucroBase)} color="bg-card border-l-4 border-l-primary" tip="(Fat. Base ÷ Prod. Base) − Custo Produto Un. − Custo Operacional Un." />
-              <MetricCard label="Med. Lucro Un. ADS" value={formatBRL(data.medLucroAds)} color="bg-card border-l-4 border-l-primary" tip="(Fat. ADS ÷ Prod. ADS) − Custo Produto Un. − Custo Operacional Un. − CPA Un. ADS" />
-              <MetricCard label="Med. Lucro Un. Rep" value={formatBRL(data.medLucroRep)} color="bg-card border-l-4 border-l-primary" tip="(Fat. Rep ÷ Prod. Rep) − Custo Produto Un. − Custo Operacional Un." />
-              <MetricCard label="Med. Lucro Un. Geral" value={formatBRL(data.medLucroGeral)} color="bg-card border-l-4 border-l-primary" tip="Lucro ÷ Produtos (pagos + pendentes, exclui FREE)." />
+              <MetricCard label="Lucro" value={formatBRL(data.lucro)} color="bg-card border-l-4 border-l-primary" tip="Faturamento − Custo Total." onClick={() => showFormula('Lucro do período', formulaLucro)} />
+              <MetricCard label="Margem" value={formatPercent(data.margem)} color="bg-card border-l-4 border-l-primary" tip="(Lucro ÷ Faturamento) × 100" onClick={() => showFormula('Margem', formulaMargem)} />
+              <MetricCard label="Med. Lucro Un. Base" value={formatBRL(data.medLucroBase)} color="bg-card border-l-4 border-l-primary" tip="(Fat. Base ÷ Prod. Base) − Custo Produto Un. − Custo Operacional Un." onClick={() => showFormula('Med. Lucro Un. Base', medLucroFormula('BASE', data.fatBase, data.prodBase, data.medLucroBase))} />
+              <MetricCard label="Med. Lucro Un. ADS" value={formatBRL(data.medLucroAds)} color="bg-card border-l-4 border-l-primary" tip="(Fat. ADS ÷ Prod. ADS) − Custo Produto Un. − Custo Operacional Un. − CPA Un. ADS" onClick={() => showFormula('Med. Lucro Un. ADS', medLucroFormula('ADS', data.fatAds, data.prodAds, data.medLucroAds))} />
+              <MetricCard label="Med. Lucro Un. Rep" value={formatBRL(data.medLucroRep)} color="bg-card border-l-4 border-l-primary" tip="(Fat. Rep ÷ Prod. Rep) − Custo Produto Un. − Custo Operacional Un." onClick={() => showFormula('Med. Lucro Un. Rep', medLucroFormula('REP', data.fatRep, data.prodRep, data.medLucroRep))} />
+              <MetricCard label="Med. Lucro Un. Geral" value={formatBRL(data.medLucroGeral)} color="bg-card border-l-4 border-l-primary" tip="Lucro ÷ Produtos (pagos + pendentes, exclui FREE)." onClick={() => showFormula('Med. Lucro Un. Geral', formulaMedLucroGeral)} />
             </div>
           </div>
         </TabsContent>
@@ -941,11 +1181,11 @@ export default function MetricasPage() {
           <div>
             <h2 className="font-bold mb-2 text-sf-gold">INDICADORES</h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <MetricCard label="ICM" value={formatPercent(data.icm)} color="bg-card border-l-4 border-l-sf-gold" tip="Índice de Custo de Marketing: Custo ADS ÷ (Lucro + Custo ADS) × 100. Quanto menor, melhor." />
-              <MetricCard label="CPA Un. ADS" value={formatBRL(data.cpaUnAds)} color="bg-card border-l-4 border-l-sf-gold" tip="Custo ADS por unidade vendida ADS: Custo ADS ÷ Unidades ADS." />
-              <MetricCard label="CAC" value={formatBRL(data.cac)} color="bg-card border-l-4 border-l-sf-gold" tip="Custo de Aquisição por venda ADS: Custo ADS ÷ Nº de pedidos ADS." />
-              <MetricCard label="Custo Operacional Un." value={formatBRL(data.custoOpUn)} color="bg-card border-l-4 border-l-sf-gold" tip="(Etiqueta + Logística) ÷ Total de unidades (inclui FREE)." />
-              <MetricCard label="Custo Produto Un." value={formatBRL(data.custoProdUn)} color="bg-card border-l-4 border-l-sf-gold" tip="Material ÷ Total de unidades (inclui FREE)." />
+              <MetricCard label="ICM" value={formatPercent(data.icm)} color="bg-card border-l-4 border-l-sf-gold" tip="Índice de Custo de Marketing: Custo ADS ÷ (Lucro + Custo ADS) × 100. Quanto menor, melhor." onClick={() => showFormula('ICM — Índice de Custo de Marketing', formulaIcm)} />
+              <MetricCard label="CPA Un. ADS" value={formatBRL(data.cpaUnAds)} color="bg-card border-l-4 border-l-sf-gold" tip="Custo ADS por unidade vendida ADS: Custo ADS ÷ Unidades ADS." onClick={() => showFormula('CPA Un. ADS', formulaCpa)} />
+              <MetricCard label="CAC" value={formatBRL(data.cac)} color="bg-card border-l-4 border-l-sf-gold" tip="Custo de Aquisição por venda ADS: Custo ADS ÷ Nº de pedidos ADS." onClick={() => showFormula('CAC — Custo de Aquisição', formulaCac)} />
+              <MetricCard label="Custo Operacional Un." value={formatBRL(data.custoOpUn)} color="bg-card border-l-4 border-l-sf-gold" tip="(Etiqueta + Logística) ÷ Total de unidades (inclui FREE)." onClick={() => showFormula('Custo Operacional Un.', formulaCustoOp)} />
+              <MetricCard label="Custo Produto Un." value={formatBRL(data.custoProdUn)} color="bg-card border-l-4 border-l-sf-gold" tip="Material ÷ Total de unidades (inclui FREE)." onClick={() => showFormula('Custo Produto Un.', formulaCustoProd)} />
             </div>
           </div>
 
@@ -953,11 +1193,11 @@ export default function MetricasPage() {
           <div>
             <h2 className="font-bold mb-2" style={{ color: '#1976D2' }}>PRODUTOS</h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <MetricCard label="Total de Produtos" value={String(data.prodTotalRealistico ?? data.prodTotal)} color="bg-card border-l-4 border-l-blue-500" tip="Pagos + Pendentes + FREE. Reflete unidades efetivamente movimentadas." />
-              <MetricCard label="Prod. ADS" value={String(data.prodAds)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades em pedidos do canal ADS (pagos + pendentes)." />
-              <MetricCard label="Prod. Base" value={String(data.prodBase)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades em pedidos do canal BASE (pagos + pendentes)." />
-              <MetricCard label="Prod. Rep" value={String(data.prodRep)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades em pedidos do canal REP (pagos + pendentes)." />
-              <MetricCard label="Prod. Free" value={String(data.prodFree ?? 0)} color="bg-card border-l-4 border-l-sky-500" tip="Unidades em pedidos FREE (brindes/reposições da Logística). Não afeta lucro." />
+              <MetricCard label="Total de Produtos" value={String(data.prodTotalRealistico ?? data.prodTotal)} color="bg-card border-l-4 border-l-blue-500" tip="Pagos + Pendentes + FREE. Reflete unidades efetivamente movimentadas." onClick={() => showPedidos('Pedidos do período (Produtos)', {})} />
+              <MetricCard label="Prod. ADS" value={String(data.prodAds)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades em pedidos do canal ADS (pagos + pendentes)." onClick={() => showPedidos('Pedidos ADS', { canal: 'ADS' })} />
+              <MetricCard label="Prod. Base" value={String(data.prodBase)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades em pedidos do canal BASE (pagos + pendentes)." onClick={() => showPedidos('Pedidos BASE', { canal: 'BASE' })} />
+              <MetricCard label="Prod. Rep" value={String(data.prodRep)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades em pedidos do canal REP (pagos + pendentes)." onClick={() => showPedidos('Pedidos REP', { canal: 'REP' })} />
+              <MetricCard label="Prod. Free" value={String(data.prodFree ?? 0)} color="bg-card border-l-4 border-l-sky-500" tip="Unidades em pedidos FREE (brindes/reposições da Logística). Não afeta lucro." onClick={() => showPedidos('Pedidos FREE', { isFreeOnly: true })} />
             </div>
           </div>
 
@@ -973,18 +1213,40 @@ export default function MetricasPage() {
                 value={recompraMetrics ? formatBRL(recompraMetrics.ltvGeral) : '—'}
                 color="bg-card border-l-4 border-l-emerald-500"
                 tip="Lifetime Value Geral — valor médio acumulado por cliente em toda história. Σ(receita líquida de todos pedidos pagos não-FREE) ÷ nº de contatos únicos. Histórico, independe do período selecionado."
+                onClick={() => recompraMetrics && showFormula('LTV Geral', (
+                  <div className="text-sm">
+                    <FormulaRow label="Receita total (histórica)" value={formatBRL(recompraMetrics.ltvGeral * recompraMetrics.contatosTotal)} />
+                    <FormulaRow label="÷ Contatos únicos" value={String(recompraMetrics.contatosTotal)} />
+                    <FormulaRow label="LTV Geral" value={formatBRL(recompraMetrics.ltvGeral)} isResult />
+                    <p className="text-xs text-muted-foreground mt-3">Receita líquida (valor_original − desconto_total) de todos pedidos pagos não-FREE, dividido pelo número de contatos únicos.</p>
+                  </div>
+                ))}
               />
               <MetricCard
                 label="LTV BASE"
                 value={recompraMetrics ? formatBRL(recompraMetrics.ltvBase) : '—'}
                 color="bg-card border-l-4 border-l-emerald-500"
                 tip={`LTV dos clientes diretos recorrentes (canal_origem = BASE). Base: ${recompraMetrics?.contatosBase ?? 0} contatos.`}
+                onClick={() => recompraMetrics && showFormula('LTV BASE', (
+                  <div className="text-sm">
+                    <FormulaRow label="Receita total BASE" value={formatBRL(recompraMetrics.ltvBase * recompraMetrics.contatosBase)} />
+                    <FormulaRow label="÷ Contatos BASE" value={String(recompraMetrics.contatosBase)} />
+                    <FormulaRow label="LTV BASE" value={formatBRL(recompraMetrics.ltvBase)} isResult />
+                  </div>
+                ))}
               />
               <MetricCard
                 label="LTV REP"
                 value={recompraMetrics ? formatBRL(recompraMetrics.ltvRep) : '—'}
                 color="bg-card border-l-4 border-l-emerald-500"
                 tip={`LTV dos clientes vindos por representante (canal_origem = REP ou C-REP). Base: ${recompraMetrics?.contatosRep ?? 0} contatos. Tende a ser alto porque há poucos contatos REP com muito faturamento.`}
+                onClick={() => recompraMetrics && showFormula('LTV REP', (
+                  <div className="text-sm">
+                    <FormulaRow label="Receita total REP/C-REP" value={formatBRL(recompraMetrics.ltvRep * recompraMetrics.contatosRep)} />
+                    <FormulaRow label="÷ Contatos REP/C-REP" value={String(recompraMetrics.contatosRep)} />
+                    <FormulaRow label="LTV REP" value={formatBRL(recompraMetrics.ltvRep)} isResult />
+                  </div>
+                ))}
               />
             </div>
 
@@ -996,12 +1258,31 @@ export default function MetricasPage() {
                 value={recompraMetrics ? formatPercent(recompraMetrics.taxaRecompraPeriodo) : '—'}
                 color="bg-card border-l-4 border-l-emerald-500"
                 tip="% de clientes diretos do período (ADS+BASE) que JÁ tinham comprado antes do período. Não usa canal_origem como proxy — usa histórico real de pedidos pagos. Exclui REP/C-REP."
+                onClick={() => recompraMetrics && showFormula('Taxa de Recompra do Período', (
+                  <div className="text-sm">
+                    <p className="text-xs text-muted-foreground mb-2">Clientes diretos do período (ADS + BASE), excluindo REP/C-REP.</p>
+                    <FormulaRow label="Clientes que JÁ tinham pedido pago antes" value="numerador" />
+                    <FormulaRow label="÷ Total clientes únicos do período" value="denominador" />
+                    <FormulaRow label="× 100" value="" />
+                    <FormulaRow label="Taxa Recompra (Período)" value={formatPercent(recompraMetrics.taxaRecompraPeriodo)} isResult />
+                    <p className="text-xs text-muted-foreground mt-3">Usa histórico real de pedidos pagos, não o campo canal_origem (que pode ter BASE em primeira compra de indicação).</p>
+                  </div>
+                ))}
               />
               <MetricCard
                 label="Taxa Recompra (Histórica)"
                 value={recompraMetrics ? formatPercent(recompraMetrics.taxaRecompraHistorica) : '—'}
                 color="bg-card border-l-4 border-l-emerald-500"
                 tip="% de todos os clientes diretos (excluindo REP/C-REP) que fizeram 2+ pedidos pagos ao longo da história. Métrica estável — não oscila por período."
+                onClick={() => recompraMetrics && showFormula('Taxa de Recompra Histórica', (
+                  <div className="text-sm">
+                    <p className="text-xs text-muted-foreground mb-2">Contatos diretos (excluindo REP/C-REP).</p>
+                    <FormulaRow label="Contatos com 2+ pedidos pagos" value="numerador" />
+                    <FormulaRow label="÷ Contatos com 1+ pedido pago" value="denominador" />
+                    <FormulaRow label="× 100" value="" />
+                    <FormulaRow label="Taxa Recompra (Histórica)" value={formatPercent(recompraMetrics.taxaRecompraHistorica)} isResult />
+                  </div>
+                ))}
               />
               <MetricCard
                 label="Tempo Médio de Recompra"
@@ -1010,11 +1291,32 @@ export default function MetricasPage() {
                   : '—'}
                 color="bg-card border-l-4 border-l-emerald-500"
                 tip="Intervalo médio (em dias) entre compras consecutivas de clientes diretos que recompraram. Calculado sobre TODOS os gaps de TODOS os clientes com 2+ pedidos pagos. Exclui REP/C-REP e FREE."
+                onClick={() => recompraMetrics && showFormula('Tempo Médio de Recompra', (
+                  <div className="text-sm">
+                    <p className="text-xs text-muted-foreground mb-2">Calculado em todos os clientes diretos com 2+ pedidos pagos.</p>
+                    <FormulaRow label="Σ (dias entre pedidos consecutivos)" value="totalGaps" />
+                    <FormulaRow label="÷ Nº de intervalos" value="gapCount" />
+                    <FormulaRow label="Tempo Médio" value={`${recompraMetrics.tempoMedioRecompra.toFixed(0)} dias`} isResult />
+                    <p className="text-xs text-muted-foreground mt-3">Para cada cliente com N pedidos, calcula N-1 gaps. Soma todos os gaps de todos os clientes e tira a média global. Métrica histórica.</p>
+                  </div>
+                ))}
               />
             </div>
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* === DRILL-DOWN DIALOG === */}
+      <Dialog open={!!detail} onOpenChange={(o) => { if (!o) setDetail(null); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{detail?.title}</DialogTitle>
+          </DialogHeader>
+          {detail?.type === 'formula' && detail.body}
+          {detail?.type === 'pedidos' && <PedidosDetail filter={detail.filter} />}
+          {detail?.type === 'lancamentos' && <LancamentosDetail categoria={detail.categoria} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
