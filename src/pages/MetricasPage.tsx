@@ -18,13 +18,117 @@ export default function MetricasPage() {
   const [data, setData] = useState<any>({});
   const [pendentesTotal, setPendentesTotal] = useState(0);
   const [deltas, setDeltas] = useState<{ fat: DeltaInfo; prod: DeltaInfo; lucro: DeltaInfo }>({ fat: null, prod: null, lucro: null });
+  const [recompraMetrics, setRecompraMetrics] = useState<{
+    ltvGeral: number; ltvBase: number; ltvRep: number;
+    taxaRecompraPeriodo: number; taxaRecompraHistorica: number;
+    tempoMedioRecompra: number;
+    contatosBase: number; contatosRep: number; contatosTotal: number;
+  } | null>(null);
 
-  useEffect(() => { fetchData(); fetchPendentes(); }, [month, year]);
+  useEffect(() => { fetchData(); fetchPendentes(); fetchRecompraMetrics(); }, [month, year]);
 
   const fetchPendentes = async () => {
     // Exclui pedidos FREE (sem impacto financeiro)
     const { data } = await supabase.from('pedidos').select('valor, is_free').eq('status_pagamento', 'pendente').neq('is_free', true);
     setPendentesTotal(data?.reduce((s, p) => s + (Number(p.valor) || 0), 0) || 0);
+  };
+
+  // LTV / Recompra / Tempo Médio — todas baseadas em comportamento REAL
+  // (não em canal). Excluem FREE. Para taxas e tempo: excluem REP/C-REP.
+  const fetchRecompraMetrics = async () => {
+    const start = `${year}-${String(month).padStart(2, '0')}-01`;
+    const nextM = month === 12 ? 1 : month + 1;
+    const nextY = month === 12 ? year + 1 : year;
+    const end = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+
+    // Busca TODOS os pedidos pagos non-FREE com canal_origem do contato.
+    // Pesado? Não — historico total da Santa Flor é pequeno.
+    const { data: allPaid } = await supabase
+      .from('pedidos')
+      .select('contato_id, data_pago, valor, valor_original, desconto_total, contatos(canal_origem)')
+      .eq('status_pagamento', 'pago')
+      .neq('is_free', true)
+      .not('contato_id', 'is', null)
+      .order('data_pago', { ascending: true });
+
+    if (!allPaid) return;
+
+    // Agrupa por contato_id
+    type ContatoStats = { pedidos: Array<{ data_pago: string; valor_real: number }>; canal_origem: string | null };
+    const byContato = new Map<string, ContatoStats>();
+    (allPaid as any[]).forEach(p => {
+      if (!p.contato_id || !p.data_pago) return;
+      const valorReal = (Number(p.valor_original ?? p.valor) || 0) - (Number(p.desconto_total) || 0);
+      const canal = p.contatos?.canal_origem || null;
+      if (!byContato.has(p.contato_id)) byContato.set(p.contato_id, { pedidos: [], canal_origem: canal });
+      byContato.get(p.contato_id)!.pedidos.push({ data_pago: p.data_pago, valor_real: valorReal });
+    });
+
+    const isDireto = (canal: string | null) => canal !== 'REP' && canal !== 'C-REP';
+
+    // LTV Geral: avg(soma_revenue por contato) — todos os contatos com 1+ pedido pago
+    const all = [...byContato.values()];
+    const totalAll = all.reduce((s, c) => s + c.pedidos.reduce((ss, p) => ss + p.valor_real, 0), 0);
+    const ltvGeral = all.length > 0 ? totalAll / all.length : 0;
+
+    // LTV BASE
+    const base = all.filter(c => c.canal_origem === 'BASE');
+    const totalBase = base.reduce((s, c) => s + c.pedidos.reduce((ss, p) => ss + p.valor_real, 0), 0);
+    const ltvBase = base.length > 0 ? totalBase / base.length : 0;
+
+    // LTV REP (inclui C-REP)
+    const rep = all.filter(c => c.canal_origem === 'REP' || c.canal_origem === 'C-REP');
+    const totalRep = rep.reduce((s, c) => s + c.pedidos.reduce((ss, p) => ss + p.valor_real, 0), 0);
+    const ltvRep = rep.length > 0 ? totalRep / rep.length : 0;
+
+    // Clientes diretos (ADS + BASE — exclui REP/C-REP)
+    const diretos: ContatoStats[] = [];
+    const diretosMap: Array<{ id: string; stats: ContatoStats }> = [];
+    byContato.forEach((stats, id) => {
+      if (isDireto(stats.canal_origem)) {
+        diretos.push(stats);
+        diretosMap.push({ id, stats });
+      }
+    });
+
+    // Taxa de Recompra Histórica: % de clientes diretos com 2+ pedidos pagos
+    const comRecompra = diretos.filter(c => c.pedidos.length >= 2).length;
+    const taxaRecompraHistorica = diretos.length > 0 ? (comRecompra / diretos.length) * 100 : 0;
+
+    // Tempo Médio de Recompra: avg gaps entre pedidos consecutivos (todos clientes diretos 2+)
+    let totalGaps = 0;
+    let gapCount = 0;
+    diretos.forEach(c => {
+      if (c.pedidos.length < 2) return;
+      for (let i = 1; i < c.pedidos.length; i++) {
+        const d1 = new Date(c.pedidos[i - 1].data_pago);
+        const d2 = new Date(c.pedidos[i].data_pago);
+        const diffDays = Math.round((d2.getTime() - d1.getTime()) / 86400000);
+        if (diffDays >= 0) { totalGaps += diffDays; gapCount += 1; }
+      }
+    });
+    const tempoMedioRecompra = gapCount > 0 ? totalGaps / gapCount : 0;
+
+    // Taxa de Recompra do Período: % dos clientes do período que JÁ eram clientes antes
+    const contatosPeriodo = new Set<string>();
+    const contatosComCompraAnterior = new Set<string>();
+    diretosMap.forEach(({ id, stats }) => {
+      const fezNoPeriodo = stats.pedidos.some(p => p.data_pago >= start && p.data_pago < end);
+      if (!fezNoPeriodo) return;
+      contatosPeriodo.add(id);
+      const tinhaCompraAntes = stats.pedidos.some(p => p.data_pago < start);
+      if (tinhaCompraAntes) contatosComCompraAnterior.add(id);
+    });
+    const taxaRecompraPeriodo = contatosPeriodo.size > 0
+      ? (contatosComCompraAnterior.size / contatosPeriodo.size) * 100
+      : 0;
+
+    setRecompraMetrics({
+      ltvGeral, ltvBase, ltvRep,
+      taxaRecompraPeriodo, taxaRecompraHistorica,
+      tempoMedioRecompra,
+      contatosBase: base.length, contatosRep: rep.length, contatosTotal: all.length,
+    });
   };
 
   // Calcula soma agregada (faturamento, produtos non-free, lucro) num range arbitrario.
@@ -358,12 +462,58 @@ export default function MetricasPage() {
             </div>
           </div>
 
-          {/* Placeholder para LTV / Taxa Recompra / DSO (Fase 2) */}
-          <Card className="border-dashed">
-            <CardContent className="p-6 text-center text-muted-foreground text-sm">
-              📈 LTV, Taxa de Recompra e DSO chegam na próxima fase.
-            </CardContent>
-          </Card>
+          {/* Cliente & Recompra */}
+          <div>
+            <h2 className="font-bold mb-2 text-emerald-700">👥 CLIENTE & RECOMPRA</h2>
+
+            {/* Sub-bloco 1: Valor do Cliente */}
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 mt-3">Valor do Cliente</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+              <MetricCard
+                label="LTV Geral"
+                value={recompraMetrics ? formatBRL(recompraMetrics.ltvGeral) : '—'}
+                color="bg-card border-l-4 border-l-emerald-500"
+                tip="Lifetime Value Geral — valor médio acumulado por cliente em toda história. Σ(receita líquida de todos pedidos pagos não-FREE) ÷ nº de contatos únicos. Histórico, independe do período selecionado."
+              />
+              <MetricCard
+                label="LTV BASE"
+                value={recompraMetrics ? formatBRL(recompraMetrics.ltvBase) : '—'}
+                color="bg-card border-l-4 border-l-emerald-500"
+                tip={`LTV dos clientes diretos recorrentes (canal_origem = BASE). Base: ${recompraMetrics?.contatosBase ?? 0} contatos.`}
+              />
+              <MetricCard
+                label="LTV REP"
+                value={recompraMetrics ? formatBRL(recompraMetrics.ltvRep) : '—'}
+                color="bg-card border-l-4 border-l-emerald-500"
+                tip={`LTV dos clientes vindos por representante (canal_origem = REP ou C-REP). Base: ${recompraMetrics?.contatosRep ?? 0} contatos. Tende a ser alto porque há poucos contatos REP com muito faturamento.`}
+              />
+            </div>
+
+            {/* Sub-bloco 2: Comportamento */}
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 mt-3">Comportamento</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <MetricCard
+                label="Taxa Recompra (Período)"
+                value={recompraMetrics ? formatPercent(recompraMetrics.taxaRecompraPeriodo) : '—'}
+                color="bg-card border-l-4 border-l-emerald-500"
+                tip="% de clientes diretos do período (ADS+BASE) que JÁ tinham comprado antes do período. Não usa canal_origem como proxy — usa histórico real de pedidos pagos. Exclui REP/C-REP."
+              />
+              <MetricCard
+                label="Taxa Recompra (Histórica)"
+                value={recompraMetrics ? formatPercent(recompraMetrics.taxaRecompraHistorica) : '—'}
+                color="bg-card border-l-4 border-l-emerald-500"
+                tip="% de todos os clientes diretos (excluindo REP/C-REP) que fizeram 2+ pedidos pagos ao longo da história. Métrica estável — não oscila por período."
+              />
+              <MetricCard
+                label="Tempo Médio de Recompra"
+                value={recompraMetrics
+                  ? `${recompraMetrics.tempoMedioRecompra.toFixed(0)} dias`
+                  : '—'}
+                color="bg-card border-l-4 border-l-emerald-500"
+                tip="Intervalo médio (em dias) entre compras consecutivas de clientes diretos que recompraram. Calculado sobre TODOS os gaps de TODOS os clientes com 2+ pedidos pagos. Exclui REP/C-REP e FREE."
+              />
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
