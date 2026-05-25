@@ -85,7 +85,7 @@ export default function MetricasPage() {
     const yearStart = `${year}-01-01`;
     const yearEnd = `${year + 1}-01-01`;
     const { data } = await supabase.from('pedidos')
-      .select('data_pago, valor, canal, status_pagamento, is_free')
+      .select('data_pago, valor, valor_original, desconto_total, canal, status_pagamento, is_free')
       .neq('is_free', true)
       .eq('status_pagamento', 'pago')
       .gte('data_pago', yearStart).lt('data_pago', yearEnd);
@@ -96,7 +96,8 @@ export default function MetricasPage() {
     (data || []).forEach((p: any) => {
       if (!p.data_pago) return;
       const m = new Date(`${p.data_pago}T00:00:00`).getMonth();
-      const v = Number(p.valor) || 0;
+      // valor real da venda: valor_original − desconto (consistente com Lista)
+      const v = (Number(p.valor_original ?? p.valor) || 0) - (Number(p.desconto_total) || 0);
       agg[m].total += v;
       if (p.canal === 'BASE') agg[m].base += v;
       else if (p.canal === 'ADS') agg[m].ads += v;
@@ -413,16 +414,17 @@ export default function MetricasPage() {
   // Reusa a mesma logica de pagos+pendentes (non-free) e financeiro do periodo.
   const computeRangeMetrics = async (startISO: string, endISO: string) => {
     const [{ data: pedPagos }, { data: pedPend }, { data: fin }] = await Promise.all([
-      supabase.from('pedidos').select('valor, quantidade, canal')
+      supabase.from('pedidos').select('valor, valor_original, desconto_total, quantidade, canal')
         .eq('status_pagamento', 'pago').neq('is_free', true)
         .gte('data_pago', startISO).lt('data_pago', endISO),
-      supabase.from('pedidos').select('valor, quantidade, canal')
+      supabase.from('pedidos').select('valor, valor_original, desconto_total, quantidade, canal')
         .eq('status_pagamento', 'pendente').neq('is_free', true)
         .gte('data', startISO).lt('data', endISO),
       supabase.from('financeiro').select('tipo, valor').gte('data', startISO).lt('data', endISO),
     ]);
     const ped = [...(pedPagos || []), ...(pedPend || [])];
-    const fat = ped.reduce((s, p: any) => s + (Number(p.valor) || 0), 0);
+    // valor real da venda: valor_original − desconto (alinha com Pedidos > Lista)
+    const fat = ped.reduce((s, p: any) => s + ((Number(p.valor_original ?? p.valor) || 0) - (Number(p.desconto_total) || 0)), 0);
     const prod = ped.reduce((s, p: any) => s + (p.quantidade || 0), 0);
     const despesas = (fin || []).filter((f: any) => f.tipo === 'despesa');
     const custo = despesas.reduce((s: number, d: any) => s + Number(d.valor), 0);
@@ -499,13 +501,18 @@ export default function MetricasPage() {
 
     const { data: fin } = await supabase.from('financeiro').select('*').gte('data', start).lt('data', end);
 
-    const receitas = (ped || []).filter(p => p.valor && Number(p.valor) > 0);
+    // Valor real da venda (faturamento bruto): valor_original − desconto_total.
+    // Usar pedidos.valor estaria errado para pedidos com parcela paga (refletiria
+    // o saldo restante e não o valor da venda). Alinha com Pedidos > Lista.
+    const vendaReal = (p: any) => (Number(p.valor_original ?? p.valor) || 0) - (Number(p.desconto_total) || 0);
+
+    const receitas = (ped || []).filter(p => vendaReal(p) > 0);
     const despesas = (fin || []).filter(f => f.tipo === 'despesa');
 
-    const fatTotal = receitas.reduce((s, r) => s + Number(r.valor || 0), 0);
-    const fatBase = receitas.filter(r => r.canal === 'BASE').reduce((s, r) => s + Number(r.valor || 0), 0);
-    const fatAds = receitas.filter(r => r.canal === 'ADS').reduce((s, r) => s + Number(r.valor || 0), 0);
-    const fatRep = receitas.filter(r => r.canal === 'REP').reduce((s, r) => s + Number(r.valor || 0), 0);
+    const fatTotal = receitas.reduce((s, r) => s + vendaReal(r), 0);
+    const fatBase = receitas.filter(r => r.canal === 'BASE').reduce((s, r) => s + vendaReal(r), 0);
+    const fatAds = receitas.filter(r => r.canal === 'ADS').reduce((s, r) => s + vendaReal(r), 0);
+    const fatRep = receitas.filter(r => r.canal === 'REP').reduce((s, r) => s + vendaReal(r), 0);
 
     const custoTotal = despesas.reduce((s, d) => s + Number(d.valor), 0);
     const custoAds = despesas.filter(d => d.categoria === 'ads').reduce((s, d) => s + Number(d.valor), 0);
