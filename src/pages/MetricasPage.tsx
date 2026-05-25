@@ -5,9 +5,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
+import { PieChart, Pie, Cell, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Info, TrendingUp, TrendingDown } from 'lucide-react';
 import { formatBRL, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
+
+// Paleta consistente por canal/categoria
+const COLORS = {
+  BASE: '#10b981',     // emerald
+  ADS: '#8b5cf6',      // violet
+  REP: '#f97316',      // orange
+  FREE: '#0ea5e9',     // sky
+  ETIQUETA: '#ef4444', // red
+  LOGISTICA: '#dc2626',// red darker
+  MATERIAL: '#f59e0b', // amber
+} as const;
 
 type DeltaInfo = { percent: number; direction: 'up' | 'down' | 'neutral' } | null;
 
@@ -24,8 +37,34 @@ export default function MetricasPage() {
     tempoMedioRecompra: number;
     contatosBase: number; contatosRep: number; contatosTotal: number;
   } | null>(null);
+  const [monthlyData, setMonthlyData] = useState<Array<{ mes: string; total: number; base: number; ads: number; rep: number }>>([]);
 
-  useEffect(() => { fetchData(); fetchPendentes(); fetchRecompraMetrics(); }, [month, year]);
+  useEffect(() => { fetchData(); fetchPendentes(); fetchRecompraMetrics(); fetchMonthlyData(); }, [month, year]);
+
+  // Dados mensais (linha 12 meses + barra empilhada): faturamento por canal × mês do ano selecionado
+  const fetchMonthlyData = async () => {
+    const yearStart = `${year}-01-01`;
+    const yearEnd = `${year + 1}-01-01`;
+    const { data } = await supabase.from('pedidos')
+      .select('data_pago, valor, canal, status_pagamento, is_free')
+      .neq('is_free', true)
+      .eq('status_pagamento', 'pago')
+      .gte('data_pago', yearStart).lt('data_pago', yearEnd);
+
+    const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const agg = meses.map(m => ({ mes: m, total: 0, base: 0, ads: 0, rep: 0 }));
+
+    (data || []).forEach((p: any) => {
+      if (!p.data_pago) return;
+      const m = new Date(`${p.data_pago}T00:00:00`).getMonth();
+      const v = Number(p.valor) || 0;
+      agg[m].total += v;
+      if (p.canal === 'BASE') agg[m].base += v;
+      else if (p.canal === 'ADS') agg[m].ads += v;
+      else if (p.canal === 'REP' || p.canal === 'C-REP') agg[m].rep += v;
+    });
+    setMonthlyData(agg);
+  };
 
   const fetchPendentes = async () => {
     // Exclui pedidos FREE (sem impacto financeiro)
@@ -275,6 +314,68 @@ export default function MetricasPage() {
     fetchDeltas(start, end).catch(console.error);
   };
 
+  // ---------- Chart components ----------
+  const PizzaChart = ({ title, items, formatter }: {
+    title: string;
+    items: Array<{ name: string; value: number; color: string }>;
+    formatter: (v: number) => string;
+  }) => {
+    const total = items.reduce((s, i) => s + i.value, 0);
+    const filtered = items.filter(i => i.value > 0);
+    const config = items.reduce((acc, it) => ({ ...acc, [it.name]: { label: it.name, color: it.color } }), {} as any);
+    return (
+      <Card>
+        <CardContent className="p-4">
+          <p className="text-sm font-semibold mb-2">{title}</p>
+          {total === 0 ? (
+            <p className="text-center text-muted-foreground text-xs py-8">Sem dados no período</p>
+          ) : (
+            <ChartContainer config={config} className="aspect-square max-h-[260px] mx-auto">
+              <PieChart>
+                <ChartTooltip
+                  cursor={false}
+                  content={({ active, payload }: any) => {
+                    if (!active || !payload?.[0]) return null;
+                    const item = payload[0];
+                    const pct = total > 0 ? (item.value / total * 100).toFixed(1) : '0';
+                    return (
+                      <div className="rounded-lg border bg-background px-3 py-2 shadow-sm text-xs">
+                        <p className="font-semibold">{item.name}</p>
+                        <p className="text-muted-foreground">{formatter(item.value)} <span className="opacity-60">({pct}%)</span></p>
+                      </div>
+                    );
+                  }}
+                />
+                <Pie
+                  data={filtered}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={55}
+                  outerRadius={90}
+                  paddingAngle={2}
+                  strokeWidth={2}
+                >
+                  {filtered.map((it, i) => (<Cell key={i} fill={it.color} />))}
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+          )}
+          {total > 0 && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center text-[11px] mt-2">
+              {filtered.map(it => (
+                <div key={it.name} className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: it.color }} />
+                  <span className="text-muted-foreground">{it.name}</span>
+                  <span className="font-medium">{((it.value / total) * 100).toFixed(0)}%</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
   // ---------- UI helpers ----------
   const InfoTip = ({ children }: { children: React.ReactNode }) => (
     <TooltipProvider delayDuration={150}>
@@ -374,10 +475,131 @@ export default function MetricasPage() {
             />
           </div>
 
-          {/* Placeholder para Insights (Fase 4) */}
+          {/* Placeholder Insights (Fase 4) */}
           <Card className="border-dashed">
-            <CardContent className="p-6 text-center text-muted-foreground text-sm">
-              💡 Insights e gráficos chegam nas próximas fases.
+            <CardContent className="p-4 text-center text-muted-foreground text-xs">
+              💡 Insights automáticos chegam na próxima fase.
+            </CardContent>
+          </Card>
+
+          {/* === GRÁFICOS PIZZA === */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <PizzaChart
+              title="💰 Faturamento por Canal"
+              items={[
+                { name: 'BASE', value: data.fatBase || 0, color: COLORS.BASE },
+                { name: 'ADS', value: data.fatAds || 0, color: COLORS.ADS },
+                { name: 'REP', value: data.fatRep || 0, color: COLORS.REP },
+              ]}
+              formatter={formatBRL}
+            />
+            <PizzaChart
+              title="💸 Custos por Categoria"
+              items={[
+                { name: 'ADS', value: data.custoAds || 0, color: COLORS.ADS },
+                { name: 'Etiqueta', value: data.etiquetaTotal || 0, color: COLORS.ETIQUETA },
+                { name: 'Logística', value: data.logTotal || 0, color: COLORS.LOGISTICA },
+                { name: 'Material', value: data.materialTotal || 0, color: COLORS.MATERIAL },
+              ]}
+              formatter={formatBRL}
+            />
+            <PizzaChart
+              title="📦 Produtos por Canal"
+              items={[
+                { name: 'BASE', value: data.prodBase || 0, color: COLORS.BASE },
+                { name: 'ADS', value: data.prodAds || 0, color: COLORS.ADS },
+                { name: 'REP', value: data.prodRep || 0, color: COLORS.REP },
+                { name: 'FREE', value: data.prodFree || 0, color: COLORS.FREE },
+              ]}
+              formatter={(v) => `${v} un`}
+            />
+          </div>
+
+          {/* === LINHA: FATURAMENTO MENSAL === */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold">📈 Faturamento Mensal · {year}</p>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Pagos non-FREE</span>
+              </div>
+              <ChartContainer
+                config={{ total: { label: 'Faturamento', color: 'hsl(var(--primary))' } }}
+                className="aspect-[3/1] w-full"
+              >
+                <LineChart data={monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="mes" tickLine={false} axisLine={false} fontSize={11} />
+                  <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tickLine={false} axisLine={false} fontSize={11} width={40} />
+                  <ChartTooltip
+                    content={({ active, payload, label }: any) => {
+                      if (!active || !payload?.[0]) return null;
+                      return (
+                        <div className="rounded-lg border bg-background px-3 py-2 shadow-sm text-xs">
+                          <p className="font-semibold mb-1">{label}/{year}</p>
+                          <p className="text-muted-foreground">Total: <span className="font-medium text-foreground">{formatBRL(payload[0].value)}</span></p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Line type="monotone" dataKey="total" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ fill: 'hsl(var(--primary))', r: 4 }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+
+          {/* === BARRA EMPILHADA: FATURAMENTO POR CANAL × MÊS === */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold">📊 Faturamento por Canal · {year}</p>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Composição mensal</span>
+              </div>
+              <ChartContainer
+                config={{
+                  base: { label: 'BASE', color: COLORS.BASE },
+                  ads: { label: 'ADS', color: COLORS.ADS },
+                  rep: { label: 'REP', color: COLORS.REP },
+                }}
+                className="aspect-[3/1] w-full"
+              >
+                <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="mes" tickLine={false} axisLine={false} fontSize={11} />
+                  <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tickLine={false} axisLine={false} fontSize={11} width={40} />
+                  <ChartTooltip
+                    content={({ active, payload, label }: any) => {
+                      if (!active || !payload?.length) return null;
+                      const total = payload.reduce((s: number, p: any) => s + (Number(p.value) || 0), 0);
+                      return (
+                        <div className="rounded-lg border bg-background px-3 py-2 shadow-sm text-xs space-y-0.5">
+                          <p className="font-semibold mb-1">{label}/{year}</p>
+                          {payload.map((p: any) => (
+                            <div key={p.dataKey} className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: p.color }} />
+                                <span className="text-muted-foreground capitalize">{p.dataKey}</span>
+                              </div>
+                              <span className="font-medium">{formatBRL(p.value)}</span>
+                            </div>
+                          ))}
+                          <div className="pt-1 border-t mt-1 flex justify-between gap-3">
+                            <span className="text-muted-foreground">Total</span>
+                            <span className="font-bold">{formatBRL(total)}</span>
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar dataKey="base" stackId="a" fill={COLORS.BASE} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="ads" stackId="a" fill={COLORS.ADS} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="rep" stackId="a" fill={COLORS.REP} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ChartContainer>
+              <div className="flex gap-3 justify-center text-[11px] mt-2">
+                <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS.BASE }} /><span className="text-muted-foreground">BASE</span></div>
+                <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS.ADS }} /><span className="text-muted-foreground">ADS</span></div>
+                <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS.REP }} /><span className="text-muted-foreground">REP</span></div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
