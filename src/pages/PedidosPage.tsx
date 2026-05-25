@@ -1027,6 +1027,9 @@ export default function PedidosPage() {
                 />
                 <p className="text-xs text-muted-foreground mt-1">Máximo: {formatBRL(Number(descontoTarget.valor || 0))}</p>
               </div>
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded px-2 py-1.5">
+                💡 Para <strong>cancelar</strong> o pedido, aplique desconto do <strong>valor total</strong> — o saldo zera e ele sai da lista de pendentes.
+              </p>
               <Button
                 className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]"
                 disabled={applyingDesconto || !descontoValor || Number(descontoValor) <= 0 || Number(descontoValor) > Number(descontoTarget.valor || 0)}

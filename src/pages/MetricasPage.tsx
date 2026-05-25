@@ -1128,19 +1128,29 @@ export default function MetricasPage() {
           {/* Faturamento */}
           <div>
             <h2 className="font-bold mb-2" style={{ color: '#7B1FA2' }}>FATURAMENTO</h2>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               <MetricCard
                 label="Fat. Total (Inclui Pendentes)"
                 value={formatBRL(data.fatTotal)}
                 color="bg-card border border-purple-200"
-                tip="Soma de pedidos pagos (por data_pago) + pendentes (por data de criação)."
+                tip="Soma de pedidos do mês de criação (pagos + pendentes, exclui FREE). Atribui a venda ao mês em que foi feita, independente do pagamento."
                 onClick={() => showPedidos('Faturamento Total (pagos + pendentes)', {})}
               />
+              <Card className="bg-card border-2 border-emerald-300 cursor-pointer hover:shadow-md transition" onClick={() => showPedidos('Vendas Pagas do período', { isPagoOnly: true })}>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs text-muted-foreground">💰 Em Caixa</p>
+                    <span onClick={e => e.stopPropagation()}><InfoTip>Faturamento Total − Pendentes globais. Representa o dinheiro que já entrou efetivamente.</InfoTip></span>
+                  </div>
+                  <p className="text-lg font-bold text-emerald-700">{formatBRL(Math.max(0, (data.fatTotal || 0) - pendentesTotal))}</p>
+                  <p className="text-[10px] text-muted-foreground">Fat. Total − Pendentes</p>
+                </CardContent>
+              </Card>
               <Card className="bg-card border-2 border-purple-300 cursor-pointer hover:shadow-md transition" onClick={() => showPedidos('Pedidos Pendentes (todos)', { isPendente: true })}>
                 <CardContent className="p-3">
                   <div className="flex items-center gap-1.5">
                     <p className="text-xs text-muted-foreground">💳 Pendentes</p>
-                    <span onClick={e => e.stopPropagation()}><InfoTip>Soma de pedidos pendentes (todos os períodos). Apenas visualização — já está incluso no Fat. Total acima.</InfoTip></span>
+                    <span onClick={e => e.stopPropagation()}><InfoTip>Saldo a receber dos pedidos pendentes (todos os períodos). Apenas visualização — já está incluso no Fat. Total acima.</InfoTip></span>
                   </div>
                   <p className="text-lg font-bold text-purple-700">{formatBRL(pendentesTotal)}</p>
                   <p className="text-[10px] text-muted-foreground">Global — independente do período</p>

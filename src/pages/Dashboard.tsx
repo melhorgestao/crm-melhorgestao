@@ -40,31 +40,25 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const localToday = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
   
-  const [period, setPeriod] = useState<'hoje' | 'ontem' | 'semana' | '15dias'>('hoje');
+  const [period, setPeriod] = useState<'hoje' | 'ontem' | '7dias' | '15dias' | '30dias'>('hoje');
 
   const getPeriodRange = () => {
     const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const today = fmt(now);
+
     if (period === 'hoje') return { from: today, to: today };
-    
+
     if (period === 'ontem') {
       const y = new Date(now.getTime() - 86400000);
-      const yesterday = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+      const yesterday = fmt(y);
       return { from: yesterday, to: yesterday };
     }
-    
-    if (period === 'semana') {
-      const dayOfWeek = now.getDay();
-      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      const monday = new Date(now.getTime() - diff * 86400000);
-      const from = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
-      return { from, to: today };
-    }
-    
-    const fifteen = new Date(now.getTime() - 14 * 86400000);
-    const from = `${fifteen.getFullYear()}-${String(fifteen.getMonth() + 1).padStart(2, '0')}-${String(fifteen.getDate()).padStart(2, '0')}`;
-    return { from, to: today };
+
+    // Ultimos N dias inclui hoje (today - (N-1) ate today)
+    const n = period === '7dias' ? 7 : period === '15dias' ? 15 : 30;
+    const start = new Date(now.getTime() - (n - 1) * 86400000);
+    return { from: fmt(start), to: today };
   };
 
   const { from: dateFrom, to: dateTo } = getPeriodRange();
@@ -300,8 +294,9 @@ export default function Dashboard() {
 
       const compareLabel = period === 'hoje' ? 'vs ontem'
         : period === 'ontem' ? 'vs anteontem'
-        : period === 'semana' ? 'vs Semana Passada'
-        : 'vs 15 dias anteriores';
+        : period === '7dias' ? 'vs 7 dias anteriores'
+        : period === '15dias' ? 'vs 15 dias anteriores'
+        : 'vs 30 dias anteriores';
 
       let fatIndicator = { percent: 0, direction: 'neutral' as 'up'|'down'|'neutral', label: compareLabel };
       if (prevFat !== 0) {
@@ -354,7 +349,7 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <div className="flex items-center gap-2">
-          {(['hoje', 'ontem', 'semana', '15dias'] as const).map(p => (
+          {(['hoje', 'ontem', '7dias', '15dias', '30dias'] as const).map(p => (
             <Button
               key={p}
               variant={period === p ? 'default' : 'outline'}
@@ -362,7 +357,7 @@ export default function Dashboard() {
               className="text-xs h-8"
               onClick={() => setPeriod(p)}
             >
-              {p === 'hoje' ? 'Hoje' : p === 'ontem' ? 'Ontem' : p === 'semana' ? 'Essa semana' : 'Últimos 15 dias'}
+              {p === 'hoje' ? 'Hoje' : p === 'ontem' ? 'Ontem' : p === '7dias' ? 'Últimos 7 dias' : p === '15dias' ? 'Últimos 15 dias' : 'Últimos 30 dias'}
             </Button>
           ))}
         </div>
@@ -403,7 +398,7 @@ export default function Dashboard() {
         <CardContent className="pt-4 pb-4 px-4">
           <div className="flex items-center gap-2 mb-3">
             <Target className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold">Meta do Mês</span>
+            <span className="text-sm font-bold">Caixa Mensal</span>
           </div>
           {metaValor && !editingMeta ? (
             <div className="space-y-3">
