@@ -222,19 +222,22 @@ export default function Dashboard() {
       const year = new Date().getFullYear();
       const currentMonthStart = `${year}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
 
-      // Pedidos do mes inteiro (pagos + pendentes non-FREE) — para Realizado da Meta
-      // Realizado = dinheiro que ja entrou em caixa este mes:
-      //   - Pagos: (valor_original - desconto) = total entrou
-      //   - Pendentes: (valor_original - desconto - valor) = parcelas ja recebidas
-      // Total = Faturamento Total do mes - Saldo restante a receber
+      // Realizado da Meta = fluxo de caixa REAL do mes, via lancamentos_socios.
+      // Soma VENDA (pago direto OU pendente convertido) + PARCELA_VENDA por
+      // data efetiva de entrada do dinheiro:
+      //   - VENDA com realizado_em IS NOT NULL -> filtra por realizado_em
+      //     (pendente que virou pago — data do pagamento)
+      //   - VENDA com realizado_em IS NULL -> filtra por data
+      //     (criado ja pago — data da criacao)
+      //   - PARCELA_VENDA -> filtra por data (cada parcela na data que foi paga)
 
-      const [pedRangeData, mesPagosData, mesPendData] = await Promise.all([
+      const [pedRangeData, vendasMes, parcelasMes] = await Promise.all([
         // Faturamento/produtos/recorrentes — somente pagos no PERIODO atual (hoje/ontem/semana/15d)
         supabase.from('pedidos').select('id, valor, valor_original, desconto_total, quantidade, canal, contato_id, data_pago, produto, contatos(nome)').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', dateFrom).lte('data_pago', dateTo),
-        // Pagos do MES (data_pago) — para Realizado da Meta
-        supabase.from('pedidos').select('valor, valor_original, desconto_total, canal').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', currentMonthStart),
-        // Pendentes criados no MES — pra somar parcelas ja pagas
-        supabase.from('pedidos').select('valor, valor_original, desconto_total').neq('is_free', true).eq('status_pagamento', 'pendente').gte('data', currentMonthStart),
+        // VENDAs em lancamentos_socios (pago direto ou convertido)
+        supabase.from('lancamentos_socios').select('valor, data, realizado_em').eq('tipo', 'VENDA'),
+        // PARCELA_VENDAs do mes
+        supabase.from('lancamentos_socios').select('valor').eq('tipo', 'PARCELA_VENDA').gte('data', currentMonthStart),
       ]);
 
       // Faturamento do periodo (hoje/ontem/...): apenas pagos, usa pedidos.valor
@@ -263,19 +266,18 @@ export default function Dashboard() {
 
       const dayStats = { faturamento: fat, ticket: totalPedidos ? fat / totalPedidos : 0, produtos: totalProdutos, novos: novosSet.size, recorrentes: recorrentesSet.size, representantes: repSet.size };
 
-      // Realizado do mes (Meta) = dinheiro que ja entrou em caixa:
-      //   Pagos: (valor_original - desconto)  -> total da venda entrou em caixa
-      //   Pendentes: (valor_original - desconto) - valor  -> parcelas ja pagas
-      const realizadoPagos = (mesPagosData.data || []).reduce((s: number, p: any) => {
-        const venda = (Number(p.valor_original ?? p.valor) || 0) - (Number(p.desconto_total) || 0);
-        return s + venda;
-      }, 0);
-      const realizadoParcelas = (mesPendData.data || []).reduce((s: number, p: any) => {
-        const venda = (Number(p.valor_original ?? p.valor) || 0) - (Number(p.desconto_total) || 0);
-        const saldoRestante = Number(p.valor) || 0;
-        return s + Math.max(0, venda - saldoRestante);
-      }, 0);
-      const faturamentoMes = realizadoPagos + realizadoParcelas;
+      // Calcula Realizado da Meta a partir de lancamentos_socios.
+      // Para VENDA: usa realizado_em se presente (pendente -> pago), senao usa
+      // data (criado ja pago). Ambos comparados com o inicio do mes atual.
+      const monthStartISO = currentMonthStart;
+      const realizadoVendas = (vendasMes.data || []).filter((v: any) => {
+        const ref = v.realizado_em
+          ? new Date(v.realizado_em).toISOString().slice(0, 10)
+          : v.data;
+        return ref >= monthStartISO;
+      }).reduce((s: number, v: any) => s + Number(v.valor || 0), 0);
+      const realizadoParcelas = (parcelasMes.data || []).reduce((s: number, p: any) => s + Number(p.valor || 0), 0);
+      const faturamentoMes = realizadoVendas + realizadoParcelas;
 
       // Periodo de comparacao espelha o periodo atual com o mesmo numero de dias.
       // 'hoje' -> ontem | 'ontem' -> anteontem | 'semana' -> semana passada | '15dias' -> 15 anteriores

@@ -80,23 +80,23 @@ export default function MetricasPage() {
 
   useEffect(() => { fetchData(); fetchPendentes(); fetchRecompraMetrics(); fetchMonthlyData(); }, [month, year]);
 
-  // Dados mensais (linha 12 meses + barra empilhada): faturamento por canal × mês do ano selecionado
+  // Dados mensais (linha 12 meses + barra empilhada): faturamento por canal × mês.
+  // Atribui ao mes de CRIACAO (data) - alinha com Pedidos>Lista e Fat. Total.
   const fetchMonthlyData = async () => {
     const yearStart = `${year}-01-01`;
     const yearEnd = `${year + 1}-01-01`;
     const { data } = await supabase.from('pedidos')
-      .select('data_pago, valor, valor_original, desconto_total, canal, status_pagamento, is_free')
+      .select('data, valor, valor_original, desconto_total, canal, status_pagamento, is_free')
       .neq('is_free', true)
-      .eq('status_pagamento', 'pago')
-      .gte('data_pago', yearStart).lt('data_pago', yearEnd);
+      .in('status_pagamento', ['pago', 'pendente'])
+      .gte('data', yearStart).lt('data', yearEnd);
 
     const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const agg = meses.map(m => ({ mes: m, total: 0, base: 0, ads: 0, rep: 0 }));
 
     (data || []).forEach((p: any) => {
-      if (!p.data_pago) return;
-      const m = new Date(`${p.data_pago}T00:00:00`).getMonth();
-      // valor real da venda: valor_original − desconto (consistente com Lista)
+      if (!p.data) return;
+      const m = new Date(`${p.data}T00:00:00`).getMonth();
       const v = (Number(p.valor_original ?? p.valor) || 0) - (Number(p.desconto_total) || 0);
       agg[m].total += v;
       if (p.canal === 'BASE') agg[m].base += v;
@@ -413,16 +413,14 @@ export default function MetricasPage() {
   // Calcula soma agregada (faturamento, produtos non-free, lucro) num range arbitrario.
   // Reusa a mesma logica de pagos+pendentes (non-free) e financeiro do periodo.
   const computeRangeMetrics = async (startISO: string, endISO: string) => {
-    const [{ data: pedPagos }, { data: pedPend }, { data: fin }] = await Promise.all([
+    const [{ data: pedAll }, { data: fin }] = await Promise.all([
       supabase.from('pedidos').select('valor, valor_original, desconto_total, quantidade, canal')
-        .eq('status_pagamento', 'pago').neq('is_free', true)
-        .gte('data_pago', startISO).lt('data_pago', endISO),
-      supabase.from('pedidos').select('valor, valor_original, desconto_total, quantidade, canal')
-        .eq('status_pagamento', 'pendente').neq('is_free', true)
+        .neq('is_free', true)
+        .in('status_pagamento', ['pago', 'pendente'])
         .gte('data', startISO).lt('data', endISO),
       supabase.from('financeiro').select('tipo, valor').gte('data', startISO).lt('data', endISO),
     ]);
-    const ped = [...(pedPagos || []), ...(pedPend || [])];
+    const ped = pedAll || [];
     // valor real da venda: valor_original − desconto (alinha com Pedidos > Lista)
     const fat = ped.reduce((s, p: any) => s + ((Number(p.valor_original ?? p.valor) || 0) - (Number(p.desconto_total) || 0)), 0);
     const prod = ped.reduce((s, p: any) => s + (p.quantidade || 0), 0);
@@ -483,21 +481,19 @@ export default function MetricasPage() {
     const nextY = month === 12 ? year + 1 : year;
     const end = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
 
-    // PAGOS non-free do periodo (por data_pago = data do recebimento)
-    const { data: pedPagos } = await supabase.from('pedidos').select('*')
-      .eq('status_pagamento', 'pago').neq('is_free', true)
-      .gte('data_pago', start).lt('data_pago', end);
-
-    // PENDENTES non-free do periodo (por data de criacao)
-    const { data: pedPend } = await supabase.from('pedidos').select('*')
-      .eq('status_pagamento', 'pendente').neq('is_free', true)
+    // Faturamento agora atribui pedidos ao MES DE CRIACAO (data), independente
+    // de quando foi pago. Pedido criado em maio sempre conta em maio Fat. Total
+    // — mesmo se for pago em junho. Historico estavel, nao muda com status.
+    const { data: pedAll } = await supabase.from('pedidos').select('*')
+      .neq('is_free', true)
+      .in('status_pagamento', ['pago', 'pendente'])
       .gte('data', start).lt('data', end);
 
-    // FREE do periodo (canal a parte)
+    // FREE do periodo (canal a parte — usa data_pago por convencao)
     const { data: pedFree } = await supabase.from('pedidos').select('quantidade, data_pago')
       .eq('is_free', true).gte('data_pago', start).lt('data_pago', end);
 
-    const ped = [...(pedPagos || []), ...(pedPend || [])];
+    const ped = pedAll || [];
 
     const { data: fin } = await supabase.from('financeiro').select('*').gte('data', start).lt('data', end);
 
