@@ -225,20 +225,35 @@ export default function Dashboard() {
       //     (criado ja pago — data da criacao)
       //   - PARCELA_VENDA -> filtra por data (cada parcela na data que foi paga)
 
-      const [pedRangeData, vendasMes, parcelasMes] = await Promise.all([
-        // Faturamento/produtos/recorrentes — somente pagos no PERIODO atual (hoje/ontem/semana/15d)
+      const [pedRangeData, vendasAll, parcelasRange, parcelasMes] = await Promise.all([
+        // Pedidos pagos no periodo (para metricas auxiliares: ticket, produtos, clientes)
         supabase.from('pedidos').select('id, valor, valor_original, desconto_total, quantidade, canal, contato_id, data_pago, produto, contatos(nome)').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', dateFrom).lte('data_pago', dateTo),
-        // VENDAs em lancamentos_socios (pago direto ou convertido)
+        // TODAS as VENDAs em lancamentos_socios (sera filtrado em JS por realizado_em/data)
         supabase.from('lancamentos_socios').select('valor, data, realizado_em').eq('tipo', 'VENDA'),
-        // PARCELA_VENDAs do mes
+        // PARCELA_VENDAs do PERIODO atual (Faturamento Total do widget)
+        supabase.from('lancamentos_socios').select('valor').eq('tipo', 'PARCELA_VENDA').gte('data', dateFrom).lte('data', dateTo),
+        // PARCELA_VENDAs do MES (Realizado da Meta — mes inteiro)
         supabase.from('lancamentos_socios').select('valor').eq('tipo', 'PARCELA_VENDA').gte('data', currentMonthStart),
       ]);
 
-      // Faturamento do periodo (hoje/ontem/...): apenas pagos, usa pedidos.valor
-      const fat = pedRangeData.data?.reduce((s, p) => s + Number(p.valor || 0), 0) || 0;
       const pedRange = pedRangeData.data || [];
       const totalPedidos = pedRange.length;
       const totalProdutos = pedRange.reduce((s, p) => s + (p.quantidade || 0), 0) || 0;
+
+      // Faturamento Total do PERIODO = caixa real recebido nesse range
+      // (VENDA com realizado_em||data no range) + (PARCELA_VENDA com data no range)
+      const fatVendasRange = (vendasAll.data || []).filter((v: any) => {
+        const ref = v.realizado_em
+          ? new Date(v.realizado_em).toISOString().slice(0, 10)
+          : v.data;
+        return ref >= dateFrom && ref <= dateTo;
+      }).reduce((s: number, v: any) => s + Number(v.valor || 0), 0);
+      const fatParcelasRange = (parcelasRange.data || []).reduce((s: number, p: any) => s + Number(p.valor || 0), 0);
+      const fat = fatVendasRange + fatParcelasRange;
+
+      // Ticket medio usa o cash flow real dividido pelo numero de pedidos pagos
+      // que CONTRIBUIRAM no range (pagos completos + pendentes com parcela no range)
+      const pedidosComCaixaNoRange = pedRange.length;
 
       // Clientes Novos = contatos únicos com pedido no período onde canal = ADS
       const novosSet = new Set<string>();
@@ -258,13 +273,13 @@ export default function Dashboard() {
         if ((p.canal === 'REP' || p.canal === 'C-REP') && p.contato_id) repSet.add(p.contato_id);
       });
 
-      const dayStats = { faturamento: fat, ticket: totalPedidos ? fat / totalPedidos : 0, produtos: totalProdutos, novos: novosSet.size, recorrentes: recorrentesSet.size, representantes: repSet.size };
+      const dayStats = { faturamento: fat, ticket: pedidosComCaixaNoRange ? fat / pedidosComCaixaNoRange : 0, produtos: totalProdutos, novos: novosSet.size, recorrentes: recorrentesSet.size, representantes: repSet.size };
 
       // Calcula Realizado da Meta a partir de lancamentos_socios.
       // Para VENDA: usa realizado_em se presente (pendente -> pago), senao usa
       // data (criado ja pago). Ambos comparados com o inicio do mes atual.
       const monthStartISO = currentMonthStart;
-      const realizadoVendas = (vendasMes.data || []).filter((v: any) => {
+      const realizadoVendas = (vendasAll.data || []).filter((v: any) => {
         const ref = v.realizado_em
           ? new Date(v.realizado_em).toISOString().slice(0, 10)
           : v.data;
@@ -284,13 +299,19 @@ export default function Dashboard() {
       const prevFromStr = toISO(prevFromDate);
       const prevToStr = toISO(prevToDate);
 
-      const [currentData, prevData] = await Promise.all([
-        supabase.from('pedidos').select('valor').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', dateFrom).lte('data_pago', dateTo),
-        supabase.from('pedidos').select('valor').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', prevFromStr).lte('data_pago', prevToStr),
+      // Caixa real do periodo anterior (mesma logica do faturamento atual)
+      const [prevParcelasData] = await Promise.all([
+        supabase.from('lancamentos_socios').select('valor').eq('tipo', 'PARCELA_VENDA').gte('data', prevFromStr).lte('data', prevToStr),
       ]);
-
-      const currentFat = currentData.data?.reduce((s, r) => s + Number(r.valor), 0) || 0;
-      const prevFat = prevData.data?.reduce((s, r) => s + Number(r.valor), 0) || 0;
+      const prevVendasFat = (vendasAll.data || []).filter((v: any) => {
+        const ref = v.realizado_em
+          ? new Date(v.realizado_em).toISOString().slice(0, 10)
+          : v.data;
+        return ref >= prevFromStr && ref <= prevToStr;
+      }).reduce((s: number, v: any) => s + Number(v.valor || 0), 0);
+      const prevParcelasFat = (prevParcelasData.data || []).reduce((s: number, p: any) => s + Number(p.valor || 0), 0);
+      const currentFat = fat;
+      const prevFat = prevVendasFat + prevParcelasFat;
 
       const compareLabel = period === 'hoje' ? 'vs ontem'
         : period === 'ontem' ? 'vs anteontem'
