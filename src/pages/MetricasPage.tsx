@@ -944,11 +944,11 @@ export default function MetricasPage() {
           {/* Top 3 com delta */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <TopCard
-              label="💰 Faturamento Total (Inclui Pendentes)"
+              label="💰 Faturamento Total (vendas no período)"
               value={formatBRL(data.fatTotal)}
               delta={deltas.fat}
               color="bg-card border-l-4 border-l-primary"
-              tip="Soma de pedidos pagos (por data do recebimento) + pendentes (por data de criação) do período. Exclui FREE."
+              tip="Soma de pedidos do mês de criação (pagos + pendentes, exclui FREE). Atribui a venda ao mês em que foi feita."
               onClick={() => showPedidos('Pedidos do período (Faturamento)', {})}
             />
             <TopCard
@@ -1130,7 +1130,7 @@ export default function MetricasPage() {
             <h2 className="font-bold mb-2" style={{ color: '#7B1FA2' }}>FATURAMENTO</h2>
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               <MetricCard
-                label="Fat. Total (Inclui Pendentes)"
+                label="Fat. Total (vendas no período)"
                 value={formatBRL(data.fatTotal)}
                 color="bg-card border border-purple-200"
                 tip="Soma de pedidos do mês de criação (pagos + pendentes, exclui FREE). Atribui a venda ao mês em que foi feita, independente do pagamento."
@@ -1140,10 +1140,10 @@ export default function MetricasPage() {
                 <CardContent className="p-3">
                   <div className="flex items-center gap-1.5">
                     <p className="text-xs text-muted-foreground">💰 Em Caixa</p>
-                    <span onClick={e => e.stopPropagation()}><InfoTip>Faturamento Total − Pendentes globais. Representa o dinheiro que já entrou efetivamente.</InfoTip></span>
+                    <span onClick={e => e.stopPropagation()}><InfoTip>Dinheiro que já entrou efetivamente. Aproximação a partir de Fat. Total − Pendentes globais. Pode divergir do Realizado da Meta em cenários de parcela cross-mês.</InfoTip></span>
                   </div>
                   <p className="text-lg font-bold text-emerald-700">{formatBRL(Math.max(0, (data.fatTotal || 0) - pendentesTotal))}</p>
-                  <p className="text-[10px] text-muted-foreground">Fat. Total − Pendentes</p>
+                  <p className="text-[10px] text-muted-foreground">Recebido</p>
                 </CardContent>
               </Card>
               <Card className="bg-card border-2 border-purple-300 cursor-pointer hover:shadow-md transition" onClick={() => showPedidos('Pedidos Pendentes (todos)', { isPendente: true })}>
