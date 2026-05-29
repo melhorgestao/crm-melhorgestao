@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -132,6 +132,24 @@ export default function ContatosPage() {
   });
 
   const contatos = useMemo(() => contatosPages?.pages.flat() || [], [contatosPages]);
+
+  // Total count - independent of pagination, updates instantly
+  const { data: totalContatos } = useQuery({
+    queryKey: ['contatos_total', debouncedSearch],
+    queryFn: async () => {
+      let query = supabase.from('contatos').select('id', { count: 'exact', head: true });
+      if (isRepresentante) {
+        query = query.eq('representante_id', user?.id);
+      }
+      if (debouncedSearch) {
+        const s = `%${debouncedSearch}%`;
+        query = query.or(`nome.ilike.${s},telefone.ilike.${s},cpf.ilike.${s}`);
+      }
+      const { count } = await query;
+      return count ?? 0;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     const fetchREPs = async () => {
@@ -392,7 +410,11 @@ export default function ContatosPage() {
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
           <h1 className="text-2xl font-bold">Contatos</h1>
-          <span className="text-xs text-muted-foreground">{contatos.length} contatos carregados</span>
+          <span className="text-xs text-muted-foreground">
+            {totalContatos !== undefined
+              ? `${contatos.length.toLocaleString('pt-BR')} de ${totalContatos.toLocaleString('pt-BR')} contatos`
+              : `${contatos.length} contatos carregados`}
+          </span>
         </div>
         <div className="flex gap-2">
           {selectedIds.size === 2 && (
