@@ -31,7 +31,12 @@ export default function ContatosPage() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<any>(null);
   const [contactPedidos, setContactPedidos] = useState<any[]>([]);
+  const [editNome, setEditNome] = useState('');
+  const [editTelefone, setEditTelefone] = useState('');
+  const [editCanal, setEditCanal] = useState('ADS');
+  const [editRepresentanteId, setEditRepresentanteId] = useState<string | null>(null);
   const [editEndereco, setEditEndereco] = useState('');
+  const [editNumero, setEditNumero] = useState('');
   const [editComplemento, setEditComplemento] = useState('');
   const [editBairro, setEditBairro] = useState('');
   const [editCidade, setEditCidade] = useState('');
@@ -39,6 +44,7 @@ export default function ContatosPage() {
   const [editCep, setEditCep] = useState('');
   const [editCpf, setEditCpf] = useState('');
   const [editObs, setEditObs] = useState('');
+  const [editPhoneDuplicate, setEditPhoneDuplicate] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showMerge, setShowMerge] = useState(false);
   const [mergeContacts, setMergeContacts] = useState<any[]>([]);
@@ -159,6 +165,15 @@ export default function ContatosPage() {
     fetchREPs();
   }, []);
 
+  // Separa o número do endereço salvo no formato "Rua X, 123"
+  // (mesmo formato gerado por handleCreateContact: [endereco, numero].join(', '))
+  const parseEnderecoNumero = (full: string | null | undefined): { endereco: string; numero: string } => {
+    if (!full) return { endereco: '', numero: '' };
+    const m = full.match(/^(.+),\s*(\d+[A-Za-z]?|s\/?n|s\.?n\.?)\s*$/i);
+    if (m) return { endereco: m[1].trim(), numero: m[2].trim() };
+    return { endereco: full.trim(), numero: '' };
+  };
+
   const openContact = async (c: any) => {
     // Fetch full contact data from DB to ensure all fields are present
     const { data: fullContact } = await supabase.from('contatos')
@@ -167,7 +182,14 @@ export default function ContatosPage() {
       .single();
     const contact = fullContact || c;
     setSelected(contact);
-    setEditEndereco(contact.endereco || '');
+    setEditNome(contact.nome || '');
+    setEditTelefone(contact.telefone ? applyPhoneMask(contact.telefone) : '');
+    setEditCanal(contact.canal_origem || 'ADS');
+    setEditRepresentanteId(contact.representante_id || null);
+    setEditPhoneDuplicate(null);
+    const { endereco: enderecoRua, numero: enderecoNumero } = parseEnderecoNumero(contact.endereco);
+    setEditEndereco(enderecoRua);
+    setEditNumero(enderecoNumero);
     setEditComplemento(contact.complemento || '');
     setEditBairro(contact.bairro || '');
     if (contact.cidade) {
@@ -194,6 +216,18 @@ export default function ContatosPage() {
       .eq('contato_id', c.id)
       .order('data', { ascending: false });
     setContactPedidos(data || []);
+  };
+
+  const checkEditPhoneDuplicate = async (phone: string) => {
+    setEditPhoneDuplicate(null);
+    if (!selected) return;
+    if (phone.length < 8) return;
+    const { data } = await supabase.from('contatos')
+      .select('id, nome, telefone')
+      .eq('telefone', phone)
+      .neq('id', selected.id)
+      .limit(1);
+    if (data && data.length > 0) setEditPhoneDuplicate(data[0]);
   };
 
   const applyCepMask = (val: string) => {
@@ -258,9 +292,24 @@ export default function ContatosPage() {
 
   const saveContact = async () => {
     if (!selected) return;
+    if (!editNome.trim()) { toast.error('Nome é obrigatório'); return; }
+    if (editCanal === 'C-REP' && !editRepresentanteId) {
+      toast.error('Selecione um representante para cliente C-REP');
+      return;
+    }
+
+    // Junta endereço + número no mesmo formato do cadastro novo
+    const enderecoFull = [editEndereco, editNumero].filter(Boolean).join(', ');
     const cidadeUfString = [editCidade, editUf].filter(Boolean).join('/');
+
     const changes: any = {};
-    if (editEndereco !== (selected.endereco || '')) changes.endereco = editEndereco || null;
+    if (editNome !== (selected.nome || '')) changes.nome = editNome.trim();
+    if (editTelefone !== (selected.telefone || '')) changes.telefone = editTelefone || null;
+    if (editCanal !== (selected.canal_origem || '')) changes.canal_origem = editCanal;
+    if (editRepresentanteId !== (selected.representante_id || null)) {
+      changes.representante_id = editCanal === 'C-REP' ? editRepresentanteId : null;
+    }
+    if (enderecoFull !== (selected.endereco || '')) changes.endereco = enderecoFull || null;
     if (editComplemento !== (selected.complemento || '')) changes.complemento = editComplemento || null;
     if (editBairro !== (selected.bairro || '')) changes.bairro = editBairro || null;
     changes.cidade_uf = cidadeUfString || null;
@@ -661,24 +710,89 @@ export default function ContatosPage() {
         <DialogContent className={cn(
           isMobile ? 'fixed inset-0 max-w-none w-full h-full rounded-none m-0 translate-x-0 translate-y-0 top-0 left-0 flex flex-col' : 'max-w-md max-h-[80vh] overflow-y-auto'
         )}>
-          <DialogHeader><DialogTitle>{selected?.nome}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selected?.nome}
+              {selected?.tag_vip && <Badge className="bg-sf-gold">VIP</Badge>}
+            </DialogTitle>
+          </DialogHeader>
           <div className={cn('space-y-3 text-sm', isMobile ? 'flex-1 overflow-y-auto pb-20 px-1' : '')}>
-            <div className="flex items-center gap-2">
-              <p><strong>Telefone:</strong> {selected?.telefone}</p>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyPhone(selected?.telefone || '')}><Copy className="w-3 h-3" /></Button>
-            </div>
-            <p><strong>Canal:</strong> {selected?.canal_origem}</p>
-            <p><strong>VIP:</strong> {selected?.tag_vip ? <Badge className="bg-sf-gold">VIP</Badge> : 'Não'}</p>
             <div>
-              <Label className="text-sm font-semibold">CPF</Label>
-              <Input value={editCpf} onChange={e => setEditCpf(e.target.value)} className="mt-1" placeholder="XXX.XXX.XXX-XX" />
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Canal de Origem</Label>
+              <Select value={editCanal} onValueChange={setEditCanal}>
+                <SelectTrigger className="min-h-[44px] mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ADS">ADS</SelectItem>
+                  <SelectItem value="BASE">BASE</SelectItem>
+                  <SelectItem value="REP">REP</SelectItem>
+                  <SelectItem value="C-REP">C-REP</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+
+            {editCanal === 'C-REP' && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Representante Responsável</Label>
+                <Select value={editRepresentanteId || ''} onValueChange={setEditRepresentanteId}>
+                  <SelectTrigger className="min-h-[44px]">
+                    <SelectValue placeholder="Selecionar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allREPs.map(r => <SelectItem key={r.id} value={r.id}>{r.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div>
-              <Label className="text-sm font-semibold">Endereço</Label>
-              <Input value={editEndereco} onChange={e => setEditEndereco(e.target.value)} className="mt-1" placeholder="Rua X, 123" />
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Nome</Label>
+              <Input value={editNome} onChange={e => setEditNome(e.target.value)} className="mt-1 min-h-[44px]" placeholder="Nome *" />
             </div>
+
             <div>
-              <Label className="text-sm font-semibold">CEP</Label>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">CPF</Label>
+              <Input value={editCpf} onChange={e => setEditCpf(applyCpfMask(e.target.value))} className="mt-1 min-h-[44px]" placeholder="XXX.XXX.XXX-XX" />
+            </div>
+
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Telefone</Label>
+              <div className="flex gap-2 mt-1 items-stretch">
+                <div className="flex items-center justify-center px-3 border rounded-md bg-muted text-sm min-h-[44px]">🇧🇷 +55</div>
+                <Input
+                  placeholder={editCanal === 'C-REP' ? '(XX) XXXXX-XXXX Opcional' : '(XX) XXXXX-XXXX'}
+                  value={editTelefone}
+                  onChange={e => {
+                    const masked = applyPhoneMask(e.target.value);
+                    setEditTelefone(masked);
+                    checkEditPhoneDuplicate(masked);
+                  }}
+                  className="min-h-[44px] flex-1"
+                />
+                {selected?.telefone && (
+                  <Button variant="ghost" size="icon" className="h-[44px] w-[44px]" onClick={() => copyPhone(selected?.telefone || '')}>
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              {editPhoneDuplicate && (
+                <div className="bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 rounded p-2 text-xs mt-1">
+                  <p className="text-amber-700 dark:text-amber-300">⚠️ Este número já está cadastrado para <strong>{editPhoneDuplicate.nome}</strong>.</p>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Endereço (Rua)</Label>
+              <Input value={editEndereco} onChange={e => setEditEndereco(e.target.value)} className="mt-1 min-h-[44px]" placeholder="Rua / Avenida..." />
+            </div>
+
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Número</Label>
+              <Input value={editNumero} onChange={e => setEditNumero(e.target.value)} className="mt-1 min-h-[44px]" placeholder="Número" />
+            </div>
+
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">CEP</Label>
               <div className="relative">
                 <Input
                   value={editCep}
@@ -689,29 +803,32 @@ export default function ContatosPage() {
                       lookupCep(masked, 'edit');
                     }
                   }}
-                  className="mt-1"
+                  className="mt-1 min-h-[44px]"
                   placeholder="XXXXX-XXX"
                 />
                 {cepLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
               </div>
             </div>
+
             <div>
-              <Label className="text-sm font-semibold">Complemento</Label>
-              <Input value={editComplemento} onChange={e => setEditComplemento(e.target.value)} className="mt-1" placeholder="Apto, Bloco..." />
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Complemento (opcional)</Label>
+              <Input value={editComplemento} onChange={e => setEditComplemento(e.target.value)} className="mt-1 min-h-[44px]" placeholder="Apto, Bloco..." />
             </div>
+
             <div>
-              <Label className="text-sm font-semibold">Bairro</Label>
-              <Input value={editBairro} onChange={e => setEditBairro(e.target.value)} className="mt-1" />
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Bairro</Label>
+              <Input value={editBairro} onChange={e => setEditBairro(e.target.value)} className="mt-1 min-h-[44px]" />
             </div>
+
             <div className="flex gap-2">
               <div className="flex-1">
-                <Label className="text-sm font-semibold">Cidade</Label>
-                <Input value={editCidade} onChange={e => setEditCidade(e.target.value)} className="mt-1" placeholder="Cidade" />
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Cidade</Label>
+                <Input value={editCidade} onChange={e => setEditCidade(e.target.value)} className="mt-1 min-h-[44px]" placeholder="Cidade" />
               </div>
               <div className="w-24">
-                <Label className="text-sm font-semibold">UF</Label>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">UF</Label>
                 <Select value={editUf} onValueChange={setEditUf}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="mt-1 min-h-[44px]">
                     <SelectValue placeholder="UF" />
                   </SelectTrigger>
                   <SelectContent>
@@ -722,11 +839,15 @@ export default function ContatosPage() {
                 </Select>
               </div>
             </div>
+
             <div>
-              <strong>Observação:</strong>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Observação</Label>
               <Textarea value={editObs} onChange={e => setEditObs(e.target.value)} className="mt-1" rows={3} />
             </div>
-            <Button onClick={saveContact} size="sm" className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground">Salvar</Button>
+
+            <Button onClick={saveContact} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]">
+              <Check className="w-4 h-4 mr-1" /> Salvar
+            </Button>
 
             <h4 className="font-bold mt-4">Histórico de Pedidos</h4>
             {contactPedidos.length === 0 ? <p className="text-muted-foreground">Nenhum pedido</p> : (
