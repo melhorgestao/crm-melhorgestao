@@ -33,7 +33,7 @@ export default function ContatosPage() {
   const [contactPedidos, setContactPedidos] = useState<any[]>([]);
   const [editNome, setEditNome] = useState('');
   const [editTelefone, setEditTelefone] = useState('');
-  const [editCanal, setEditCanal] = useState('ADS');
+  const [editCanalAtual, setEditCanalAtual] = useState('BASE');
   const [editRepresentanteId, setEditRepresentanteId] = useState<string | null>(null);
   const [editEndereco, setEditEndereco] = useState('');
   const [editNumero, setEditNumero] = useState('');
@@ -107,7 +107,7 @@ export default function ContatosPage() {
     queryFn: async ({ pageParam = 0 }) => {
       try {
         let query = supabase.from('contatos')
-          .select('id, nome, telefone, canal_origem, tag_vip, created_at, cidade_uf, cidade, uf, endereco, complemento, bairro, cep')
+          .select('id, nome, telefone, canal_origem, canal_atual, tag_vip, created_at, cidade_uf, cidade, uf, endereco, complemento, bairro, cep')
           .order(sortColumn, { ascending: sortAsc })
           .range(pageParam * PER_PAGE_FETCH, (pageParam + 1) * PER_PAGE_FETCH - 1);
 
@@ -184,7 +184,7 @@ export default function ContatosPage() {
     setSelected(contact);
     setEditNome(contact.nome || '');
     setEditTelefone(contact.telefone ? applyPhoneMask(contact.telefone) : '');
-    setEditCanal(contact.canal_origem || 'ADS');
+    setEditCanalAtual(contact.canal_atual || contact.canal_origem || 'BASE');
     setEditRepresentanteId(contact.representante_id || null);
     setEditPhoneDuplicate(null);
     const { endereco: enderecoRua, numero: enderecoNumero } = parseEnderecoNumero(contact.endereco);
@@ -293,7 +293,7 @@ export default function ContatosPage() {
   const saveContact = async () => {
     if (!selected) return;
     if (!editNome.trim()) { toast.error('Nome é obrigatório'); return; }
-    if (editCanal === 'C-REP' && !editRepresentanteId) {
+    if (editCanalAtual === 'C-REP' && !editRepresentanteId) {
       toast.error('Selecione um representante para cliente C-REP');
       return;
     }
@@ -305,9 +305,9 @@ export default function ContatosPage() {
     const changes: any = {};
     if (editNome !== (selected.nome || '')) changes.nome = editNome.trim();
     if (editTelefone !== (selected.telefone || '')) changes.telefone = editTelefone || null;
-    if (editCanal !== (selected.canal_origem || '')) changes.canal_origem = editCanal;
+    if (editCanalAtual !== (selected.canal_atual || '')) changes.canal_atual = editCanalAtual;
     if (editRepresentanteId !== (selected.representante_id || null)) {
-      changes.representante_id = editCanal === 'C-REP' ? editRepresentanteId : null;
+      changes.representante_id = editCanalAtual === 'C-REP' ? editRepresentanteId : null;
     }
     if (enderecoFull !== (selected.endereco || '')) changes.endereco = enderecoFull || null;
     if (editComplemento !== (selected.complemento || '')) changes.complemento = editComplemento || null;
@@ -507,7 +507,7 @@ export default function ContatosPage() {
                       </td>
                       <td className="py-2 text-muted-foreground">{c.telefone || '—'}</td>
                       <td className="py-2">
-                        <Badge variant="outline" className="text-[10px]">{c.canal_origem || '—'}</Badge>
+                        <Badge variant="outline" className="text-[10px]">{c.canal_atual || c.canal_origem || '—'}</Badge>
                       </td>
                       <td className="py-2" onClick={e => e.stopPropagation()}>
                         <Popover>
@@ -543,7 +543,7 @@ export default function ContatosPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-bold">{c.nome}</span>
-                        <Badge variant="outline" className="text-[10px]">{c.canal_origem}</Badge>
+                        <Badge variant="outline" className="text-[10px]">{c.canal_atual || c.canal_origem}</Badge>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">{c.telefone}</div>
                     </div>
@@ -718,19 +718,23 @@ export default function ContatosPage() {
           </DialogHeader>
           <div className={cn('space-y-3 text-sm', isMobile ? 'flex-1 overflow-y-auto pb-20 px-1' : '')}>
             <div>
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Canal de Origem</Label>
-              <Select value={editCanal} onValueChange={setEditCanal}>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Canal Atual</Label>
+              <Select value={editCanalAtual} onValueChange={setEditCanalAtual}>
                 <SelectTrigger className="min-h-[44px] mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ADS">ADS</SelectItem>
                   <SelectItem value="BASE">BASE</SelectItem>
                   <SelectItem value="REP">REP</SelectItem>
                   <SelectItem value="C-REP">C-REP</SelectItem>
+                  <SelectItem value="INTERNO">INTERNO</SelectItem>
                 </SelectContent>
               </Select>
+              {selected?.canal_origem && selected.canal_origem !== editCanalAtual && (
+                <p className="text-[11px] text-muted-foreground mt-1 italic">Origem: {selected.canal_origem} (não editável)</p>
+              )}
             </div>
 
-            {editCanal === 'C-REP' && (
+            {editCanalAtual === 'C-REP' && (
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wide">Representante Responsável</Label>
                 <Select value={editRepresentanteId || ''} onValueChange={setEditRepresentanteId}>
@@ -759,7 +763,7 @@ export default function ContatosPage() {
               <div className="flex gap-2 mt-1 items-stretch">
                 <div className="flex items-center justify-center px-3 border rounded-md bg-muted text-sm min-h-[44px]">🇧🇷 +55</div>
                 <Input
-                  placeholder={editCanal === 'C-REP' ? '(XX) XXXXX-XXXX Opcional' : '(XX) XXXXX-XXXX'}
+                  placeholder={editCanalAtual === 'C-REP' ? '(XX) XXXXX-XXXX Opcional' : '(XX) XXXXX-XXXX'}
                   value={editTelefone}
                   onChange={e => {
                     const masked = applyPhoneMask(e.target.value);
