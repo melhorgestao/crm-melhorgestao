@@ -743,8 +743,12 @@ export default function FinanceiroPage() {
         } as any);
         if (insertError) throw insertError;
         
+        // EXTRA_METRICA: debita saldo do sócio mas NÃO afeta financeiro/métricas
+        // (uso para investimentos: máquinas, escritório, etc.)
         const categoriaMap: Record<string, string> = { ADS: 'ads', ETIQUETA: 'etiqueta', MATERIAL: 'material', LOGISTICA: 'logistica' };
-        await supabase.from('financeiro').insert({ tipo: 'despesa', valor, categoria: categoriaMap[formTipo] });
+        if (categoriaMap[formTipo]) {
+          await supabase.from('financeiro').insert({ tipo: 'despesa', valor, categoria: categoriaMap[formTipo] });
+        }
       }
 
       toast.success(formTipo === 'VENDA' ? 'Pedido criado com sucesso!' : 'Lançamento criado!');
@@ -967,6 +971,7 @@ export default function FinanceiroPage() {
                   l.tipo === 'PARCELA_VENDA' ? 'bg-green-100/60 dark:bg-green-900/20' :
                   l.tipo === 'TRANSFERENCIA' ? 'bg-blue-100/50 dark:bg-blue-900/20' :
                   l.tipo === 'LUCRO' ? 'bg-yellow-100/70 dark:bg-yellow-900/25' :
+                  l.tipo === 'EXTRA_METRICA' ? 'bg-purple-100/60 dark:bg-purple-900/20' :
                   (l.tipo === 'MATERIAL' || l.tipo === 'ETIQUETA' || l.tipo === 'ADS' || l.tipo === 'LOGISTICA') ? 'bg-red-100/60 dark:bg-red-900/20' :
                   'bg-muted/30'
                 )}
@@ -974,7 +979,7 @@ export default function FinanceiroPage() {
               >
                 <td className="py-2 truncate">{formatDateShort(l.data)}</td>
                 <td className="py-2">{l.tipo === 'TRANSFERENCIA' ? (l.transferencia_direcao || '—') : (l.tipo === 'LUCRO' ? resolveCriadoPor(l.criado_por) : (socioLabels[l.socio] || l.socio || '—'))}</td>
-                <td className="py-2 truncate">{l.tipo === 'PARCELA_VENDA' ? 'PARCELA DE VENDA' : l.tipo}</td>
+                <td className="py-2 truncate">{l.tipo === 'PARCELA_VENDA' ? 'PARCELA DE VENDA' : l.tipo === 'EXTRA_METRICA' ? 'EXTRA MÉTRICA' : l.tipo}</td>
                 <td className={cn('py-2 text-right font-medium whitespace-nowrap', Number(l.valor) < 0 && l.tipo !== 'TRANSFERENCIA' && 'text-destructive')}>{l.tipo === 'TRANSFERENCIA' ? (l._transferValor || formatBRL(Math.abs(Number(l.valor)))) : formatBRL(Number(l.valor))}</td>
                 <td className="py-2" onClick={e => e.stopPropagation()}>
                   {canEdit && l.tipo !== 'TRANSFERENCIA' && l.tipo !== 'LUCRO' && (
@@ -1090,6 +1095,7 @@ export default function FinanceiroPage() {
                       <SelectItem value="ETIQUETA">ETIQUETA</SelectItem>
                       <SelectItem value="MATERIAL">MATERIAL</SelectItem>
                       <SelectItem value="LOGISTICA">LOGÍSTICA</SelectItem>
+                      <SelectItem value="EXTRA_METRICA">EXTRA MÉTRICA</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1532,8 +1538,8 @@ export default function FinanceiroPage() {
                 </>
               ) : (
                 <>
-                  <div className="flex justify-between border-b pb-1"><span className="text-muted-foreground">Tipo:</span><span className="font-medium">{detailItem.tipo}</span></div>
-                  <div className="flex justify-between border-b pb-1"><span className="text-muted-foreground">Socio:</span><span className="font-medium">{detailItem.socio || '—'}</span></div>
+                  <div className="flex justify-between border-b pb-1"><span className="text-muted-foreground">Tipo:</span><span className="font-medium">{detailItem.tipo === 'EXTRA_METRICA' ? 'EXTRA MÉTRICA' : detailItem.tipo}</span></div>
+                  <div className="flex justify-between border-b pb-1"><span className="text-muted-foreground">Socio:</span><span className="font-medium">{socioLabels[detailItem.socio] || detailItem.socio || '—'}</span></div>
                   <div className="flex justify-between border-b pb-1"><span className="text-muted-foreground">Valor:</span><span className="font-medium">{formatBRL(Math.abs(detailItem.valor))}</span></div>
                   {(detailItem.snapshot_saldo_v != null || detailItem.snapshot_saldo_a != null) && (
                     <div className="border-b pb-1 pt-1">
