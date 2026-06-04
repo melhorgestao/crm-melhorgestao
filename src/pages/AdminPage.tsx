@@ -73,7 +73,7 @@ export default function AdminPage() {
     setUsersLoading(true);
     const { data } = await supabase
       .from('perfis_usuario')
-      .select('*, instancias(id, nome, tipo, dono_tipo)')
+      .select('*, instancias(id, nome, dono_tipo)')
       .order('created_at', { ascending: false });
     setUsers(data || []);
     setUsersLoading(false);

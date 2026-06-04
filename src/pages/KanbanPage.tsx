@@ -16,8 +16,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn, copyToClipboard } from '@/lib/utils';
 
-const ADS_COLUMNS = ['Perguntou', 'Preencheu Endereço', 'Pagou', 'Suporte', 'Sumiu (Pergunta)', 'Sumiu (Endereço)'];
-const BASE_COLUMNS = ['Clientes', 'Pagou', 'Suporte'];
+// Todas as stages visíveis por instância (mescla funnel ADS + funnel BASE).
+// Cada contato fica em UMA stage por vez (não duplica).
+const KANBAN_COLUMNS = [
+  'Perguntou', 'Preencheu Endereço', 'Pagou', 'Clientes', 'Suporte',
+  'Sumiu (Pergunta)', 'Sumiu (Endereço)'
+];
 const NO_DELETE_COLUMNS = ['Preencheu Endereço', 'Pagou'];
 
 const ARCHIVE_MAP: Record<string, string> = {
@@ -45,7 +49,13 @@ interface Contact {
   is_novo?: boolean | null;
   novo_ate?: string | null;
   ultima_venda_em?: string | null;
-  instancias?: { numero_final: string; tipo: string } | null;
+  instancias?: { nome: string; numero_final: string } | null;
+}
+
+interface Instancia {
+  id: string;
+  nome: string;
+  ativo: boolean;
 }
 
 const KanbanCard = memo(({
@@ -125,7 +135,7 @@ const KanbanCard = memo(({
 export default function KanbanPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<string>(profile?.acesso_kanban === 'ads' ? 'ads' : profile?.acesso_kanban === 'base' ? 'base' : 'ads');
+  const [filter, setFilter] = useState<string>(''); // instancia_id selecionada (vazio = primeira ao carregar)
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [suporteTarget, setSuporteTarget] = useState<Contact | null>(null);
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
@@ -133,40 +143,45 @@ export default function KanbanPage() {
   const [clientesShowAll, setClientesShowAll] = useState(false);
 
   const canDeleteCard = (profile as any)?.pode_excluir_card !== false;
-  const columns = filter === 'ads' ? ADS_COLUMNS : BASE_COLUMNS;
+  const columns = KANBAN_COLUMNS;
   const canSwitch = profile?.acesso_kanban === 'todos';
+
+  // Carrega instâncias ativas (exclui admin) — popula o dropdown.
+  const { data: instancias = [] } = useQuery({
+    queryKey: ['instancias-ativas'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('instancias')
+        .select('id, nome, ativo')
+        .eq('ativo', true)
+        .order('nome', { ascending: true });
+      return (data || []).filter((i: any) => i.nome !== 'Instancia ADMIN') as Instancia[];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Define filtro inicial assim que instâncias carregam
+  useEffect(() => {
+    if (!filter && instancias.length > 0) {
+      setFilter(instancias[0].id);
+    }
+  }, [instancias, filter]);
 
   const { data: kanbanData, isLoading: loading } = useQuery({
     queryKey: ['kanban', filter],
+    enabled: !!filter, // Aguarda filtro carregar
     queryFn: async () => {
-      const { data } = await supabase.from('contatos').select('id, nome, telefone, status_kanban, tag_vip, canal_origem, canal_atual, instancia_id, created_at, updated_at, is_novo, novo_ate, ultima_venda_em, instancias(numero_final, tipo)').not('status_kanban', 'is', null);
+      const { data } = await supabase.from('contatos').select('id, nome, telefone, status_kanban, tag_vip, canal_origem, canal_atual, instancia_id, created_at, updated_at, is_novo, novo_ate, ultima_venda_em, instancias(nome, numero_final)').not('status_kanban', 'is', null);
       if (!data) return { active: [], archived: [] };
       const allContacts = data as unknown as Contact[];
 
-      const filterByInstancia = (contacts: Contact[], kanbanType: string) => {
-        return contacts.filter(c => {
-          // Usa canal_atual para filtrar visualização no Kanban
-          const canalVisual = c.canal_atual || c.canal_origem;
-          const instTipo = c.instancias?.tipo?.toLowerCase();
-          if (!instTipo) {
-            // Sem instância: usa canal_atual ou canal_origem para determinar visualização
-            if (kanbanType === 'ads') {
-              return canalVisual === 'ADS';
-            }
-            // BASE/REP/C-REP: aceita canal_atual ou canal_origem
-            return ['BASE', 'REP', 'C-REP'].includes(canalVisual);
-          }
-          if (kanbanType === 'ads') {
-            return instTipo === 'ads';
-          }
-          return ['base', 'rep', 'crep'].includes(instTipo);
-        });
-      };
+      // Filtra por instância: pega contatos atribuídos a ela OU sem dono (null = livre/competido)
+      const filtered = allContacts.filter(c =>
+        c.instancia_id === filter || c.instancia_id === null
+      );
 
-      const cols = filter === 'ads' ? ADS_COLUMNS : BASE_COLUMNS;
-      const filtered = filterByInstancia(allContacts, filter);
       return {
-        active: filtered.filter(c => cols.includes(c.status_kanban)),
+        active: filtered.filter(c => KANBAN_COLUMNS.includes(c.status_kanban)),
         archived: filtered.filter(c => c.status_kanban === 'arquivado_sumiu' || c.status_kanban === 'arquivado')
       };
     },
@@ -244,10 +259,11 @@ export default function KanbanPage() {
   const handleSuporteRealizado = async () => {
     if (!suporteTarget) return;
     try {
-      // Determine return column based on current kanban tab
-      // BASE tab: return to 'Clientes'
-      // ADS tab: return to 'Perguntou' (the first column / origin)
-      const returnColumn = filter === 'base' ? 'Clientes' : 'Perguntou';
+      // Determine return column based on contact's canal_atual
+      // BASE-like (BASE/REP/C-REP) → 'Clientes'
+      // ADS → 'Perguntou' (first column / origin)
+      const canalVisual = (suporteTarget.canal_atual || suporteTarget.canal_origem || '').toUpperCase();
+      const returnColumn = ['BASE', 'REP', 'C-REP'].includes(canalVisual) ? 'Clientes' : 'Perguntou';
 
       // 1. Move back to origin column
       await supabase.from('contatos')
@@ -337,12 +353,15 @@ export default function KanbanPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Kanban</h1>
-        {canSwitch && (
+        {canSwitch && instancias.length > 0 && (
           <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-40"><SelectValue placeholder="Instância" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="ads">ADS</SelectItem>
-              <SelectItem value="base">BASE</SelectItem>
+              {instancias.map(i => (
+                <SelectItem key={i.id} value={i.id}>
+                  Instância {i.nome}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         )}
