@@ -229,8 +229,9 @@ function extractTrackingUrl(data: any, codigoRastreio: string | null): string | 
     }
   }
   // Fallback: monta URL pública pelo código de rastreio
+  // Formato correto SuperFrete: https://rastreamento.superfrete.com/#CODE
   if (codigoRastreio && codigoRastreio.trim()) {
-    return `https://app.superfrete.com/calculator?tracking=${encodeURIComponent(codigoRastreio.trim())}`;
+    return `https://rastreamento.superfrete.com/#${codigoRastreio.trim()}`;
   }
   return null;
 }
