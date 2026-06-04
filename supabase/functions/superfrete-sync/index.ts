@@ -200,9 +200,37 @@ function extractTracking(data: any): string | null {
     for (const c of candidates) {
       if (typeof c === 'string') {
         const t = c.trim();
-        if (t && t.length >= 8 && t.length <= 40) return t;
+        // Códigos rastreio têm tamanho 8-40 e NÃO começam com http (URL)
+        if (t && t.length >= 8 && t.length <= 40 && !/^https?:\/\//i.test(t)) return t;
       }
     }
+  }
+  return null;
+}
+
+// Extrai a URL pública SuperFrete pro cliente acompanhar o pedido.
+// Estratégia: procura campos URL na resposta da API; se não achar, constrói com
+// o código de rastreio (padrão público SuperFrete).
+function extractTrackingUrl(data: any, codigoRastreio: string | null): string | null {
+  if (data) {
+    for (const item of candidateObjects(data)) {
+      const candidates = [
+        item.self_tracking_url, item.tracking_url, item.trackingUrl,
+        item.public_url, item.tracking_link, item.link_rastreio,
+        item?.tracking?.url, item?.shipment?.tracking_url,
+      ];
+      for (const c of candidates) {
+        if (typeof c === 'string' && /^https?:\/\//i.test(c.trim())) return c.trim();
+      }
+      // self_tracking às vezes vem como URL (não código)
+      if (typeof item.self_tracking === 'string' && /^https?:\/\//i.test(item.self_tracking.trim())) {
+        return item.self_tracking.trim();
+      }
+    }
+  }
+  // Fallback: monta URL pública pelo código de rastreio
+  if (codigoRastreio && codigoRastreio.trim()) {
+    return `https://app.superfrete.com/calculator?tracking=${encodeURIComponent(codigoRastreio.trim())}`;
   }
   return null;
 }
@@ -364,7 +392,7 @@ Deno.serve(async (req) => {
 
     const { data: pedidos, error: selErr } = await supabase
       .from('pedidos')
-      .select('id, order_number, status_pedido, etiqueta_codigo, etiqueta_paga, etiqueta_url, codigo_rastreio')
+      .select('id, order_number, status_pedido, etiqueta_codigo, etiqueta_paga, etiqueta_url, codigo_rastreio, link_rastreio')
       .eq('etiqueta_paga', true)
       .not('etiqueta_codigo', 'is', null)
       .in('status_pedido', ['aguardando_rastreio', 'postado'])
@@ -485,6 +513,14 @@ Deno.serve(async (req) => {
         if (printUrl && !p.etiqueta_url) updates.etiqueta_url = printUrl;
         if (resolved && shouldUpdateStatus(p.status_pedido, resolved)) {
           updates.status_pedido = resolved;
+        }
+
+        // Link público de rastreio — usa o codigoRastreio mais recente (tracking
+        // recém-extraído OU o já gravado no pedido). Só preenche se ainda nulo
+        // pra não sobrescrever URL setada manualmente.
+        if (!p.link_rastreio) {
+          const trackingUrl = extractTrackingUrl(orderInfoData, codigoRastreio);
+          if (trackingUrl) updates.link_rastreio = trackingUrl;
         }
 
         console.log(
