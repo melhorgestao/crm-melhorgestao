@@ -138,9 +138,9 @@
           "conditions": [
             {
               "id": "no-key",
-              "leftValue": "={{ $json.key }}",
+              "leftValue": "={{ $json.key?.id }}",
               "rightValue": "",
-              "operator": { "type": "object", "operation": "empty" }
+              "operator": { "type": "string", "operation": "empty" }
             }
           ],
           "combinator": "and"
