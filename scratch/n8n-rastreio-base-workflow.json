@@ -115,7 +115,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('GET CONTATO').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"Olá {{ $('GET CONTATO').item.json.nome.split(' ')[0] }}! 🌸\\n\\nSeu pedido #{{ $('Split In Batches').item.json.order_number }} foi postado pela Santa Flor.\\n\\nAcompanhe a entrega aqui:\\n{{ $('Split In Batches').item.json.link_rastreio }}\\n\\nQualquer dúvida estamos por aqui!\",\n  \"delay\": 2000\n}",
+        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('GET CONTATO').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"Olá {{ $('GET CONTATO').item.json.nome.split(' ')[0] }}! \\n\\nSeu pedido foi postado pela Santa Flor.\\n\\nAcompanhe a entrega:\\n{{ $('Split In Batches').item.json.link_rastreio }}\\n\\nBom uso!\",\n  \"delay\": 2000\n}",
         "options": {
           "response": { "response": { "neverError": true } }
         }
