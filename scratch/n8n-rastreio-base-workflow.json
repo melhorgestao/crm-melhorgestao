@@ -1,0 +1,265 @@
+{
+  "name": "Disparo Rastreio BASE",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule 10 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-1840, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/pedidos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "status_pedido", "value": "eq.postado" },
+            { "name": "link_rastreio", "value": "not.is.null" },
+            { "name": "rastreio_enviado_em", "value": "is.null" },
+            { "name": "select", "value": "id,order_number,link_rastreio,codigo_rastreio,contato_id" },
+            { "name": "order", "value": "data.asc" },
+            { "name": "limit", "value": "20" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-pedidos",
+      "name": "GET PEDIDOS POSTADOS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1620, 320]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-batches",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [-1400, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/contatos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $json.contato_id }}" },
+            { "name": "select", "value": "id,nome,telefone" },
+            { "name": "limit", "value": "1" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-contato",
+      "name": "GET CONTATO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1180, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "telefone-exists",
+              "leftValue": "={{ $json[0].telefone }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-telefone",
+      "name": "IF telefone existe",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-960, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://evo.melhorgestao.online/message/sendText/BASE",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "c7ffccd59298850a7d0c108c999c37581d2128fb5e35793bc8b6f639871d71b7" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('GET CONTATO').item.json[0].telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"Olá {{ $('GET CONTATO').item.json[0].nome.split(' ')[0] }}! 🌸\\n\\nSeu pedido #{{ $('Split In Batches').item.json.order_number }} foi postado pela Santa Flor.\\n\\nAcompanhe a entrega aqui:\\n{{ $('Split In Batches').item.json.link_rastreio }}\\n\\nQualquer dúvida estamos por aqui!\",\n  \"delay\": 2000\n}",
+        "options": {
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "send-msg-evo",
+      "name": "SEND MSG EVO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-720, 220],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "no-key",
+              "leftValue": "={{ $json.key }}",
+              "rightValue": "",
+              "operator": { "type": "object", "operation": "empty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "detecta-falha",
+      "name": "DETECTA FALHA?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-500, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://evo.melhorgestao.online/message/sendText/BASE",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "c7ffccd59298850a7d0c108c999c37581d2128fb5e35793bc8b6f639871d71b7" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"5511991282579\",\n  \"text\": \"🚨 ALERTA RASTREIO BASE\\n\\nFalha ao enviar link de rastreio.\\nPedido: #{{ $('Split In Batches').item.json.order_number }}\\nContato: {{ $('GET CONTATO').item.json[0]?.nome || '—' }}\\nTelefone: {{ $('GET CONTATO').item.json[0]?.telefone || '—' }}\\n\\nVer logs do n8n.\"\n}",
+        "options": {}
+      },
+      "id": "alerta-falha",
+      "name": "ALERTA FALHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-280, 100]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/pedidos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $('Split In Batches').item.json.id }}" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"rastreio_enviado_em\": \"{{ $now.toISO() }}\"\n}",
+        "options": {}
+      },
+      "id": "marca-enviado",
+      "name": "MARCA ENVIADO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-280, 340]
+    }
+  ],
+  "connections": {
+    "Schedule 10 min": {
+      "main": [
+        [ { "node": "GET PEDIDOS POSTADOS", "type": "main", "index": 0 } ]
+      ]
+    },
+    "GET PEDIDOS POSTADOS": {
+      "main": [
+        [ { "node": "Split In Batches", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [],
+        [ { "node": "GET CONTATO", "type": "main", "index": 0 } ]
+      ]
+    },
+    "GET CONTATO": {
+      "main": [
+        [ { "node": "IF telefone existe", "type": "main", "index": 0 } ]
+      ]
+    },
+    "IF telefone existe": {
+      "main": [
+        [ { "node": "SEND MSG EVO", "type": "main", "index": 0 } ],
+        []
+      ]
+    },
+    "SEND MSG EVO": {
+      "main": [
+        [ { "node": "DETECTA FALHA?", "type": "main", "index": 0 } ]
+      ]
+    },
+    "DETECTA FALHA?": {
+      "main": [
+        [ { "node": "ALERTA FALHA", "type": "main", "index": 0 } ],
+        [ { "node": "MARCA ENVIADO", "type": "main", "index": 0 } ]
+      ]
+    },
+    "ALERTA FALHA": {
+      "main": [
+        [ { "node": "Split In Batches", "type": "main", "index": 0 } ]
+      ]
+    },
+    "MARCA ENVIADO": {
+      "main": [
+        [ { "node": "Split In Batches", "type": "main", "index": 0 } ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": { "instanceId": "santa-flor-crm" },
+  "tags": []
+}
