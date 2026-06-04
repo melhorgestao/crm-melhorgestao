@@ -237,8 +237,19 @@ export default function ContatosPage() {
     return `${num.slice(0, 5)}-${num.slice(5, 8)}`;
   };
 
+  // Remove non-dígitos e strip do código país "55" se presente (12-13 dígitos = país BR embutido).
+  // Exemplos:
+  //   "5511965285486" (13d) → "11965285486" (DDD 11 + mobile)
+  //   "5511965285"    (10d, DDD 55 RS landline) → "5511965285"  (mantém — DDD válido)
+  //   "11965285486"   (11d, sem país) → "11965285486"
+  const normalizePhoneDigits = (raw: string): string => {
+    let d = raw.replace(/\D/g, '');
+    if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2);
+    return d;
+  };
+
   const applyPhoneMask = (val: string) => {
-    const num = val.replace(/\D/g, '');
+    const num = normalizePhoneDigits(val);
     if (!num) return '';
     if (num.length <= 2) return `(${num}`;
     if (num.length <= 7) return `(${num.slice(0, 2)}) ${num.slice(2)}`;
@@ -304,7 +315,11 @@ export default function ContatosPage() {
 
     const changes: any = {};
     if (editNome !== (selected.nome || '')) changes.nome = editNome.trim();
-    if (editTelefone !== (selected.telefone || '')) changes.telefone = editTelefone || null;
+    // Compara por dígitos normalizados — evita sobrescrever quando o DB tinha
+    // formato "5511965285486" e a máscara só exibiu "(11) 96528-5486" sem mudança real.
+    if (normalizePhoneDigits(editTelefone) !== normalizePhoneDigits(selected.telefone || '')) {
+      changes.telefone = editTelefone || null;
+    }
     if (editCanalAtual !== (selected.canal_atual || '')) changes.canal_atual = editCanalAtual;
     if (editRepresentanteId !== (selected.representante_id || null)) {
       changes.representante_id = editCanalAtual === 'C-REP' ? editRepresentanteId : null;
