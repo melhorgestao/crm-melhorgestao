@@ -36,7 +36,7 @@ BEGIN
       ativacao_consecutive_silenciosos = ativacao_consecutive_silenciosos + 1,
       updated_at = NOW()
   WHERE ultima_interacao = 'ativacao_contatos'
-    AND data_ultima_ativacao < NOW() - INTERVAL '3 days'
+    AND data_ultimo_ativacao < NOW() - INTERVAL '3 days'
     AND ativacao_respondeu_em IS NULL;
   GET DIAGNOSTICS v_ativacao_timeout = ROW_COUNT;
 
