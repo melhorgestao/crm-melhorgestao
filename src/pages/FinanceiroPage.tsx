@@ -745,7 +745,7 @@ export default function FinanceiroPage() {
         
         // EXTRA_METRICA: debita saldo do sócio mas NÃO afeta financeiro/métricas
         // (uso para investimentos: máquinas, escritório, etc.)
-        const categoriaMap: Record<string, string> = { ADS: 'ads', ETIQUETA: 'etiqueta', MATERIAL: 'material', LOGISTICA: 'logistica' };
+        const categoriaMap: Record<string, string> = { ADS: 'ads', ETIQUETA: 'etiqueta', MATERIAL: 'material', LOGISTICA: 'logistica', INFLUENCER: 'influencer', INFRAESTRUTURA: 'infraestrutura' };
         if (categoriaMap[formTipo]) {
           await supabase.from('financeiro').insert({ tipo: 'despesa', valor, categoria: categoriaMap[formTipo] });
         }
@@ -972,7 +972,7 @@ export default function FinanceiroPage() {
                   l.tipo === 'TRANSFERENCIA' ? 'bg-blue-100/50 dark:bg-blue-900/20' :
                   l.tipo === 'LUCRO' ? 'bg-yellow-100/70 dark:bg-yellow-900/25' :
                   l.tipo === 'EXTRA_METRICA' ? 'bg-purple-100/60 dark:bg-purple-900/20' :
-                  (l.tipo === 'MATERIAL' || l.tipo === 'ETIQUETA' || l.tipo === 'ADS' || l.tipo === 'LOGISTICA') ? 'bg-red-100/60 dark:bg-red-900/20' :
+                  (l.tipo === 'MATERIAL' || l.tipo === 'ETIQUETA' || l.tipo === 'ADS' || l.tipo === 'LOGISTICA' || l.tipo === 'INFLUENCER' || l.tipo === 'INFRAESTRUTURA') ? 'bg-red-100/60 dark:bg-red-900/20' :
                   'bg-muted/30'
                 )}
                 onClick={() => setDetailItem(l)}
@@ -1095,6 +1095,8 @@ export default function FinanceiroPage() {
                       <SelectItem value="ETIQUETA">ETIQUETA</SelectItem>
                       <SelectItem value="MATERIAL">MATERIAL</SelectItem>
                       <SelectItem value="LOGISTICA">LOGÍSTICA</SelectItem>
+                      <SelectItem value="INFLUENCER">INFLUENCER</SelectItem>
+                      <SelectItem value="INFRAESTRUTURA">INFRAESTRUTURA</SelectItem>
                       <SelectItem value="EXTRA_METRICA">EXTRA MÉTRICA</SelectItem>
                     </SelectContent>
                   </Select>
