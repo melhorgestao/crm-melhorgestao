@@ -515,6 +515,8 @@ export default function MetricasPage() {
     const etiquetaTotal = despesas.filter(d => d.categoria === 'etiqueta').reduce((s, d) => s + Number(d.valor), 0);
     const logTotal = despesas.filter(d => d.categoria === 'logistica').reduce((s, d) => s + Number(d.valor), 0);
     const materialTotal = despesas.filter(d => d.categoria === 'material').reduce((s, d) => s + Number(d.valor), 0);
+    const influencerTotal = despesas.filter(d => d.categoria === 'influencer').reduce((s, d) => s + Number(d.valor), 0);
+    const infraestruturaTotal = despesas.filter(d => d.categoria === 'infraestrutura').reduce((s, d) => s + Number(d.valor), 0);
 
     const prodTotal = (ped || []).reduce((s, p) => s + (p.quantidade || 0), 0);
     const prodAds = (ped || []).filter(p => p.canal === 'ADS').reduce((s, p) => s + (p.quantidade || 0), 0);
@@ -545,7 +547,7 @@ export default function MetricasPage() {
 
     setData({
       fatTotal, fatBase, fatAds, fatRep,
-      custoTotal, custoAds, etiquetaTotal, logTotal, materialTotal,
+      custoTotal, custoAds, etiquetaTotal, logTotal, materialTotal, influencerTotal, infraestruturaTotal,
       prodTotal, prodAds, prodBase, prodRep, prodFree, prodTotalRealistico, pedidosAds,
       lucro, margem, icm, cpaUnAds, cac, custoOpUn, custoProdUn,
       medLucroBase, medLucroAds, medLucroRep, medLucroGeral,
@@ -1165,12 +1167,14 @@ export default function MetricasPage() {
           {/* Custos */}
           <div>
             <h2 className="font-bold mb-2 text-destructive">CUSTOS</h2>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <MetricCard label="Custo Total" value={formatBRL(data.custoTotal)} color="bg-card border-l-4 border-l-destructive" tip="Soma de todos os lançamentos tipo 'despesa' em Financeiro no período." onClick={() => showLancamentos('Custo Total — Lançamentos')} />
               <MetricCard label="Custo ADS" value={formatBRL(data.custoAds)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'ads' em Financeiro." onClick={() => showLancamentos('Custo ADS — Lançamentos', 'ads')} />
               <MetricCard label="Etiqueta Total" value={formatBRL(data.etiquetaTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'etiqueta' em Financeiro." onClick={() => showLancamentos('Etiqueta — Lançamentos', 'etiqueta')} />
               <MetricCard label="Log Total" value={formatBRL(data.logTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'logistica' em Financeiro." onClick={() => showLancamentos('Logística — Lançamentos', 'logistica')} />
               <MetricCard label="Material Total" value={formatBRL(data.materialTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'material' em Financeiro." onClick={() => showLancamentos('Material — Lançamentos', 'material')} />
+              <MetricCard label="Influencer" value={formatBRL(data.influencerTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'influencer'. Reduz lucro mas NÃO entra em custo operacional/produção unitário." onClick={() => showLancamentos('Influencer — Lançamentos', 'influencer')} />
+              <MetricCard label="Infraestrutura" value={formatBRL(data.infraestruturaTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'infraestrutura'. Reduz lucro mas NÃO entra em custo operacional/produção unitário." onClick={() => showLancamentos('Infraestrutura — Lançamentos', 'infraestrutura')} />
             </div>
           </div>
 
