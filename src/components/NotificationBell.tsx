@@ -51,9 +51,10 @@ export function NotificationBell() {
       }
     }
 
+    // Leads em wait_follow_up há mais de 3 dias sem novo disparo
     const threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString();
-    const { data: sumiu } = await supabase.from('contatos').select('nome').ilike('status_kanban', '%Sumiu%').lt('updated_at', threeDaysAgo);
-    sumiu?.forEach(c => a.push({ message: `⚠️ Card Sumiu sem abordagem — ${c.nome}`, link: '/kanban', type: 'sumiu' }));
+    const { data: sumiu } = await supabase.from('contatos').select('nome').eq('ultima_interacao', 'wait_follow_up').lt('data_wait_follow_up', threeDaysAgo);
+    sumiu?.forEach(c => a.push({ message: `⚠️ Lead aguardando follow-up há +3d — ${c.nome}`, link: '/kanban', type: 'sumiu' }));
 
     const fourDaysAgo = new Date(Date.now() - 4 * 86400000).toISOString().split('T')[0];
     const { data: pedidos } = await supabase.from('pedidos').select('id').eq('status_pedido', 'aguardando_rastreio').lt('data', fourDaysAgo);
