@@ -111,13 +111,12 @@ export type Database = {
           endereco: string | null
           id: string
           instancia_id: string | null
-          is_novo: boolean | null
           nome: string
-          novo_ate: string | null
+          tag_kanban: string | null
+          tag_kanban_ate: string | null
           observacao: string | null
           representante_id: string | null
           status_kanban: string | null
-          tag_vip: boolean
           telefone: string | null
           uf: string | null
           ultima_venda_em: string | null
@@ -137,13 +136,12 @@ export type Database = {
           endereco?: string | null
           id?: string
           instancia_id?: string | null
-          is_novo?: boolean | null
           nome: string
-          novo_ate?: string | null
+          tag_kanban?: string | null
+          tag_kanban_ate?: string | null
           observacao?: string | null
           representante_id?: string | null
           status_kanban?: string | null
-          tag_vip?: boolean
           telefone?: string | null
           uf?: string | null
           ultima_venda_em?: string | null
@@ -163,13 +161,12 @@ export type Database = {
           endereco?: string | null
           id?: string
           instancia_id?: string | null
-          is_novo?: boolean | null
           nome?: string
-          novo_ate?: string | null
+          tag_kanban?: string | null
+          tag_kanban_ate?: string | null
           observacao?: string | null
           representante_id?: string | null
           status_kanban?: string | null
-          tag_vip?: boolean
           telefone?: string | null
           uf?: string | null
           ultima_venda_em?: string | null

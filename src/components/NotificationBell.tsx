@@ -43,7 +43,7 @@ export function NotificationBell() {
     produtos?.forEach(p => a.push({ message: `📦 ${p.nome_oficial} — apenas ${p.estoque_atual} unidades restantes`, link: '/estoque', type: 'estoque' }));
 
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
-    const { data: vips } = await supabase.from('contatos').select('id, nome').eq('tag_vip', true);
+    const { data: vips } = await supabase.from('contatos').select('id, nome').eq('tag_kanban', 'VIP');
     if (vips) {
       for (const v of vips) {
         const { count } = await supabase.from('pedidos').select('id', { count: 'exact', head: true }).eq('contato_id', v.id).gte('data', thirtyDaysAgo);

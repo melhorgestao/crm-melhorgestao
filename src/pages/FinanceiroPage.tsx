@@ -136,7 +136,7 @@ export default function FinanceiroPage() {
     const [lancsResult, lancsSaldoResult, prodsResult, repsResult, perfisResult, sociosResult, ufsResult] = await Promise.all([
       // LISTA visual: filtrada pelos últimos 180 dias (com joins pesados para exibição)
       supabase.from('lancamentos_socios')
-        .select('*, produtos(nome_oficial), contatos(id, nome, telefone, canal_origem, tag_vip, endereco, complemento, bairro, cidade_uf, cidade, uf, cep, cpf, observacao, created_at)')
+        .select('*, produtos(nome_oficial), contatos(id, nome, telefone, canal_origem, tag_kanban, endereco, complemento, bairro, cidade_uf, cidade, uf, cep, cpf, observacao, created_at)')
         .gte('data', dataLimiteFin)
         .order('created_at', { ascending: false }),
       // SALDOS: query LEVE SEM filtro de data — base completa para saldos reais
@@ -300,7 +300,7 @@ export default function FinanceiroPage() {
     setFetchingPedido(true);
     try {
       const { data, error } = await supabase.from('pedidos')
-        .select('*, contatos(nome, telefone, tag_vip, cpf, endereco, complemento, bairro, cidade_uf, cep)')
+        .select('*, contatos(nome, telefone, tag_kanban, cpf, endereco, complemento, bairro, cidade_uf, cep)')
         .eq('id', id)
         .single();
       if (error) throw error;

@@ -174,7 +174,7 @@ export default function PedidosPage() {
         endDate = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
       }
       const { data } = await supabase.from('pedidos')
-        .select('id, data, canal, order_number, valor, valor_original, desconto_total, status_pedido, status_pagamento, produto, quantidade, uf_postagem, codigo_rastreio, contato_id, entrega_em_maos, estoque_debitado, locked_at, is_free, contatos(nome, telefone, tag_vip, cpf, endereco, complemento, bairro, cidade_uf, cep, canal_origem)')
+        .select('id, data, canal, order_number, valor, valor_original, desconto_total, status_pedido, status_pagamento, produto, quantidade, uf_postagem, codigo_rastreio, contato_id, entrega_em_maos, estoque_debitado, locked_at, is_free, contatos(nome, telefone, tag_kanban, cpf, endereco, complemento, bairro, cidade_uf, cep, canal_origem)')
         .gte('data', startDate).lt('data', endDate)
         .order('order_number', { ascending: false })
         .range(pageParam * PER_PAGE_FETCH, (pageParam + 1) * PER_PAGE_FETCH - 1);
@@ -580,7 +580,7 @@ export default function PedidosPage() {
                       <button onClick={e => { e.stopPropagation(); openContactDetail(p.contato_id); }} className="hover:underline text-primary">
                         {(p.contatos as any)?.nome || '—'}
                       </button>
-                      {(p.contatos as any)?.tag_vip && <Trophy className="inline w-3 h-3 ml-1 text-sf-gold" />}
+                      {(p.contatos as any)?.tag_kanban === 'VIP' && <Trophy className="inline w-3 h-3 ml-1 text-sf-gold" />}
                     </td>
                     <td className="py-2">
                       <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
@@ -1055,7 +1055,7 @@ export default function PedidosPage() {
             <p><strong>Cidade/UF:</strong> {selectedContact?.cidade_uf || '—'}</p>
             <p><strong>CEP:</strong> {selectedContact?.cep || '—'}</p>
             <p><strong>Canal:</strong> {selectedContact?.canal_origem}</p>
-            <p><strong>VIP:</strong> {selectedContact?.tag_vip ? 'Sim' : 'Não'}</p>
+            <p><strong>VIP:</strong> {selectedContact?.tag_kanban === 'VIP' ? 'Sim' : 'Não'}</p>
             <h4 className="font-bold mt-3">Histórico de Pedidos</h4>
             {contactPedidos.map(p => {
               let prodDisplay: string;

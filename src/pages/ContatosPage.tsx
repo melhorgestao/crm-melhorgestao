@@ -107,7 +107,7 @@ export default function ContatosPage() {
     queryFn: async ({ pageParam = 0 }) => {
       try {
         let query = supabase.from('contatos')
-          .select('id, nome, telefone, canal_origem, canal_atual, tag_vip, created_at, cidade_uf, cidade, uf, endereco, complemento, bairro, cep')
+          .select('id, nome, telefone, canal_origem, canal_atual, tag_kanban, created_at, cidade_uf, cidade, uf, endereco, complemento, bairro, cep')
           .order(sortColumn, { ascending: sortAsc })
           .range(pageParam * PER_PAGE_FETCH, (pageParam + 1) * PER_PAGE_FETCH - 1);
 
@@ -518,7 +518,7 @@ export default function ContatosPage() {
                   {contatos.map((c) => (
                     <tr key={c.id} className="border-b border-border/50 hover:bg-muted/50 cursor-pointer" onClick={() => openContact(c)}>
                       <td className="py-2 font-medium">
-                        {c.nome} {c.tag_vip && <Trophy className="inline w-3 h-3 text-sf-gold" />}
+                        {c.nome} {c.tag_kanban === 'VIP' && <Trophy className="inline w-3 h-3 text-sf-gold" />}
                       </td>
                       <td className="py-2 text-muted-foreground">{c.telefone || '—'}</td>
                       <td className="py-2">
@@ -728,7 +728,7 @@ export default function ContatosPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {selected?.nome}
-              {selected?.tag_vip && <Badge className="bg-sf-gold">VIP</Badge>}
+              {selected?.tag_kanban === 'VIP' && <Badge className="bg-sf-gold">VIP</Badge>}
             </DialogTitle>
           </DialogHeader>
           <div className={cn('space-y-3 text-sm', isMobile ? 'flex-1 overflow-y-auto pb-20 px-1' : '')}>

@@ -56,7 +56,7 @@ export default function PedidosRepPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('pedidos')
-        .select('*, contatos(nome, telefone, tag_vip, cpf, endereco, complemento, bairro, cidade_uf, cep)')
+        .select('*, contatos(nome, telefone, tag_kanban, cpf, endereco, complemento, bairro, cidade_uf, cep)')
         .eq('representante_id', user?.id)
         .order('order_number', { ascending: false });
       return data || [];

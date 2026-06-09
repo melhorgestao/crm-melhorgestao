@@ -39,13 +39,12 @@ interface Contact {
   nome: string;
   telefone: string;
   status_kanban: string;
-  tag_vip: boolean;
   canal_origem: string;
   canal_atual?: string | null;
   created_at: string;
   updated_at: string;
-  is_novo?: boolean | null;
-  novo_ate?: string | null;
+  tag_kanban?: string | null;
+  tag_kanban_ate?: string | null;
   ultima_venda_em?: string | null;
 }
 
@@ -60,7 +59,7 @@ const KanbanCard = memo(({
   setSuporteTarget: (c: Contact) => void;
   copyPhone: (p: string) => void;
 }) => {
-  const showNewTag = contact.is_novo && contact.novo_ate && new Date(contact.novo_ate) > new Date();
+  const activeTag = contact.tag_kanban && (!contact.tag_kanban_ate || new Date(contact.tag_kanban_ate) > new Date()) ? contact.tag_kanban : null;
 
   return (
     <Card
@@ -83,12 +82,20 @@ const KanbanCard = memo(({
       <CardContent className="p-3">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              {showNewTag && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {activeTag === 'NEW' && (
                 <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">NEW</Badge>
               )}
+              {activeTag === 'VIP' && (
+                <Badge className="bg-yellow-500 text-black text-[10px] px-1.5 py-0 font-bold">VIP</Badge>
+              )}
+              {activeTag === 'REP' && (
+                <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0 font-bold">REP</Badge>
+              )}
+              {activeTag === 'OFF' && (
+                <Badge className="bg-gray-400 text-white text-[10px] px-1.5 py-0 font-bold">OFF</Badge>
+              )}
               <p className="font-bold text-sm truncate">{contact.nome}</p>
-              {contact.tag_vip && <Badge className="bg-sf-gold text-foreground text-[10px] px-1 py-0"><Trophy className="w-3 h-3" /></Badge>}
             </div>
             <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
               <Phone className="w-3 h-3" />
@@ -143,7 +150,7 @@ export default function KanbanRepPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('contatos')
-        .select('id, nome, telefone, status_kanban, tag_vip, canal_origem, canal_atual, created_at, updated_at, is_novo, novo_ate, ultima_venda_em, representante_id')
+        .select('id, nome, telefone, status_kanban, canal_origem, canal_atual, created_at, updated_at, tag_kanban, tag_kanban_ate, ultima_venda_em, representante_id')
         .eq('representante_id', user?.id)
         .not('status_kanban', 'is', null);
       if (!data) return { active: [], archived: [] };
