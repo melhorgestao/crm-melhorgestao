@@ -195,18 +195,6 @@ const KanbanCard = memo(({
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyPhone(contact.telefone || '')}>
               <Copy className="w-3 h-3" />
             </Button>
-            {canDelete && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="w-3 h-3" /></Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => setDeleteTarget(contact)} className="text-destructive">
-                    <Trash2 className="w-3 h-3 mr-2" /> Banir (NUNCA_MAIS)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           </div>
         </div>
 
