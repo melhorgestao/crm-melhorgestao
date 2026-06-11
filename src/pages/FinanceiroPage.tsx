@@ -87,6 +87,9 @@ export default function FinanceiroPage() {
   const [phoneDuplicate, setPhoneDuplicate] = useState<any>(null);
   const [allREPs, setAllREPs] = useState<any[]>([]);
   const [formRepresentanteId, setFormRepresentanteId] = useState<string | null>(null);
+  const [allInstancias, setAllInstancias] = useState<{ id: string; nome: string }[]>([]);
+  const [formInstanciaId, setFormInstanciaId] = useState<string | null>(null);
+  const [instanciaLocked, setInstanciaLocked] = useState(false);
   const [formProdutos, setFormProdutos] = useState<{ produto_id: string; quantidade: number }[]>([{ produto_id: '', quantidade: 1 }]);
   const [allProdutos, setAllProdutos] = useState<any[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -133,7 +136,7 @@ export default function FinanceiroPage() {
 
     const dataLimiteFin = getDataLimiteFin();
 
-    const [lancsResult, lancsSaldoResult, prodsResult, repsResult, perfisResult, sociosResult, ufsResult] = await Promise.all([
+    const [lancsResult, lancsSaldoResult, prodsResult, repsResult, perfisResult, sociosResult, ufsResult, instanciasResult] = await Promise.all([
       // LISTA visual: filtrada pelos últimos 180 dias (com joins pesados para exibição)
       supabase.from('lancamentos_socios')
         .select('*, produtos(nome_oficial), contatos(id, nome, telefone, canal_origem, tag_kanban, endereco, complemento, bairro, cidade_uf, cidade, uf, cep, cpf, observacao, created_at)')
@@ -147,9 +150,15 @@ export default function FinanceiroPage() {
       supabase.from('perfis_usuario').select('user_id, nome, socio_key').not('socio_key', 'is', null),
       supabase.from('perfis_usuario').select('user_id, nome, socio_key').not('socio_key', 'is', null).order('nome'),
       supabase.from('estoque_ufs' as any).select('uf').order('uf'),
+      supabase.from('instancias').select('id, nome, ativo').eq('ativo', true).order('nome'),
     ]);
 
     setUfsCadastradas(((ufsResult.data || []) as any[]).map((r: any) => r.uf).filter(Boolean));
+    setAllInstancias(
+      ((instanciasResult.data || []) as any[])
+        .filter((i: any) => i.nome !== 'Instancia ADMIN')
+        .map((i: any) => ({ id: i.id, nome: i.nome }))
+    );
 
     // Build socio labels map: 'V' -> apelido, 'A' -> apelido
     const labels: Record<string, string> = {};
@@ -362,7 +371,7 @@ export default function FinanceiroPage() {
     const currentCanal = formCanal;
     const timeout = setTimeout(async () => {
       const { data } = await supabase.from('contatos')
-        .select('id, nome, telefone, representante_id, cpf, cidade, uf, cep, endereco, complemento, bairro, canal_origem')
+        .select('id, nome, telefone, representante_id, cpf, cidade, uf, cep, endereco, complemento, bairro, canal_origem, instancia_id')
         .eq('canal_origem', currentCanal)
         .or(`nome.ilike.%${val}%,telefone.ilike.%${val}%,cpf.ilike.%${val}%`)
         .limit(10);
@@ -375,6 +384,14 @@ export default function FinanceiroPage() {
     setFormSelectedContact(c);
     if (c.representante_id) {
       setFormRepresentanteId(c.representante_id);
+    }
+    // Se contato já tem instância, trava o dropdown. Senão, deixa escolher.
+    if (c.instancia_id) {
+      setFormInstanciaId(c.instancia_id);
+      setInstanciaLocked(true);
+    } else {
+      setFormInstanciaId(null);
+      setInstanciaLocked(false);
     }
     setFormContacts([]);
     setFormContactSearch('');
@@ -595,6 +612,7 @@ export default function FinanceiroPage() {
               p_cidade: formNewCidade || null,
               p_uf: formNewUf || null,
               p_representante_id: formCanal === 'C-REP' ? formRepresentanteId : null,
+              p_instancia_id: formInstanciaId,
             };
 
             console.log('FINANCEIRO: create_contato RPC body:', contatoBody);
@@ -631,6 +649,13 @@ export default function FinanceiroPage() {
           clearTimeout(timeoutId);
           setSubmitting(false);
           return;
+        }
+
+        // Se contato existente sem instância e usuário escolheu uma, atualiza
+        if (formInstanciaId && formSelectedContact && !formSelectedContact.instancia_id) {
+          await supabase.from('contatos')
+            .update({ instancia_id: formInstanciaId, updated_at: new Date().toISOString() })
+            .eq('id', contatoId);
         }
 
         console.log('FINANCEIRO: contatoId=', contatoId, 'valor=', valor, 'canal=', formCanal);
@@ -896,6 +921,7 @@ export default function FinanceiroPage() {
     setPhoneDuplicate(null); setFormProdutos([{ produto_id: '', quantidade: 1 }]); setFormContactSearch('');
     setFormModalidade('mini'); setFormUfPostagem(''); setFormStatusPagamento('pago'); setFormObs('');
     setClientSaved(false); setCepLoading(false); setFormRepresentanteId(null);
+    setFormInstanciaId(null); setInstanciaLocked(false);
   };
 
   const openEdit = (item: any) => {
@@ -1279,6 +1305,28 @@ export default function FinanceiroPage() {
                     </div>
                   )}
                 </div>
+                {formTipo === 'VENDA' && allInstancias.length > 0 && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">Instância</Label>
+                    <Select
+                      value={formInstanciaId || ''}
+                      onValueChange={setFormInstanciaId}
+                      disabled={instanciaLocked}
+                    >
+                      <SelectTrigger className="min-h-[44px]">
+                        <SelectValue placeholder="Selecionar instância..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allInstancias.map(i => (
+                          <SelectItem key={i.id} value={i.id}>Instância {i.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {instanciaLocked && (
+                      <p className="text-[10px] text-muted-foreground">Vinculada ao cliente — não editável aqui</p>
+                    )}
+                  </div>
+                )}
                 <Separator />
                 <div>
                   <Label className="text-xs text-muted-foreground uppercase tracking-wide">Produtos</Label>
