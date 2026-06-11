@@ -54,10 +54,19 @@ export default function ContatosPage() {
   // Sort state - default: alphabetical by name (A-Z)
   const [sortColumn, setSortColumn] = useState<'nome' | 'created_at'>('nome');
   const [sortAsc, setSortAsc] = useState(true);
-  // 'todos' = Todos Clientes (ja_comprou=true em qualquer instância)
-  // 'all' = sem filtro
-  // <uuid> = instância específica
+  // 'all' = todas instâncias | <uuid> = instância específica
   const [instanciaFilter, setInstanciaFilter] = useState<string>('all');
+  const [filterClientes, setFilterClientes] = useState(false);
+  const [filterCanais, setFilterCanais] = useState<Set<string>>(new Set());
+
+  const toggleCanal = (canal: string) => {
+    setFilterCanais(prev => {
+      const next = new Set(prev);
+      if (next.has(canal)) next.delete(canal); else next.add(canal);
+      return next;
+    });
+  };
+  const canaisKey = useMemo(() => Array.from(filterCanais).sort().join(','), [filterCanais]);
 
   const toggleSort = (col: 'nome' | 'created_at') => {
     if (sortColumn === col) {
@@ -107,7 +116,7 @@ export default function ContatosPage() {
     isLoading,
     error
   } = useInfiniteQuery({
-    queryKey: ['contatos_lista', debouncedSearch, sortColumn, sortAsc, instanciaFilter],
+    queryKey: ['contatos_lista', debouncedSearch, sortColumn, sortAsc, instanciaFilter, filterClientes, canaisKey],
     queryFn: async ({ pageParam = 0 }) => {
       try {
         let query = supabase.from('contatos')
@@ -119,10 +128,14 @@ export default function ContatosPage() {
           query = query.eq('representante_id', user?.id);
         }
 
-        if (instanciaFilter === 'todos') {
-          query = query.eq('ja_comprou', true).not('instancia_id', 'is', null);
-        } else if (instanciaFilter !== 'all') {
+        if (instanciaFilter !== 'all') {
           query = query.eq('instancia_id', instanciaFilter);
+        }
+        if (filterClientes) {
+          query = query.eq('ja_comprou', true);
+        }
+        if (filterCanais.size > 0) {
+          query = query.in('canal_origem', Array.from(filterCanais));
         }
 
         if (debouncedSearch) {
@@ -151,16 +164,20 @@ export default function ContatosPage() {
 
   // Total count - independent of pagination, updates instantly
   const { data: totalContatos } = useQuery({
-    queryKey: ['contatos_total', debouncedSearch, instanciaFilter],
+    queryKey: ['contatos_total', debouncedSearch, instanciaFilter, filterClientes, canaisKey],
     queryFn: async () => {
       let query = supabase.from('contatos').select('id', { count: 'exact', head: true });
       if (isRepresentante) {
         query = query.eq('representante_id', user?.id);
       }
-      if (instanciaFilter === 'todos') {
-        query = query.eq('ja_comprou', true).not('instancia_id', 'is', null);
-      } else if (instanciaFilter !== 'all') {
+      if (instanciaFilter !== 'all') {
         query = query.eq('instancia_id', instanciaFilter);
+      }
+      if (filterClientes) {
+        query = query.eq('ja_comprou', true);
+      }
+      if (filterCanais.size > 0) {
+        query = query.in('canal_origem', Array.from(filterCanais));
       }
       if (debouncedSearch) {
         const s = `%${debouncedSearch}%`;
@@ -511,20 +528,34 @@ export default function ContatosPage() {
           <Button variant="outline" size="sm" onClick={exportCSV}><Download className="w-4 h-4 mr-1" /> CSV</Button>
         </div>
       </div>
-      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-        <Input placeholder="Buscar por nome ou telefone" value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm" />
-        <Select value={instanciaFilter} onValueChange={setInstanciaFilter}>
-          <SelectTrigger className="w-full sm:w-[220px]">
-            <SelectValue placeholder="Filtrar..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos contatos</SelectItem>
-            <SelectItem value="todos">Todos Clientes (já comprou)</SelectItem>
-            {allInstancias.map((i: any) => (
-              <SelectItem key={i.id} value={i.id}>Instância {i.nome}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <Input placeholder="Buscar por nome ou telefone" value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm" />
+          <Select value={instanciaFilter} onValueChange={setInstanciaFilter}>
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <SelectValue placeholder="Filtrar..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos Contatos</SelectItem>
+              {allInstancias.map((i: any) => (
+                <SelectItem key={i.id} value={i.id}>Instância {i.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-2 items-center text-sm">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <Checkbox checked={filterClientes} onCheckedChange={(v) => setFilterClientes(!!v)} />
+            <span>Clientes</span>
+          </label>
+          <span className="text-xs text-muted-foreground">|</span>
+          {(['ADS', 'BASE', 'REP', 'C-REP'] as const).map(canal => (
+            <label key={canal} className="flex items-center gap-2 cursor-pointer">
+              <Checkbox checked={filterCanais.has(canal)} onCheckedChange={() => toggleCanal(canal)} />
+              <span>{canal}</span>
+            </label>
+          ))}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
