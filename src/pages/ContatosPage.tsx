@@ -54,6 +54,10 @@ export default function ContatosPage() {
   // Sort state - default: alphabetical by name (A-Z)
   const [sortColumn, setSortColumn] = useState<'nome' | 'created_at'>('nome');
   const [sortAsc, setSortAsc] = useState(true);
+  // 'todos' = Todos Clientes (ja_comprou=true em qualquer instância)
+  // 'all' = sem filtro
+  // <uuid> = instância específica
+  const [instanciaFilter, setInstanciaFilter] = useState<string>('all');
 
   const toggleSort = (col: 'nome' | 'created_at') => {
     if (sortColumn === col) {
@@ -103,16 +107,22 @@ export default function ContatosPage() {
     isLoading,
     error
   } = useInfiniteQuery({
-    queryKey: ['contatos_lista', debouncedSearch, sortColumn, sortAsc],
+    queryKey: ['contatos_lista', debouncedSearch, sortColumn, sortAsc, instanciaFilter],
     queryFn: async ({ pageParam = 0 }) => {
       try {
         let query = supabase.from('contatos')
-          .select('id, nome, telefone, canal_origem, canal_atual, tag_kanban, created_at, cidade_uf, cidade, uf, endereco, complemento, bairro, cep')
+          .select('id, nome, telefone, canal_origem, canal_atual, tag_kanban, created_at, cidade_uf, cidade, uf, endereco, complemento, bairro, cep, ja_comprou, instancia_id, instancias(nome)')
           .order(sortColumn, { ascending: sortAsc })
           .range(pageParam * PER_PAGE_FETCH, (pageParam + 1) * PER_PAGE_FETCH - 1);
 
         if (isRepresentante) {
           query = query.eq('representante_id', user?.id);
+        }
+
+        if (instanciaFilter === 'todos') {
+          query = query.eq('ja_comprou', true).not('instancia_id', 'is', null);
+        } else if (instanciaFilter !== 'all') {
+          query = query.eq('instancia_id', instanciaFilter);
         }
 
         if (debouncedSearch) {
@@ -141,11 +151,16 @@ export default function ContatosPage() {
 
   // Total count - independent of pagination, updates instantly
   const { data: totalContatos } = useQuery({
-    queryKey: ['contatos_total', debouncedSearch],
+    queryKey: ['contatos_total', debouncedSearch, instanciaFilter],
     queryFn: async () => {
       let query = supabase.from('contatos').select('id', { count: 'exact', head: true });
       if (isRepresentante) {
         query = query.eq('representante_id', user?.id);
+      }
+      if (instanciaFilter === 'todos') {
+        query = query.eq('ja_comprou', true).not('instancia_id', 'is', null);
+      } else if (instanciaFilter !== 'all') {
+        query = query.eq('instancia_id', instanciaFilter);
       }
       if (debouncedSearch) {
         const s = `%${debouncedSearch}%`;
@@ -164,6 +179,15 @@ export default function ContatosPage() {
     };
     fetchREPs();
   }, []);
+
+  const { data: allInstancias = [] } = useQuery({
+    queryKey: ['instancias_filter'],
+    queryFn: async () => {
+      const { data } = await supabase.from('instancias').select('id, nome, ativo').eq('ativo', true).order('nome');
+      return ((data || []) as any[]).filter((i: any) => i.nome !== 'Instancia ADMIN');
+    },
+    staleTime: 10 * 60 * 1000,
+  });
 
   // Separa o número do endereço salvo no formato "Rua X, 123"
   // (mesmo formato gerado por handleCreateContact: [endereco, numero].join(', '))
@@ -487,7 +511,21 @@ export default function ContatosPage() {
           <Button variant="outline" size="sm" onClick={exportCSV}><Download className="w-4 h-4 mr-1" /> CSV</Button>
         </div>
       </div>
-      <Input placeholder="Buscar por nome ou telefone" value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm" />
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+        <Input placeholder="Buscar por nome ou telefone" value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm" />
+        <Select value={instanciaFilter} onValueChange={setInstanciaFilter}>
+          <SelectTrigger className="w-full sm:w-[220px]">
+            <SelectValue placeholder="Filtrar..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos contatos</SelectItem>
+            <SelectItem value="todos">Todos Clientes (já comprou)</SelectItem>
+            {allInstancias.map((i: any) => (
+              <SelectItem key={i.id} value={i.id}>Instância {i.nome}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
         {isLoading && contatos.length === 0 ? (
@@ -508,6 +546,7 @@ export default function ContatosPage() {
                     </th>
                     <th className="text-left py-2">Número</th>
                     <th className="text-left py-2">Canal</th>
+                    <th className="text-left py-2">Instância</th>
                     <th className="text-left py-2">📍</th>
                     <th className="text-left py-2 cursor-pointer select-none hover:bg-muted/50 rounded" onClick={() => toggleSort('created_at')}>
                       Data Cadastro {sortColumn === 'created_at' ? (sortAsc ? '↑' : '↓') : '↑↓'}
@@ -523,6 +562,9 @@ export default function ContatosPage() {
                       <td className="py-2 text-muted-foreground">{c.telefone || '—'}</td>
                       <td className="py-2">
                         <Badge variant="outline" className="text-[10px]">{c.canal_atual || c.canal_origem || '—'}</Badge>
+                      </td>
+                      <td className="py-2 text-xs text-muted-foreground">
+                        {c.instancias?.nome || '—'}
                       </td>
                       <td className="py-2" onClick={e => e.stopPropagation()}>
                         <Popover>
@@ -553,7 +595,12 @@ export default function ContatosPage() {
             {/* Mobile Cards */}
             <div className="md:hidden space-y-2">
               {contatos.map((c) => (
-                <div key={c.id} className="p-3 border rounded-xl hover:bg-muted/30 cursor-pointer" onClick={() => openContact(c)}>
+                <div key={c.id} className="relative p-3 border rounded-xl hover:bg-muted/30 cursor-pointer" onClick={() => openContact(c)}>
+                  {c.instancias?.nome && (
+                    <span className="absolute top-1 right-2 text-[9px] text-muted-foreground/70 font-mono">
+                      {c.instancias.nome}
+                    </span>
+                  )}
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">

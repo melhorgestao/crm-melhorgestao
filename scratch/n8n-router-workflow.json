@@ -12,26 +12,94 @@
       "name": "Webhook Evolution",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-2200, 400],
+      "position": [
+        -2200,
+        400
+      ],
       "webhookId": "router-evolution"
     },
     {
       "parameters": {
         "assignments": {
           "assignments": [
-            { "id": "1", "name": "instancia_nome", "value": "={{ $json.body?.instance || $json.instance }}", "type": "string" },
-            { "id": "2", "name": "telefone_raw", "value": "={{ $json.body?.data?.key?.remoteJid || $json.data?.key?.remoteJid || '' }}", "type": "string" },
-            { "id": "3", "name": "telefone_clean", "value": "={{ ($json.body?.data?.key?.remoteJid || $json.data?.key?.remoteJid || '').replace(/\\D/g, '').replace(/^55(\\d{10,11})$/, '55$1') }}", "type": "string" },
-            { "id": "4", "name": "from_me", "value": "={{ $json.body?.data?.key?.fromMe || $json.data?.key?.fromMe || false }}", "type": "boolean" },
-            { "id": "5", "name": "msg_text", "value": "={{ $json.body?.data?.message?.conversation || $json.body?.data?.message?.extendedTextMessage?.text || $json.data?.message?.conversation || $json.data?.message?.extendedTextMessage?.text || '' }}", "type": "string" },
-            { "id": "6", "name": "message_type", "value": "={{ Object.keys($json.body?.data?.message || $json.data?.message || {})[0] || 'unknown' }}", "type": "string" },
-            { "id": "7", "name": "push_name", "value": "={{ $json.body?.data?.pushName || $json.data?.pushName || '' }}", "type": "string" },
-            { "id": "8", "name": "msg_id", "value": "={{ $json.body?.data?.key?.id || $json.data?.key?.id || '' }}", "type": "string" },
-            { "id": "9", "name": "ctwa_source_id", "value": "={{ $json.body?.data?.message?.messageContextInfo?.ctwaContext?.sourceId || $json.data?.message?.messageContextInfo?.ctwaContext?.sourceId || null }}", "type": "string" },
-            { "id": "10", "name": "ctwa_source_url", "value": "={{ $json.body?.data?.message?.messageContextInfo?.ctwaContext?.sourceUrl || $json.data?.message?.messageContextInfo?.ctwaContext?.sourceUrl || null }}", "type": "string" },
-            { "id": "11", "name": "instancia_uuid", "value": "={{ ({'Instancia1': '422e72a5-a9a8-4025-a3ad-6a4113d60f23', 'ADS': '11f90953-04e4-472b-a49b-9b495e44e779'})[$json.body?.instance || $json.instance] || null }}", "type": "string" },
-            { "id": "12", "name": "evolution_apikey", "value": "REPLACE_ME_PER_INSTANCE_BELOW", "type": "string" },
-            { "id": "13", "name": "evolution_base_url", "value": "https://evo.melhorgestao.online", "type": "string" }
+            {
+              "id": "1",
+              "name": "instancia_nome",
+              "value": "={{ $json.body?.instance || $json.instance }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "telefone_raw",
+              "value": "={{ $json.body?.data?.key?.remoteJid || $json.data?.key?.remoteJid || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "telefone_clean",
+              "value": "={{ ($json.body?.data?.key?.remoteJid || $json.data?.key?.remoteJid || '').replace(/\\D/g, '').replace(/^55(\\d{10,11})$/, '55$1') }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "from_me",
+              "value": "={{ $json.body?.data?.key?.fromMe || $json.data?.key?.fromMe || false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "5",
+              "name": "msg_text",
+              "value": "={{ $json.body?.data?.message?.conversation || $json.body?.data?.message?.extendedTextMessage?.text || $json.data?.message?.conversation || $json.data?.message?.extendedTextMessage?.text || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "message_type",
+              "value": "={{ Object.keys($json.body?.data?.message || $json.data?.message || {})[0] || 'unknown' }}",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "push_name",
+              "value": "={{ $json.body?.data?.pushName || $json.data?.pushName || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "8",
+              "name": "msg_id",
+              "value": "={{ $json.body?.data?.key?.id || $json.data?.key?.id || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "9",
+              "name": "ctwa_source_id",
+              "value": "={{ $json.body?.data?.message?.messageContextInfo?.ctwaContext?.sourceId || $json.data?.message?.messageContextInfo?.ctwaContext?.sourceId || null }}",
+              "type": "string"
+            },
+            {
+              "id": "10",
+              "name": "ctwa_source_url",
+              "value": "={{ $json.body?.data?.message?.messageContextInfo?.ctwaContext?.sourceUrl || $json.data?.message?.messageContextInfo?.ctwaContext?.sourceUrl || null }}",
+              "type": "string"
+            },
+            {
+              "id": "11",
+              "name": "instancia_uuid",
+              "value": "={{ ({'Instancia1': '422e72a5-a9a8-4025-a3ad-6a4113d60f23', 'ADS': '11f90953-04e4-472b-a49b-9b495e44e779'})[$json.body?.instance || $json.instance] || null }}",
+              "type": "string"
+            },
+            {
+              "id": "12",
+              "name": "evolution_apikey",
+              "value": "REPLACE_ME_PER_INSTANCE_BELOW",
+              "type": "string"
+            },
+            {
+              "id": "13",
+              "name": "evolution_base_url",
+              "value": "https://evo.melhorgestao.online",
+              "type": "string"
+            }
           ]
         },
         "options": {}
@@ -40,18 +108,29 @@
       "name": "EXTRAI CAMPOS",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [-1980, 400]
+      "position": [
+        -1980,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "id": "valid-type",
               "leftValue": "={{ $json.message_type }}",
               "rightValue": "conversation,extendedTextMessage,audioMessage,imageMessage,videoMessage,documentMessage",
-              "operator": { "type": "string", "operation": "contains", "rightType": "any" }
+              "operator": {
+                "type": "string",
+                "operation": "contains",
+                "rightType": "any"
+              }
             }
           ],
           "combinator": "and"
@@ -62,7 +141,10 @@
       "name": "TIPO ACEITO?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [-1760, 400]
+      "position": [
+        -1760,
+        400
+      ]
     },
     {
       "parameters": {
@@ -73,18 +155,28 @@
       "name": "Respond: tipo ignorado",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [-1760, 200]
+      "position": [
+        -1760,
+        200
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "id": "is-from-me",
               "leftValue": "={{ $json.from_me }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
           "combinator": "and"
@@ -95,18 +187,28 @@
       "name": "É fromMe?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [-1540, 400]
+      "position": [
+        -1540,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "id": "starts-with-slash",
               "leftValue": "={{ $json.msg_text }}",
               "rightValue": "/",
-              "operator": { "type": "string", "operation": "startsWith" }
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
             }
           ],
           "combinator": "and"
@@ -117,7 +219,10 @@
       "name": "É comando /?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [-1320, 250]
+      "position": [
+        -1320,
+        250
+      ]
     },
     {
       "parameters": {
@@ -128,7 +233,10 @@
       "name": "Respond: eco do bot",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [-1100, 320]
+      "position": [
+        -1100,
+        320
+      ]
     },
     {
       "parameters": {
@@ -139,19 +247,25 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"p_nome\": \"{{ $('EXTRAI CAMPOS').item.json.push_name }}\",\n  \"p_instancia_id\": \"{{ $('EXTRAI CAMPOS').item.json.instancia_uuid }}\",\n  \"p_canal_origem\": \"{{ $('EXTRAI CAMPOS').item.json.ctwa_source_id ? 'ADS' : 'BASE' }}\",\n  \"p_metadata\": {{ JSON.stringify({ctwa_source_id: $('EXTRAI CAMPOS').item.json.ctwa_source_id, ctwa_source_url: $('EXTRAI CAMPOS').item.json.ctwa_source_url}) }}\n}",
+        "jsonBody": "={\n  \"p_telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"p_nome\": \"{{ $('EXTRAI CAMPOS').item.json.push_name }}\",\n  \"p_instancia_id\": \"{{ $('EXTRAI CAMPOS').item.json.instancia_uuid }}\",\n  \"p_canal_origem\": \"{{ $('EXTRAI CAMPOS').item.json.ctwa_source_id ? 'ADS' : 'BASE' }}\",\n  \"p_mensagem\": \"{{ $('EXTRAI CAMPOS').item.json.msg_text.replace(/\\\"/g, '\\\\\\\"').replace(/\\\\n/g, ' ') }}\",\n  \"p_metadata\": {{ JSON.stringify({ctwa_source_id: $('EXTRAI CAMPOS').item.json.ctwa_source_id, ctwa_source_url: $('EXTRAI CAMPOS').item.json.ctwa_source_url}) }}\n}",
         "options": {}
       },
       "id": "get-create-contato-cmd",
       "name": "GET/CREATE Contato (cmd)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1100, 100]
+      "position": [
+        -1100,
+        100
+      ]
     },
     {
       "parameters": {
@@ -162,7 +276,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -174,7 +291,10 @@
       "name": "EXECUTA COMANDO",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-880, 100]
+      "position": [
+        -880,
+        100
+      ]
     },
     {
       "parameters": {
@@ -185,7 +305,10 @@
       "name": "Respond: comando OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [-660, 100]
+      "position": [
+        -660,
+        100
+      ]
     },
     {
       "parameters": {
@@ -196,19 +319,25 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"p_nome\": \"{{ $('EXTRAI CAMPOS').item.json.push_name }}\",\n  \"p_instancia_id\": \"{{ $('EXTRAI CAMPOS').item.json.instancia_uuid }}\",\n  \"p_canal_origem\": \"{{ $('EXTRAI CAMPOS').item.json.ctwa_source_id ? 'ADS' : 'BASE' }}\",\n  \"p_metadata\": {{ JSON.stringify({ctwa_source_id: $('EXTRAI CAMPOS').item.json.ctwa_source_id, ctwa_source_url: $('EXTRAI CAMPOS').item.json.ctwa_source_url}) }}\n}",
+        "jsonBody": "={\n  \"p_telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"p_nome\": \"{{ $('EXTRAI CAMPOS').item.json.push_name }}\",\n  \"p_instancia_id\": \"{{ $('EXTRAI CAMPOS').item.json.instancia_uuid }}\",\n  \"p_canal_origem\": \"{{ $('EXTRAI CAMPOS').item.json.ctwa_source_id ? 'ADS' : 'BASE' }}\",\n  \"p_mensagem\": \"{{ $('EXTRAI CAMPOS').item.json.msg_text.replace(/\\\"/g, '\\\\\\\"').replace(/\\\\n/g, ' ') }}\",\n  \"p_metadata\": {{ JSON.stringify({ctwa_source_id: $('EXTRAI CAMPOS').item.json.ctwa_source_id, ctwa_source_url: $('EXTRAI CAMPOS').item.json.ctwa_source_url}) }}\n}",
         "options": {}
       },
       "id": "get-create-contato",
       "name": "GET/CREATE Contato",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1320, 600]
+      "position": [
+        -1320,
+        600
+      ]
     },
     {
       "parameters": {
@@ -219,8 +348,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=representation" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
           ]
         },
         "sendBody": true,
@@ -232,18 +367,28 @@
       "name": "SAVE Buffer (in)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1100, 600]
+      "position": [
+        -1100,
+        600
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "id": "bot-active",
               "leftValue": "={{ $('GET/CREATE Contato').item.json.bot_pausado_ate }}",
               "rightValue": "",
-              "operator": { "type": "string", "operation": "empty" }
+              "operator": {
+                "type": "string",
+                "operation": "empty"
+              }
             }
           ],
           "combinator": "and"
@@ -254,7 +399,10 @@
       "name": "Bot ativo?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [-880, 600]
+      "position": [
+        -880,
+        600
+      ]
     },
     {
       "parameters": {
@@ -265,7 +413,10 @@
       "name": "Respond: bot pausado",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [-880, 800]
+      "position": [
+        -880,
+        800
+      ]
     },
     {
       "parameters": {
@@ -276,7 +427,10 @@
       "name": "WAIT 12s (debounce)",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [-660, 500],
+      "position": [
+        -660,
+        500
+      ],
       "webhookId": "router-wait"
     },
     {
@@ -288,7 +442,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -300,18 +457,28 @@
       "name": "PROCESS BATCH",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-440, 500]
+      "position": [
+        -440,
+        500
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "id": "should-process",
               "leftValue": "={{ $json.devo_processar }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
           "combinator": "and"
@@ -322,7 +489,10 @@
       "name": "Devo processar?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [-220, 500]
+      "position": [
+        -220,
+        500
+      ]
     },
     {
       "parameters": {
@@ -333,7 +503,10 @@
       "name": "Respond: superseded",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [-220, 700]
+      "position": [
+        -220,
+        700
+      ]
     },
     {
       "parameters": {
@@ -353,7 +526,10 @@
       "name": "AGENT_START (stub)",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [0, 500]
+      "position": [
+        0,
+        500
+      ]
     },
     {
       "parameters": {
@@ -362,22 +538,35 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ ({'Instancia1': 'REPLACE_INSTANCIA1_APIKEY', 'ADS': 'REPLACE_ADS_APIKEY'})[$('EXTRAI CAMPOS').item.json.instancia_nome] }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "apikey",
+              "value": "={{ ({'Instancia1': 'REPLACE_INSTANCIA1_APIKEY', 'ADS': 'REPLACE_ADS_APIKEY'})[$('EXTRAI CAMPOS').item.json.instancia_nome] }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"number\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"text\": \"{{ $('AGENT_START (stub)').item.json.resposta_texto.replace(/\\n/g, '\\\\n').replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"delay\": 1500\n}",
         "options": {
-          "response": { "response": { "neverError": true } }
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "send-evolution",
       "name": "EVOLUTION SEND",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [220, 500]
+      "position": [
+        220,
+        500
+      ]
     },
     {
       "parameters": {
@@ -388,7 +577,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -400,7 +592,10 @@
       "name": "SAVE Buffer (out)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 500]
+      "position": [
+        440,
+        500
+      ]
     },
     {
       "parameters": {
@@ -411,7 +606,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -423,7 +621,10 @@
       "name": "LOG eventos_contato",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [660, 500]
+      "position": [
+        660,
+        500
+      ]
     },
     {
       "parameters": {
@@ -434,80 +635,243 @@
       "name": "Respond: processed",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [880, 500]
+      "position": [
+        880,
+        500
+      ]
     }
   ],
   "connections": {
     "Webhook Evolution": {
-      "main": [[{ "node": "EXTRAI CAMPOS", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "EXTRAI CAMPOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "EXTRAI CAMPOS": {
-      "main": [[{ "node": "TIPO ACEITO?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "TIPO ACEITO?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "TIPO ACEITO?": {
       "main": [
-        [{ "node": "É fromMe?", "type": "main", "index": 0 }],
-        [{ "node": "Respond: tipo ignorado", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "É fromMe?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: tipo ignorado",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "É fromMe?": {
       "main": [
-        [{ "node": "É comando /?", "type": "main", "index": 0 }],
-        [{ "node": "GET/CREATE Contato", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "É comando /?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GET/CREATE Contato",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "É comando /?": {
       "main": [
-        [{ "node": "GET/CREATE Contato (cmd)", "type": "main", "index": 0 }],
-        [{ "node": "Respond: eco do bot", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "GET/CREATE Contato (cmd)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: eco do bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "GET/CREATE Contato (cmd)": {
-      "main": [[{ "node": "EXECUTA COMANDO", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "EXECUTA COMANDO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "EXECUTA COMANDO": {
-      "main": [[{ "node": "Respond: comando OK", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond: comando OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "GET/CREATE Contato": {
-      "main": [[{ "node": "SAVE Buffer (in)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "SAVE Buffer (in)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "SAVE Buffer (in)": {
-      "main": [[{ "node": "Bot ativo?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Bot ativo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Bot ativo?": {
       "main": [
-        [{ "node": "WAIT 12s (debounce)", "type": "main", "index": 0 }],
-        [{ "node": "Respond: bot pausado", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "WAIT 12s (debounce)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: bot pausado",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "WAIT 12s (debounce)": {
-      "main": [[{ "node": "PROCESS BATCH", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "PROCESS BATCH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "PROCESS BATCH": {
-      "main": [[{ "node": "Devo processar?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Devo processar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Devo processar?": {
       "main": [
-        [{ "node": "AGENT_START (stub)", "type": "main", "index": 0 }],
-        [{ "node": "Respond: superseded", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "AGENT_START (stub)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: superseded",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "AGENT_START (stub)": {
-      "main": [[{ "node": "EVOLUTION SEND", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "EVOLUTION SEND",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "EVOLUTION SEND": {
-      "main": [[{ "node": "SAVE Buffer (out)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "SAVE Buffer (out)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "SAVE Buffer (out)": {
-      "main": [[{ "node": "LOG eventos_contato", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "LOG eventos_contato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "LOG eventos_contato": {
-      "main": [[{ "node": "Respond: processed", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond: processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "pinData": {},
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "staticData": null,
-  "meta": { "instanceId": "santa-flor-crm" },
+  "meta": {
+    "instanceId": "santa-flor-crm"
+  },
   "tags": []
 }
