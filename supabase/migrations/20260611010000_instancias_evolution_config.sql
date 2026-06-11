@@ -19,7 +19,7 @@ ALTER TABLE public.instancias
 -- Seed: instância '1' (antigo BASE — chip recriado como "Instancia 1" no Evolution)
 UPDATE public.instancias
   SET evolution_instance = COALESCE(evolution_instance, 'Instancia 1'),
-      evolution_apikey   = COALESCE(evolution_apikey, 'c7ffccd59298850a7d0c108c999c37581d2128fb5e35793bc8b6f639871d71b7'),
+      evolution_apikey   = COALESCE(evolution_apikey, '9C81C9FF7BBF-4136-AAC6-968E54FA0E30'),
       alerta_admin       = true
 WHERE nome = '1';
 
