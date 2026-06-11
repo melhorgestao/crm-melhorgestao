@@ -144,7 +144,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Split In Batches').item.json._instancia.evolution_url }}/message/sendText/{{ $('Split In Batches').item.json._instancia.evolution_instance }}",
+        "url": "={{ $('Split In Batches').item.json._instancia.evolution_url }}/message/sendText/{{ encodeURIComponent($('Split In Batches').item.json._instancia.evolution_instance) }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
