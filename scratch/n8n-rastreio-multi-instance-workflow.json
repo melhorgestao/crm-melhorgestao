@@ -1,0 +1,374 @@
+{
+  "name": "Disparo Rastreio Multi-Instância",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule 10 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-2080, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/pedidos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "status_pedido", "value": "eq.postado" },
+            { "name": "link_rastreio", "value": "not.is.null" },
+            { "name": "rastreio_enviado_em", "value": "is.null" },
+            { "name": "rastreio_tentativas", "value": "lt.5" },
+            { "name": "select", "value": "id,order_number,link_rastreio,codigo_rastreio,contato_id,rastreio_tentativas,instancia_id" },
+            { "name": "order", "value": "data.asc" },
+            { "name": "limit", "value": "20" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-pedidos",
+      "name": "GET PEDIDOS POSTADOS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1860, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/instancias",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "ativo", "value": "eq.true" },
+            { "name": "evolution_apikey", "value": "not.is.null" },
+            { "name": "select", "value": "id,nome,evolution_instance,evolution_url,evolution_apikey,alerta_admin" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-instancias",
+      "name": "GET INSTÂNCIAS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1640, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Recebe [pedidos] do GET PEDIDOS POSTADOS e [instancias] do GET INSTÂNCIAS\n// Constrói lookup instancia_id → config e injeta em cada pedido.\nconst pedidos = $('GET PEDIDOS POSTADOS').all().map(i => i.json);\nconst instancias = $('GET INSTÂNCIAS').all().map(i => i.json);\n\nconst byId = Object.fromEntries(instancias.map(i => [i.id, i]));\nconst adminInst = instancias.find(i => i.alerta_admin === true) || instancias[0] || null;\n\nconst out = [];\nfor (const p of pedidos) {\n  const inst = p.instancia_id ? byId[p.instancia_id] : null;\n  out.push({\n    json: {\n      ...p,\n      _instancia: inst,           // config Evolution do pedido (pode ser null)\n      _admin_instancia: adminInst, // instância destino dos alertas\n    },\n  });\n}\nreturn out;"
+      },
+      "id": "merge-config",
+      "name": "MERGE PEDIDO+CONFIG",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1420, 320]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-batches",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [-1200, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/contatos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $json.contato_id }}" },
+            { "name": "select", "value": "id,nome,telefone" },
+            { "name": "limit", "value": "1" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-contato",
+      "name": "GET CONTATO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-980, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "telefone-exists",
+              "leftValue": "={{ $json.telefone }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            },
+            {
+              "id": "instancia-exists",
+              "leftValue": "={{ $('Split In Batches').item.json._instancia?.evolution_apikey }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-telefone",
+      "name": "IF telefone+instância OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-760, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Split In Batches').item.json._instancia.evolution_url }}/message/sendText/{{ $('Split In Batches').item.json._instancia.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $('Split In Batches').item.json._instancia.evolution_apikey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('GET CONTATO').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"Olá {{ $('GET CONTATO').item.json.nome.split(' ')[0] }}! \\n\\nSeu pedido foi postado pela Santa Flor.\\n\\nAcompanhe a entrega:\\n{{ $('Split In Batches').item.json.link_rastreio }}\\n\\nBom uso!\",\n  \"delay\": 2000\n}",
+        "options": {
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "send-msg-evo",
+      "name": "SEND MSG EVO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-520, 220],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "no-key",
+              "leftValue": "={{ $json.key?.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "empty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "detecta-falha",
+      "name": "DETECTA FALHA?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-300, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/incrementar_tentativa_rastreio",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"pedido_id\": \"{{ $('Split In Batches').item.json.id }}\"\n}",
+        "options": {}
+      },
+      "id": "increment-tentativa",
+      "name": "INCREMENT TENTATIVA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-80, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "tentativas-gte-3",
+              "leftValue": "={{ Number($json) }}",
+              "rightValue": 3,
+              "operator": { "type": "number", "operation": "gte" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-tentativas-3",
+      "name": "IF tentativas >= 3",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [140, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Split In Batches').item.json._admin_instancia.evolution_url }}/message/sendText/{{ $('Split In Batches').item.json._admin_instancia.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $('Split In Batches').item.json._admin_instancia.evolution_apikey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"5511991282579\",\n  \"text\": \"🚨 ALERTA RASTREIO\\n\\nFalha ao enviar link (tentativa {{ Number($('INCREMENT TENTATIVA').item.json) }}/5).\\nInstância: {{ $('Split In Batches').item.json._instancia?.nome || '?' }}\\nPedido: #{{ $('Split In Batches').item.json.order_number }}\\nContato: {{ $('GET CONTATO').item.json?.nome || '—' }}\\nTelefone: {{ $('GET CONTATO').item.json?.telefone || '—' }}\\n\\nVer logs do n8n.\"\n}",
+        "options": {}
+      },
+      "id": "alerta-falha",
+      "name": "ALERTA FALHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [380, 20]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/pedidos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $('Split In Batches').item.json.id }}" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"rastreio_enviado_em\": \"{{ $now.toISO() }}\"\n}",
+        "options": {}
+      },
+      "id": "marca-enviado",
+      "name": "MARCA ENVIADO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-80, 340]
+    }
+  ],
+  "connections": {
+    "Schedule 10 min": {
+      "main": [
+        [ { "node": "GET PEDIDOS POSTADOS", "type": "main", "index": 0 } ]
+      ]
+    },
+    "GET PEDIDOS POSTADOS": {
+      "main": [
+        [ { "node": "GET INSTÂNCIAS", "type": "main", "index": 0 } ]
+      ]
+    },
+    "GET INSTÂNCIAS": {
+      "main": [
+        [ { "node": "MERGE PEDIDO+CONFIG", "type": "main", "index": 0 } ]
+      ]
+    },
+    "MERGE PEDIDO+CONFIG": {
+      "main": [
+        [ { "node": "Split In Batches", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [],
+        [ { "node": "GET CONTATO", "type": "main", "index": 0 } ]
+      ]
+    },
+    "GET CONTATO": {
+      "main": [
+        [ { "node": "IF telefone+instância OK", "type": "main", "index": 0 } ]
+      ]
+    },
+    "IF telefone+instância OK": {
+      "main": [
+        [ { "node": "SEND MSG EVO", "type": "main", "index": 0 } ],
+        [ { "node": "Split In Batches", "type": "main", "index": 0 } ]
+      ]
+    },
+    "SEND MSG EVO": {
+      "main": [
+        [ { "node": "DETECTA FALHA?", "type": "main", "index": 0 } ]
+      ]
+    },
+    "DETECTA FALHA?": {
+      "main": [
+        [ { "node": "INCREMENT TENTATIVA", "type": "main", "index": 0 } ],
+        [ { "node": "MARCA ENVIADO", "type": "main", "index": 0 } ]
+      ]
+    },
+    "INCREMENT TENTATIVA": {
+      "main": [
+        [ { "node": "IF tentativas >= 3", "type": "main", "index": 0 } ]
+      ]
+    },
+    "IF tentativas >= 3": {
+      "main": [
+        [ { "node": "ALERTA FALHA", "type": "main", "index": 0 } ],
+        [ { "node": "Split In Batches", "type": "main", "index": 0 } ]
+      ]
+    },
+    "ALERTA FALHA": {
+      "main": [
+        [ { "node": "Split In Batches", "type": "main", "index": 0 } ]
+      ]
+    },
+    "MARCA ENVIADO": {
+      "main": [
+        [ { "node": "Split In Batches", "type": "main", "index": 0 } ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": { "instanceId": "santa-flor-crm" },
+  "tags": []
+}
