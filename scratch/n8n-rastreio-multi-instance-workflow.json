@@ -68,7 +68,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Recebe [pedidos] do GET PEDIDOS POSTADOS e [instancias] do GET INSTÂNCIAS\n// Constrói lookup instancia_id → config e injeta em cada pedido.\nconst pedidos = $('GET PEDIDOS POSTADOS').all().map(i => i.json);\nconst instancias = $('GET INSTÂNCIAS').all().map(i => i.json);\n\nconst byId = Object.fromEntries(instancias.map(i => [i.id, i]));\nconst adminInst = instancias.find(i => i.alerta_admin === true) || instancias[0] || null;\n\nconst out = [];\nfor (const p of pedidos) {\n  const inst = p.instancia_id ? byId[p.instancia_id] : null;\n  out.push({\n    json: {\n      ...p,\n      _instancia: inst,           // config Evolution do pedido (pode ser null)\n      _admin_instancia: adminInst, // instância destino dos alertas\n    },\n  });\n}\nreturn out;"
+        "jsCode": "// Recebe [pedidos] do GET PEDIDOS POSTADOS e [instancias] do GET INSTÂNCIAS\n// Filtra instâncias com apikey vazia/empty-string e passa lookup adiante.\nconst pedidos = $('GET PEDIDOS POSTADOS').all().map(i => i.json);\nconst instancias = $('GET INSTÂNCIAS').all().map(i => i.json)\n  .filter(i => i.evolution_apikey && String(i.evolution_apikey).trim().length > 0);\n\nconst byId = Object.fromEntries(instancias.map(i => [i.id, i]));\nconst adminInst = instancias.find(i => i.alerta_admin === true) || instancias[0] || null;\n\nconst out = [];\nfor (const p of pedidos) {\n  // resolução final acontece após GET CONTATO (precisa contato.instancia_id como fallback)\n  out.push({\n    json: {\n      ...p,\n      _byId: byId,\n      _admin_instancia: adminInst,\n    },\n  });\n}\nreturn out;"
       },
       "id": "merge-config",
       "name": "MERGE PEDIDO+CONFIG",
@@ -97,7 +97,7 @@
         "queryParameters": {
           "parameters": [
             { "name": "id", "value": "=eq.{{ $json.contato_id }}" },
-            { "name": "select", "value": "id,nome,telefone" },
+            { "name": "select", "value": "id,nome,telefone,instancia_id" },
             { "name": "limit", "value": "1" }
           ]
         },
@@ -108,6 +108,16 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [-980, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resolve a instância final priorizando: pedido.instancia_id → contato.instancia_id\nconst contato = $input.first().json;\nconst pedido = $('Split In Batches').item.json;\nconst byId = pedido._byId || {};\nconst adminInst = pedido._admin_instancia || null;\n\nconst targetId = pedido.instancia_id || contato.instancia_id || null;\nconst inst = targetId ? (byId[targetId] || null) : null;\n\nreturn [{\n  json: {\n    ...contato,\n    _instancia: inst,\n    _admin_instancia: adminInst,\n  }\n}];"
+      },
+      "id": "resolve-instancia",
+      "name": "RESOLVE INSTÂNCIA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-860, 320]
     },
     {
       "parameters": {
@@ -126,7 +136,7 @@
             },
             {
               "id": "instancia-exists",
-              "leftValue": "={{ $('Split In Batches').item.json._instancia?.evolution_apikey }}",
+              "leftValue": "={{ $json._instancia?.evolution_apikey }}",
               "rightValue": "",
               "operator": { "type": "string", "operation": "notEmpty" }
             }
@@ -144,11 +154,11 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Split In Batches').item.json._instancia.evolution_url }}/message/sendText/{{ encodeURIComponent($('Split In Batches').item.json._instancia.evolution_instance) }}",
+        "url": "={{ $('RESOLVE INSTÂNCIA').item.json._instancia.evolution_url }}/message/sendText/{{ encodeURIComponent($('RESOLVE INSTÂNCIA').item.json._instancia.evolution_instance) }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $('Split In Batches').item.json._instancia.evolution_apikey }}" },
+            { "name": "apikey", "value": "={{ $('RESOLVE INSTÂNCIA').item.json._instancia.evolution_apikey }}" },
             { "name": "Content-Type", "value": "application/json" }
           ]
         },
@@ -244,17 +254,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Split In Batches').item.json._admin_instancia.evolution_url }}/message/sendText/{{ $('Split In Batches').item.json._admin_instancia.evolution_instance }}",
+        "url": "={{ $('RESOLVE INSTÂNCIA').item.json._admin_instancia.evolution_url }}/message/sendText/{{ $('RESOLVE INSTÂNCIA').item.json._admin_instancia.evolution_instance }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $('Split In Batches').item.json._admin_instancia.evolution_apikey }}" },
+            { "name": "apikey", "value": "={{ $('RESOLVE INSTÂNCIA').item.json._admin_instancia.evolution_apikey }}" },
             { "name": "Content-Type", "value": "application/json" }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"5511991282579\",\n  \"text\": \"🚨 ALERTA RASTREIO\\n\\nFalha ao enviar link (tentativa {{ Number($('INCREMENT TENTATIVA').item.json) }}/5).\\nInstância: {{ $('Split In Batches').item.json._instancia?.nome || '?' }}\\nPedido: #{{ $('Split In Batches').item.json.order_number }}\\nContato: {{ $('GET CONTATO').item.json?.nome || '—' }}\\nTelefone: {{ $('GET CONTATO').item.json?.telefone || '—' }}\\n\\nVer logs do n8n.\"\n}",
+        "jsonBody": "={\n  \"number\": \"5511991282579\",\n  \"text\": \"🚨 ALERTA RASTREIO\\n\\nFalha ao enviar link (tentativa {{ Number($('INCREMENT TENTATIVA').item.json) }}/5).\\nInstância: {{ $('RESOLVE INSTÂNCIA').item.json._instancia?.nome || '?' }}\\nPedido: #{{ $('Split In Batches').item.json.order_number }}\\nContato: {{ $('GET CONTATO').item.json?.nome || '—' }}\\nTelefone: {{ $('GET CONTATO').item.json?.telefone || '—' }}\\n\\nVer logs do n8n.\"\n}",
         "options": {}
       },
       "id": "alerta-falha",
@@ -321,6 +331,11 @@
       ]
     },
     "GET CONTATO": {
+      "main": [
+        [ { "node": "RESOLVE INSTÂNCIA", "type": "main", "index": 0 } ]
+      ]
+    },
+    "RESOLVE INSTÂNCIA": {
       "main": [
         [ { "node": "IF telefone+instância OK", "type": "main", "index": 0 } ]
       ]
