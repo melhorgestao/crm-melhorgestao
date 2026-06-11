@@ -31,7 +31,7 @@
             { "name": "link_rastreio", "value": "not.is.null" },
             { "name": "rastreio_enviado_em", "value": "is.null" },
             { "name": "rastreio_tentativas", "value": "lt.5" },
-            { "name": "select", "value": "id,order_number,link_rastreio,codigo_rastreio,contato_id,rastreio_tentativas,instancia_id" },
+            { "name": "select", "value": "id,order_number,link_rastreio,codigo_rastreio,contato_id,rastreio_tentativas" },
             { "name": "order", "value": "data.asc" },
             { "name": "limit", "value": "20" }
           ]
@@ -111,7 +111,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Resolve a instância final priorizando: pedido.instancia_id → contato.instancia_id\nconst contato = $input.first().json;\nconst pedido = $('Split In Batches').item.json;\nconst byId = pedido._byId || {};\nconst adminInst = pedido._admin_instancia || null;\n\nconst targetId = pedido.instancia_id || contato.instancia_id || null;\nconst inst = targetId ? (byId[targetId] || null) : null;\n\nreturn [{\n  json: {\n    ...contato,\n    _instancia: inst,\n    _admin_instancia: adminInst,\n  }\n}];"
+        "jsCode": "// Resolve a instância pelo contato.instancia_id (única fonte de verdade)\nconst contato = $input.first().json;\nconst pedido = $('Split In Batches').item.json;\nconst byId = pedido._byId || {};\nconst adminInst = pedido._admin_instancia || null;\n\nconst inst = contato.instancia_id ? (byId[contato.instancia_id] || null) : null;\n\nreturn [{\n  json: {\n    ...contato,\n    _instancia: inst,\n    _admin_instancia: adminInst,\n  }\n}];"
       },
       "id": "resolve-instancia",
       "name": "RESOLVE INSTÂNCIA",
