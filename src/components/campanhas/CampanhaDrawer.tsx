@@ -198,17 +198,24 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                   <Input type="time" value={editHorFim} onChange={e => setEditHorFim(e.target.value)} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">Limite diário total</Label>
-                  <Input type="number" value={editLimite} onChange={e => setEditLimite(e.target.value)} placeholder="sem limite" />
-                </div>
-                <div className="space-y-1">
+              <div className="space-y-1">
+                <Label className="text-xs">Limite diário total</Label>
+                <Input type="number" value={editLimite} onChange={e => setEditLimite(e.target.value)} placeholder="sem limite" />
+              </div>
+
+              {/* Avançado — cooldown raramente usado */}
+              <details className="text-xs">
+                <summary className="cursor-pointer text-muted-foreground hover:text-foreground select-none">
+                  ⚙ Configuração avançada
+                </summary>
+                <div className="mt-3 space-y-1">
                   <Label className="text-xs">Cooldown cross-campanha (dias)</Label>
                   <Input type="number" value={editCooldown} onChange={e => setEditCooldown(parseInt(e.target.value) || 0)} placeholder="0 = desativado" />
-                  <p className="text-[10px] text-muted-foreground">⚠️ Bloqueia <strong>qualquer outra campanha</strong> pro contato em X dias após esta — pode interromper RMKT/Follow-up dele. Use 0 a menos que precise.</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    ⚠️ Bloqueia <strong>qualquer outra campanha</strong> pro contato em X dias após esta. Use 0 — a granularidade que você quer está em "Regras de elegibilidade" abaixo.
+                  </p>
                 </div>
-              </div>
+              </details>
               <div className="space-y-1">
                 <Label className="text-xs">Observação</Label>
                 <Input value={editObs} onChange={e => setEditObs(e.target.value)} placeholder="ex: BlackFriday 2026" />
@@ -289,8 +296,8 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
               )}
 
               {campanha.tipo !== 'followup' && (
-                <p className="text-[10px] text-amber-600 dark:text-amber-400">
-                  ⚙️ Valores serão usados pelos workflows n8n no próximo deploy (Sprint 3). Por enquanto são armazenados mas o claim ainda usa defaults históricos (30 dias / 3 tentativas).
+                <p className="text-[10px] text-sf-green">
+                  ✓ Valores aplicados imediatamente — o claim do workflow lê estas regras a cada execução.
                 </p>
               )}
             </section>
