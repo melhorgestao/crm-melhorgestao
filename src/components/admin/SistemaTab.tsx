@@ -361,22 +361,26 @@ const CRON_DOCS: Record<string, CronDoc> = {
     notas: ['Roda 1x por dia (00:00 BRT). Para "rodar agora" e processar atrasos sem esperar.'],
   },
   'midnight-lead-migration': {
-    resumo: 'Migra contatos ADS que compraram para o chip BASE — limpa o pipeline de ads.',
+    resumo: 'Migra contatos do canal ADS para o canal BASE depois que viram clientes — limpa o pipeline de prospects.',
     grupos: [
       {
-        titulo: '📞 Canal de origem',
+        titulo: '📞 canal_origem do contato',
         transicoes: [
           { from: 'ADS', to: 'BASE', when: 'lead comprou ontem (ultima_venda_em = ontem)' },
         ],
       },
       {
-        titulo: '📱 Instância vinculada',
+        titulo: '📱 instancia_id (chip Evolution que atende o contato)',
         transicoes: [
-          { from: 'qualquer/null', to: 'Instância primária', when: 'sempre na migração (alerta_admin=true)' },
+          { from: 'já preenchido', to: 'mantém o atual', when: 'preserva vínculo existente' },
+          { from: 'null', to: 'instância primária', when: 'fallback — usa a marcada alerta_admin=true' },
         ],
       },
     ],
-    notas: ['Roda 1x por dia (00:00 BRT). Garante que ADS focam em prospects, não em clientes.'],
+    notas: [
+      'Roda 1x por dia (00:00 BRT).',
+      'ADS deve focar em prospects (lead frio). Quando o lead compra, ele vira BASE para o RMKT cuidar.',
+    ],
   },
   'auto-reativar-instancias-pausadas': {
     resumo: 'Destrava instâncias cujo período de pausa já expirou — auto-cura do sistema.',
