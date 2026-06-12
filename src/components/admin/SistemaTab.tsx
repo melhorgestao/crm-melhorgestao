@@ -365,25 +365,19 @@ const CRON_DOCS: Record<string, CronDoc> = {
     notas: ['Roda 1x por dia (00:00 BRT). Para "rodar agora" e processar atrasos sem esperar.'],
   },
   'midnight-lead-migration': {
-    resumo: 'Migra contatos do canal ADS para o canal BASE depois que viram clientes — limpa o pipeline de prospects.',
+    resumo: 'Move contatos do canal ADS para BASE no funil quando viram clientes. Não toca instancia_id — contato fica na mesma instância pra sempre.',
     grupos: [
       {
-        titulo: '📞 canal_origem do contato',
+        titulo: '📞 canal_origem do contato (único campo alterado)',
         transicoes: [
           { from: 'ADS', to: 'BASE', when: 'lead comprou ontem (ultima_venda_em = ontem)' },
-        ],
-      },
-      {
-        titulo: '📱 instancia_id (chip Evolution que atende o contato)',
-        transicoes: [
-          { from: 'já preenchido', to: 'mantém o atual', when: 'preserva vínculo existente' },
-          { from: 'null', to: 'instância primária', when: 'fallback — usa a marcada alerta_admin=true' },
         ],
       },
     ],
     notas: [
       'Roda 1x por dia (00:00 BRT).',
-      'ADS deve focar em prospects (lead frio). Quando o lead compra, ele vira BASE para o RMKT cuidar.',
+      'Instâncias são INDEPENDENTES — cada uma faz tudo em paralelo (ADS + follow-up + BASE + RMKT + ativação). Nenhum contato migra de instância.',
+      'canal_origem é estado do CONTATO no funil — não tipifica a instância. ADS = lead frio, BASE = cliente que comprou.',
     ],
   },
   'auto-reativar-instancias-pausadas': {
