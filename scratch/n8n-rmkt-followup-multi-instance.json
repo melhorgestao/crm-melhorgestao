@@ -3,10 +3,10 @@
   "nodes": [
     {
       "parameters": {
-        "rule": { "interval": [ { "field": "minutes", "minutesInterval": 30 } ] }
+        "rule": { "interval": [ { "field": "minutes", "minutesInterval": 1 } ] }
       },
       "id": "schedule",
-      "name": "Schedule 30min",
+      "name": "Schedule 1min (ritmo controlado pela campanha)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [-2400, 320]
@@ -414,7 +414,7 @@
     }
   ],
   "connections": {
-    "Schedule 30min": { "main": [[ { "node": "GET INSTÂNCIAS", "type": "main", "index": 0 } ]] },
+    "Schedule 1min (ritmo controlado pela campanha)": { "main": [[ { "node": "GET INSTÂNCIAS", "type": "main", "index": 0 } ]] },
     "GET INSTÂNCIAS":  { "main": [[ { "node": "PREP INSTÂNCIAS", "type": "main", "index": 0 } ]] },
     "PREP INSTÂNCIAS": { "main": [[ { "node": "Split por Instância", "type": "main", "index": 0 } ]] },
     "Split por Instância": {

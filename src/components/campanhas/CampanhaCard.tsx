@@ -21,6 +21,8 @@ export interface CampanhaRow {
   coffee_break_inicio: string | null;
   coffee_break_fim: string | null;
   skip_rate: number;
+  intervalo_minutos: number;
+  ultima_execucao_em: string | null;
   observacao: string | null;
 }
 
