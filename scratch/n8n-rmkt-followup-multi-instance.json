@@ -115,6 +115,16 @@
     },
     {
       "parameters": {
+        "jsCode": "// ANTI-BAN: Coffee break (12:00-13:30 BRT) + Skip aleatório 4%.\n// RMKT e Follow-up são mais críticos pra timing (cliente já engajado),\n// skip baixo apenas como proteção de padrão. Aplicado ANTES do claim.\nconst tz = 'America/Sao_Paulo';\nconst now = new Date();\nconst opts = { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false };\nconst [hh, mm] = new Intl.DateTimeFormat('en-GB', opts).format(now).split(':').map(Number);\nconst minutesNow = hh * 60 + mm;\n\n// COFFEE BREAK 12:00-13:30 (sem envios na pausa do almoço)\nif (minutesNow >= 720 && minutesNow <= 810) {\n  return [];\n}\n\n// SKIP ALEATÓRIO 4% — quebra padrão sem prejudicar cadência\nconst SKIP_RATE = 0.04;\nif (Math.random() < SKIP_RATE) {\n  return [];\n}\n\nreturn $input.all();"
+      },
+      "id": "anti-ban",
+      "name": "ANTI-BAN CHECK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-860, 480]
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/claim_proximo_lead_followup",
         "authentication": "predefinedCredentialType",
@@ -389,6 +399,11 @@
     "Pular instância?": {
       "main": [
         [ { "node": "PAUSA INSTÂNCIA", "type": "main", "index": 0 } ],
+        [ { "node": "ANTI-BAN CHECK", "type": "main", "index": 0 } ]
+      ]
+    },
+    "ANTI-BAN CHECK": {
+      "main": [
         [ { "node": "CLAIM follow-up", "type": "main", "index": 0 } ]
       ]
     },
