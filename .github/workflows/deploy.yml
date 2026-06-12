@@ -21,9 +21,15 @@ jobs:
           script: |
             set -e
             cd ~/melhorgestao
+            echo "==> Disk antes:   $(df -h / | tail -1 | awk '{print $5" usado, "$4" livre"}')"
+            # Cleanup: imagens órfãs + cache de build antigo (mantém volumes)
+            docker image prune -f >/dev/null 2>&1 || true
+            docker builder prune -f --filter "until=72h" >/dev/null 2>&1 || true
             echo "==> Antes do pull: $(git rev-parse --short HEAD)"
             git fetch origin main
             git reset --hard origin/main
             echo "==> Depois do pull: $(git rev-parse --short HEAD)"
-            docker compose build --no-cache app
+            # Sem --no-cache: aproveita layers que não mudaram (3-5x mais rápido)
+            docker compose build app
             docker compose up -d --force-recreate app
+            echo "==> Disk depois:  $(df -h / | tail -1 | awk '{print $5" usado, "$4" livre"}')"
