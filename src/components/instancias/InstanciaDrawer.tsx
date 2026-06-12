@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Eye, EyeOff, RefreshCw, QrCode, RotateCcw, Trash2, Loader2, MessageSquare } from 'lucide-react';
 import { getConnectionState, fetchQrCode, restartInstance, deleteInstance, connectChatwoot } from '@/lib/evolutionApi';
+import { getChatwootConfig, findInboxByName } from '@/lib/chatwootApi';
 import type { InstanciaRow } from './InstanciaCard';
 
 interface Props {
@@ -143,27 +144,39 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
 
   const handleConnectChatwoot = async () => {
     setConnectingCw(true);
-    // Busca config global do Chatwoot
-    const { data: configs } = await supabase
-      .from('configuracoes')
-      .select('chave, valor')
-      .in('chave', ['chatwoot_url', 'chatwoot_account_id', 'chatwoot_api_token']);
-    const cfg = Object.fromEntries((configs || []).map((c: any) => [c.chave, c.valor]));
+    const cfg = await getChatwootConfig();
+    if (!cfg.url || !cfg.accountId || !cfg.apiToken) {
+      setConnectingCw(false);
+      toast.error('Config Chatwoot incompleta — preencha em Configurações Globais');
+      return;
+    }
     const r = await connectChatwoot({
       inst: {
         evolution_url: instancia.evolution_url || '',
         evolution_instance: instancia.evolution_instance || '',
         evolution_apikey: instancia.evolution_apikey || '',
       },
-      chatwootUrl: cfg.chatwoot_url || '',
-      accountId: cfg.chatwoot_account_id || '',
-      apiToken: cfg.chatwoot_api_token || '',
+      chatwootUrl: cfg.url,
+      accountId: cfg.accountId,
+      apiToken: cfg.apiToken,
     });
+    if (!r.ok) { setConnectingCw(false); toast.error('Chatwoot: ' + r.error); return; }
+
+    // Auto-detecta inbox criado (Evolution usa nameInbox = evolution_instance)
+    let inboxId = editChatwootInbox; // fallback: o que já estava
+    try {
+      const inbox = await findInboxByName(cfg, instancia.evolution_instance || '');
+      if (inbox) inboxId = String(inbox.id);
+    } catch { /* segue sem inbox_id */ }
+
+    await supabase
+      .from('instancias')
+      .update({ chatwoot_integrated: true, chatwoot_inbox_id: inboxId || null })
+      .eq('id', instancia.id);
+    setEditChatwootInbox(inboxId);
     setConnectingCw(false);
-    if (!r.ok) { toast.error('Chatwoot: ' + r.error); return; }
-    await supabase.from('instancias').update({ chatwoot_integrated: true }).eq('id', instancia.id);
     qc.invalidateQueries({ queryKey: ['instancias_list'] });
-    toast.success('Conectada ao Chatwoot');
+    toast.success(inboxId ? `Conectada ao Chatwoot (inbox #${inboxId})` : 'Conectada ao Chatwoot');
   };
 
   const handleRestart = async () => {
@@ -307,9 +320,13 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
               <Input
                 value={editChatwootInbox}
                 onChange={e => setEditChatwootInbox(e.target.value)}
-                placeholder="ex: 12"
+                placeholder="auto-detectado após conectar"
                 className="font-mono text-xs"
               />
+              <p className="text-[10px] text-muted-foreground">
+                Evolution cria automaticamente um inbox com nome = "{instancia.evolution_instance}".
+                O CRM detecta e preenche aqui depois de conectar.
+              </p>
             </div>
             <Button
               variant="outline"

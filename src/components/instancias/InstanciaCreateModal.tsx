@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Loader2, QrCode, ArrowRight } from 'lucide-react';
-import { createInstance, fetchQrCode, getConnectionState, getMasterApiKey } from '@/lib/evolutionApi';
+import { createInstance, fetchQrCode, getConnectionState, getMasterApiKey, connectChatwoot } from '@/lib/evolutionApi';
+import { getChatwootConfig, findInboxByName } from '@/lib/chatwootApi';
 
 interface Props {
   open: boolean;
@@ -27,6 +28,7 @@ export function InstanciaCreateModal({ open, onClose }: Props) {
   const [url, setUrl] = useState(DEFAULT_URL);
   const [ativar, setAtivar] = useState(true);
   const [alertaAdmin, setAlertaAdmin] = useState(false);
+  const [conectarChatwoot, setConectarChatwoot] = useState(true);
 
   const [apikey, setApikey] = useState<string | null>(null);
   const [qrSrc, setQrSrc] = useState<string | null>(null);
@@ -102,6 +104,30 @@ export function InstanciaCreateModal({ open, onClose }: Props) {
     }
     setInstanciaId(row.id);
 
+    // 2.5) Conexão automática com Chatwoot (best-effort, não bloqueia QR)
+    if (conectarChatwoot) {
+      try {
+        const cfg = await getChatwootConfig();
+        if (cfg.url && cfg.accountId && cfg.apiToken) {
+          const cwRes = await connectChatwoot({
+            inst: { evolution_url: url, evolution_instance: nomeEvo.trim(), evolution_apikey: created.apikey },
+            chatwootUrl: cfg.url, accountId: cfg.accountId, apiToken: cfg.apiToken,
+          });
+          if (cwRes.ok) {
+            let inboxId: string | null = null;
+            try {
+              const ib = await findInboxByName(cfg, nomeEvo.trim());
+              if (ib) inboxId = String(ib.id);
+            } catch { /* ignore */ }
+            await supabase.from('instancias').update({
+              chatwoot_integrated: true,
+              chatwoot_inbox_id: inboxId,
+            }).eq('id', row.id);
+          }
+        }
+      } catch { /* não falha o fluxo principal */ }
+    }
+
     // 3) QR Code
     if (created.qrcode) {
       const src = created.qrcode.startsWith('data:') ? created.qrcode : `data:image/png;base64,${created.qrcode}`;
@@ -160,6 +186,10 @@ export function InstanciaCreateModal({ open, onClose }: Props) {
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={alertaAdmin} onCheckedChange={v => setAlertaAdmin(!!v)} />
               <span>Definir como destino dos alertas (👑)</span>
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox checked={conectarChatwoot} onCheckedChange={v => setConectarChatwoot(!!v)} />
+              <span>Criar inbox no Chatwoot automaticamente</span>
             </label>
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>

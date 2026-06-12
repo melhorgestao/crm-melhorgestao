@@ -118,11 +118,12 @@ export async function connectChatwoot(params: {
     return { ok: false, status: 0, error: 'Config Chatwoot incompleta (url/account_id/api_token)' };
   }
   const url = `${params.inst.evolution_url || DEFAULT_BASE_URL}/chatwoot/set/${encodeURIComponent(params.inst.evolution_instance)}`;
-  const body = {
+  const body: any = {
     enabled: true,
     accountId: params.accountId,
     token: params.apiToken,
     url: params.chatwootUrl,
+    nameInbox: params.inst.evolution_instance, // Evolution cria inbox no Chatwoot com este nome
     signMsg: params.signMsg ?? false,
     reopenConversation: params.reopenConversation ?? true,
     conversationPending: params.conversationPending ?? false,
