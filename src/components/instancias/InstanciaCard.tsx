@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Crown, Settings, Pause, Play, MessageCircleMore } from 'lucide-react';
+import { Crown, Settings, Pause, Play, MessageCircleMore, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getConnectionState } from '@/lib/evolutionApi';
@@ -92,7 +92,14 @@ export function InstanciaCard({ instancia, onOpenDetails, onTogglePause }: Props
             <div className="flex items-center gap-2">
               <h3 className="font-bold truncate">Instância {i.nome}</h3>
               {i.alerta_admin && (
-                <Crown className="w-4 h-4 text-sf-gold" aria-label="Recebe alertas" />
+                <span title="Destino dos alertas" className="shrink-0">
+                  <Crown className="w-4 h-4 text-sf-gold" />
+                </span>
+              )}
+              {i.chatwoot_integrated && (
+                <span title="Conectada ao Chatwoot" className="shrink-0">
+                  <MessageSquare className="w-4 h-4 text-blue-500" />
+                </span>
               )}
             </div>
             <p className="text-xs text-muted-foreground truncate font-mono">
