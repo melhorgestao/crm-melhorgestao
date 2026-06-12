@@ -97,7 +97,7 @@
         "queryParameters": {
           "parameters": [
             { "name": "id", "value": "=eq.{{ $json.contato_id }}" },
-            { "name": "select", "value": "id,nome,telefone,instancia_id" },
+            { "name": "select", "value": "id,nome,telefone,instancia_id,canal_origem,canal_atual,representante_id,representante:representante_id(id,nome,telefone,instancia_id)" },
             { "name": "limit", "value": "1" }
           ]
         },
@@ -111,7 +111,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Resolve a instância pelo contato.instancia_id (única fonte de verdade)\nconst contato = $input.first().json;\nconst pedido = $('Split In Batches').item.json;\nconst byId = pedido._byId || {};\nconst adminInst = pedido._admin_instancia || null;\n\nconst inst = contato.instancia_id ? (byId[contato.instancia_id] || null) : null;\n\nreturn [{\n  json: {\n    ...contato,\n    _instancia: inst,\n    _admin_instancia: adminInst,\n  }\n}];"
+        "jsCode": "// Resolve destinatário e instância.\n// Regra C-REP: se canal_origem='C-REP' e tem representante, o rastreio vai pro REP\n// (telefone + instancia_id do representante). REP repassa pro cliente final.\nconst contato = $input.first().json;\nconst pedido = $('Split In Batches').item.json;\nconst byId = pedido._byId || {};\nconst adminInst = pedido._admin_instancia || null;\n\nconst isCRep = (contato.canal_origem === 'C-REP' || contato.canal_atual === 'C-REP');\nconst rep = (isCRep && contato.representante) ? contato.representante : null;\n\n// destinatário efetivo: REP se C-REP, senão o próprio contato\nconst destinatario = rep ? {\n  nome: rep.nome,\n  telefone: rep.telefone,\n  instancia_id: rep.instancia_id || contato.instancia_id,\n  via_rep: true,\n  cliente_nome: contato.nome,\n} : {\n  nome: contato.nome,\n  telefone: contato.telefone,\n  instancia_id: contato.instancia_id,\n  via_rep: false,\n  cliente_nome: contato.nome,\n};\n\nconst inst = destinatario.instancia_id ? (byId[destinatario.instancia_id] || null) : null;\n\nreturn [{\n  json: {\n    ...destinatario,\n    _instancia: inst,\n    _admin_instancia: adminInst,\n  }\n}];"
       },
       "id": "resolve-instancia",
       "name": "RESOLVE INSTÂNCIA",
@@ -164,7 +164,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('GET CONTATO').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"Olá {{ $('GET CONTATO').item.json.nome.split(' ')[0] }}! \\n\\nSeu pedido foi postado pela Santa Flor.\\n\\nAcompanhe a entrega:\\n{{ $('Split In Batches').item.json.link_rastreio }}\\n\\nBom uso!\",\n  \"delay\": 2000\n}",
+        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('RESOLVE INSTÂNCIA').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"={{ $('RESOLVE INSTÂNCIA').item.json.via_rep ? ('Olá ' + $('RESOLVE INSTÂNCIA').item.json.nome.split(' ')[0] + '!\\n\\nPedido do cliente *' + $('RESOLVE INSTÂNCIA').item.json.cliente_nome + '* foi postado pela Santa Flor.\\n\\nLink de rastreio para repassar ao cliente:\\n' + $('Split In Batches').item.json.link_rastreio) : ('Olá ' + $('RESOLVE INSTÂNCIA').item.json.nome.split(' ')[0] + '!\\n\\nSeu pedido foi postado pela Santa Flor.\\n\\nAcompanhe a entrega:\\n' + $('Split In Batches').item.json.link_rastreio + '\\n\\nBom uso!') }}\",\n  \"delay\": 2000\n}",
         "options": {
           "response": { "response": { "neverError": true } }
         }
