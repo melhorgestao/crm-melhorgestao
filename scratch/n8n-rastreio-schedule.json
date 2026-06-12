@@ -55,6 +55,7 @@
         "queryParameters": {
           "parameters": [
             { "name": "ativo", "value": "eq.true" },
+            { "name": "status", "value": "eq.ativo" },
             { "name": "evolution_apikey", "value": "not.is.null" },
             { "name": "select", "value": "id,nome,evolution_instance,evolution_url,evolution_apikey,alerta_admin" }
           ]
