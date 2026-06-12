@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Loader2, Play, RefreshCw, AlertTriangle, CheckCircle2, Clock, ChevronRight } from 'lucide-react';
+import { Loader2, Play, RefreshCw, AlertTriangle, CheckCircle2, Clock, ChevronRight, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CronStatus {
@@ -260,6 +260,8 @@ function CronDetailDrawer({ cron, open, onClose, onRun, running }: { cron: CronS
             <pre className="bg-muted/40 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap break-words overflow-x-auto">{cron.command}</pre>
           </section>
 
+          <CronExplanation jobname={cron.jobname} />
+
           <section className="space-y-2">
             <Button className="w-full bg-sf-green hover:bg-sf-green/90" onClick={() => onRun(cron.jobname)} disabled={running === cron.jobname}>
               {running === cron.jobname ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
@@ -304,5 +306,148 @@ function Row({ label, value }: { label: string; value: any }) {
       <span className="text-muted-foreground">{label}:</span>
       <span className="tabular-nums font-mono text-xs">{value}</span>
     </div>
+  );
+}
+
+interface Transition {
+  from: string;
+  to: string;
+  when: string;
+}
+
+interface CronDoc {
+  resumo: string;
+  grupos: Array<{ titulo: string; transicoes: Transition[] }>;
+  notas?: string[];
+}
+
+const CRON_DOCS: Record<string, CronDoc> = {
+  'state-machine-transicoes': {
+    resumo: 'Processa timeouts da máquina de estado — move contatos entre estados quando atinge o tempo limite.',
+    grupos: [
+      {
+        titulo: '📋 Lead / Follow-up',
+        transicoes: [
+          { from: 'start', to: 'wait_follow_up', when: 'sem resposta após 24h' },
+          { from: 'wait_follow_up', to: 'follow_up', when: 'gap atingido (24h, 3d ou 7d)' },
+          { from: 'follow_up', to: 'wait_follow_up', when: 'sem resposta após disparo' },
+          { from: 'em_fechamento', to: 'wait_follow_up', when: 'sem resposta por X dias' },
+        ],
+      },
+      {
+        titulo: '🎯 Cliente / RMKT',
+        transicoes: [
+          { from: 'cliente', to: 'rmkt', when: 'data_cliente + dias_inativo_min' },
+          { from: 'rmkt', to: 'cliente', when: 'cliente respondeu' },
+          { from: 'rmkt', to: 'NUNCA_MAIS', when: '3 silêncios consecutivos' },
+        ],
+      },
+      {
+        titulo: '✨ Ativação',
+        transicoes: [
+          { from: 'ativacao_contatos', to: 'ativacao_contatos', when: 'próxima tentativa (dentro do limite)' },
+          { from: 'ativacao_contatos', to: 'cliente', when: 'lead comprou' },
+          { from: 'ativacao_contatos', to: 'NUNCA_MAIS', when: 'atingiu max_tentativas_categoria' },
+        ],
+      },
+      {
+        titulo: '🛟 Suporte',
+        transicoes: [
+          { from: 'qualquer estado', to: 'suporte', when: 'escalação manual ou erro' },
+          { from: 'suporte', to: 'estado anterior', when: 'resolução manual pelo atendente' },
+        ],
+      },
+    ],
+    notas: ['Roda 1x por dia (00:00 BRT). Para "rodar agora" e processar atrasos sem esperar.'],
+  },
+  'midnight-lead-migration': {
+    resumo: 'Migra contatos ADS que compraram para o chip BASE — limpa o pipeline de ads.',
+    grupos: [
+      {
+        titulo: '📞 Canal de origem',
+        transicoes: [
+          { from: 'ADS', to: 'BASE', when: 'lead comprou ontem (ultima_venda_em = ontem)' },
+        ],
+      },
+      {
+        titulo: '📱 Instância vinculada',
+        transicoes: [
+          { from: 'qualquer/null', to: 'Instância primária', when: 'sempre na migração (alerta_admin=true)' },
+        ],
+      },
+    ],
+    notas: ['Roda 1x por dia (00:00 BRT). Garante que ADS focam em prospects, não em clientes.'],
+  },
+  'auto-reativar-instancias-pausadas': {
+    resumo: 'Destrava instâncias cujo período de pausa já expirou — auto-cura do sistema.',
+    grupos: [
+      {
+        titulo: '🟢 Status da instância',
+        transicoes: [
+          { from: 'desconectado', to: 'ativo', when: 'pausado_ate < now' },
+          { from: 'banido', to: 'ativo', when: 'pausado_ate < now' },
+          { from: 'pausado_admin', to: 'ativo', when: 'pausado_ate < now' },
+        ],
+      },
+    ],
+    notas: ['Roda 1x por dia (00:00 BRT). Workflows pausados se autoreativam após o tempo determinado.'],
+  },
+  'monitor-crons-falhas': {
+    resumo: 'Guardião dos outros crons — detecta falhas e envia WhatsApp pra você.',
+    grupos: [
+      {
+        titulo: '🚨 Alerta WhatsApp',
+        transicoes: [
+          { from: 'cron.job_run_details.status=failed', to: 'sendText via Evolution', when: 'falha não-alertada nas últimas 24h' },
+          { from: 'alerta enviado', to: 'cron_alertas_enviados (dedupe)', when: 'sempre — evita repetir' },
+        ],
+      },
+    ],
+    notas: [
+      'Roda a cada 1h. Envia pra instância marcada alerta_admin=true.',
+      'Se a admin estiver caída, fica silencioso — única lacuna do sistema (mitigada pelo Telegram futuro).',
+    ],
+  },
+};
+
+function CronExplanation({ jobname }: { jobname: string }) {
+  const doc = CRON_DOCS[jobname];
+  if (!doc) {
+    return (
+      <section className="space-y-2">
+        <p className="text-xs uppercase text-muted-foreground tracking-wide">O que faz</p>
+        <p className="text-xs text-muted-foreground italic">Sem documentação cadastrada para este job.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="space-y-3">
+      <p className="text-xs uppercase text-muted-foreground tracking-wide">O que faz</p>
+      <p className="text-sm">{doc.resumo}</p>
+
+      <div className="space-y-3">
+        {doc.grupos.map((g, idx) => (
+          <div key={idx} className="border rounded-lg p-3 bg-muted/20">
+            <p className="text-xs font-semibold mb-2">{g.titulo}</p>
+            <div className="space-y-1.5">
+              {g.transicoes.map((t, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs flex-wrap">
+                  <code className="font-mono px-1.5 py-0.5 rounded bg-muted text-foreground">{t.from}</code>
+                  <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
+                  <code className="font-mono px-1.5 py-0.5 rounded bg-sf-green/15 text-sf-green">{t.to}</code>
+                  <span className="text-muted-foreground">— {t.when}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {doc.notas && doc.notas.length > 0 && (
+        <ul className="text-[11px] text-muted-foreground space-y-0.5 pl-3 list-disc list-inside">
+          {doc.notas.map((n, i) => <li key={i}>{n}</li>)}
+        </ul>
+      )}
+    </section>
   );
 }
