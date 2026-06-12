@@ -1,0 +1,261 @@
+{
+  "name": "AGENT_START (LLM + tools)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-start",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: agent-start",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-2000, 360],
+      "webhookId": "agent-start"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/consultar_pedidos_contato",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_contato_id\": \"{{ $('Webhook: agent-start').item.json.body.contato_id }}\"\n}",
+        "options": {}
+      },
+      "id": "ctx-pedidos",
+      "name": "CTX últimos pedidos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1780, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/contatos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $('Webhook: agent-start').item.json.body.contato_id }}" },
+            { "name": "select", "value": "id,nome,telefone,canal_origem,canal_atual,ja_comprou,cidade,uf,instancia_id,representante_id" },
+            { "name": "limit", "value": "1" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ctx-contato",
+      "name": "CTX contato",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1780, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta system prompt + user message a partir do contexto.\nconst body = $('Webhook: agent-start').item.json.body || {};\nconst contato = ($('CTX contato').first().json[0]) || {};\nconst pedidos = $('CTX últimos pedidos').first().json || [];\n\nconst nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)';\nconst jaComprou = !!contato.ja_comprou;\nconst cidade   = [contato.cidade, contato.uf].filter(Boolean).join('/');\n\nconst pedidosResumo = (Array.isArray(pedidos) ? pedidos : [])\n  .slice(0, 3)\n  .map(p => `- #${p.order_number} (${p.data}) ${p.produto} x${p.quantidade} R$${p.valor} [${p.status_pedido}]`)\n  .join('\\n') || '(nenhum pedido anterior)';\n\nconst systemPrompt = `Você é o atendente WhatsApp da Santa Flor 🌸 — loja de produtos naturais e suplementos.\n\n=== CLIENTE ATUAL ===\n• Nome: ${contato.nome || 'desconhecido'}\n• Primeiro contato? ${jaComprou ? 'NÃO (é cliente)' : 'SIM (lead)'}\n• Cidade: ${cidade || 'não informada'}\n• contato_id: ${body.contato_id}\n\n=== HISTÓRICO DE PEDIDOS ===\n${pedidosResumo}\n\n=== ESTILO ===\n- Calorosa, breve, humana — como atendente real\n- Trate por primeiro nome (\"${nomeCurto}\")\n- 1-2 frases curtas por mensagem\n- 1 emoji 🌸 por mensagem no máximo\n- Português coloquial brasileiro\n\n=== REGRAS (importantes!) ===\n1. SEMPRE chame buscar_conhecimento antes de responder sobre produto, preço, bônus, FAQ\n2. Para perguntas sobre frete/prazo, USE consultar_cep (pede o CEP se não tiver)\n3. Para \"onde tá meu pedido?\", USE consultar_rastreio\n4. Para \"qual meu último pedido?\" / valores, USE consultar_pedido\n5. Para PROBLEMA SÉRIO (produto errado, atraso muito grande, reclamação, frustração, pedido de cancelamento, dúvida que você não conseguiu responder), USE escalar_suporte com motivo claro\n6. NUNCA invente preços, prazos, ingredientes — use as tools\n7. NUNCA prometa o que não pode cumprir\n8. Se cliente fala de saúde grave/medicamento sério, USE escalar_suporte (atendente humano avalia)\n\n=== INTENÇÃO DE COMPRA ===\nQuando cliente demonstrar interesse em comprar (\"quero\", \"vou levar\", \"fechar\"), responda confirmando e depois USE escalar_suporte com motivo='fechamento' até CLOSING ser construído. Por enquanto o fechamento é humano.\n\nResponda em 1-2 mensagens curtas e naturais. Se precisar de mais info, pergunte uma coisa de cada vez.`;\n\nreturn [{\n  json: {\n    contato_id:        body.contato_id,\n    mensagens:         body.mensagens || '',\n    instancia_id:      body.instancia_id || null,\n    contato_nome:      contato.nome,\n    system_prompt:     systemPrompt,\n    user_message:      `Mensagens recentes do cliente:\\n${body.mensagens || '(vazio)'}`\n  }\n}];"
+      },
+      "id": "prep-context",
+      "name": "PREP CONTEXTO",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1540, 360]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('PREP CONTEXTO').item.json.user_message }}",
+        "options": {
+          "systemMessage": "={{ $('PREP CONTEXTO').item.json.system_prompt }}",
+          "maxIterations": 6
+        }
+      },
+      "id": "agent",
+      "name": "AGENT_START",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [-1280, 360]
+    },
+    {
+      "parameters": {
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "options": {
+          "baseURL": "https://openrouter.ai/api/v1",
+          "temperature": 0.4
+        }
+      },
+      "id": "llm",
+      "name": "OpenRouter (Llama 3.3 70B free)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [-1340, 580],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_WITH_OPENROUTER_CREDENTIAL_ID",
+          "name": "OpenRouter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "buscar_conhecimento",
+        "description": "Busca informações sobre PRODUTOS, PREÇOS, BÔNUS, ARGUMENTOS DE VENDA, FAQs (interações medicamentosas, golpes, efeitos colaterais). Use SEMPRE que o cliente fizer pergunta sobre qualquer um desses temas. Passe a pergunta como string natural. Opcionalmente filtre por categoria.",
+        "method": "POST",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/functions/v1/buscar-conhecimento-agent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "apikey",       "value": "REPLACE_WITH_SUPABASE_ANON_KEY" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"pergunta\":  \"{{ $fromAI('pergunta', 'pergunta do cliente em linguagem natural', 'string') }}\",\n  \"categoria\": {{ $fromAI('categoria', 'opcional: tabela | sobre_produtos | bonus | argumentos_venda | faq', 'string') ? '\"' + $fromAI('categoria', '', 'string') + '\"' : 'null' }},\n  \"limit\": 5\n}"
+      },
+      "id": "tool-buscar",
+      "name": "Tool: buscar_conhecimento",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [-1140, 620]
+    },
+    {
+      "parameters": {
+        "name": "consultar_pedido",
+        "description": "Retorna os últimos 5 pedidos do cliente atual (data, produto, valor, status, link de rastreio). Use quando o cliente perguntar sobre histórico, valores, produtos comprados, status de pagamento.",
+        "method": "POST",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/consultar_pedidos_contato",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "apikey",       "value": "REPLACE_WITH_SUPABASE_ANON_KEY" },
+            { "name": "Authorization","value": "Bearer REPLACE_WITH_SUPABASE_ANON_KEY" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_contato_id\": \"{{ $('Webhook: agent-start').item.json.body.contato_id }}\"\n}"
+      },
+      "id": "tool-pedido",
+      "name": "Tool: consultar_pedido",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [-960, 620]
+    },
+    {
+      "parameters": {
+        "name": "consultar_rastreio",
+        "description": "Retorna dados de rastreio dos últimos pedidos do cliente (link de rastreamento, código, status de postagem). Use quando cliente perguntar 'onde tá meu pedido', 'quando chega', 'tem rastreio'.",
+        "method": "POST",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/consultar_rastreio_contato",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "apikey",       "value": "REPLACE_WITH_SUPABASE_ANON_KEY" },
+            { "name": "Authorization","value": "Bearer REPLACE_WITH_SUPABASE_ANON_KEY" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_contato_id\": \"{{ $('Webhook: agent-start').item.json.body.contato_id }}\"\n}"
+      },
+      "id": "tool-rastreio",
+      "name": "Tool: consultar_rastreio",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [-780, 620]
+    },
+    {
+      "parameters": {
+        "name": "consultar_cep",
+        "description": "Calcula preço e prazo de frete via Superfrete (PAC, SEDEX, Mini Envios) pra um CEP de destino. Use quando cliente perguntar 'quanto fica o frete', 'qual prazo de entrega', 'cotação'. Se cliente não passou CEP, peça primeiro. qtd_produtos é opcional (default 1).",
+        "method": "POST",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/functions/v1/consultar-frete-agent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Authorization", "value": "Bearer REPLACE_WITH_SUPABASE_ANON_KEY" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to_cep\": \"{{ $fromAI('to_cep', 'CEP de destino do cliente (8 dígitos)', 'string') }}\",\n  \"qtd_produtos\": {{ $fromAI('qtd_produtos', 'quantidade de produtos no carrinho', 'number') || 1 }}\n}"
+      },
+      "id": "tool-cep",
+      "name": "Tool: consultar_cep",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [-600, 620]
+    },
+    {
+      "parameters": {
+        "name": "escalar_suporte",
+        "description": "Encaminha o contato pro Kanban Suporte (atendimento humano). Use quando: cliente está com PROBLEMA SÉRIO (produto errado, atraso muito grande), RECLAMAÇÃO grave, FRUSTRAÇÃO/palavras agressivas, PEDIDO DE CANCELAMENTO, dúvida que você NÃO conseguiu responder mesmo após buscar_conhecimento, INTENÇÃO DE COMPRA (fechamento ainda é manual). Passe motivo claro em português.",
+        "method": "POST",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/marcar_contato_suporte",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "apikey",       "value": "REPLACE_WITH_SUPABASE_ANON_KEY" },
+            { "name": "Authorization","value": "Bearer REPLACE_WITH_SUPABASE_ANON_KEY" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_contato_id\": \"{{ $('Webhook: agent-start').item.json.body.contato_id }}\",\n  \"p_motivo\":     \"{{ $fromAI('motivo', 'motivo curto da escalação em português', 'string') }}\"\n}"
+      },
+      "id": "tool-suporte",
+      "name": "Tool: escalar_suporte",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [-420, 620]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Empacota resposta pro Router\nconst out = $input.first().json.output || $input.first().json.text || '';\nreturn [{\n  json: {\n    resposta_texto: out,\n    contato_id:     $('Webhook: agent-start').item.json.body.contato_id\n  }\n}];"
+      },
+      "id": "format-out",
+      "name": "FORMAT OUTPUT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1040, 360]
+    }
+  ],
+  "connections": {
+    "Webhook: agent-start": {
+      "main": [
+        [
+          { "node": "CTX últimos pedidos", "type": "main", "index": 0 },
+          { "node": "CTX contato",         "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "CTX últimos pedidos": { "main": [[ { "node": "PREP CONTEXTO", "type": "main", "index": 0 } ]] },
+    "CTX contato":         { "main": [[ { "node": "PREP CONTEXTO", "type": "main", "index": 0 } ]] },
+    "PREP CONTEXTO":       { "main": [[ { "node": "AGENT_START",   "type": "main", "index": 0 } ]] },
+    "AGENT_START":         { "main": [[ { "node": "FORMAT OUTPUT", "type": "main", "index": 0 } ]] },
+
+    "OpenRouter (Llama 3.3 70B free)": {
+      "ai_languageModel": [[ { "node": "AGENT_START", "type": "ai_languageModel", "index": 0 } ]]
+    },
+    "Tool: buscar_conhecimento": { "ai_tool": [[ { "node": "AGENT_START", "type": "ai_tool", "index": 0 } ]] },
+    "Tool: consultar_pedido":    { "ai_tool": [[ { "node": "AGENT_START", "type": "ai_tool", "index": 0 } ]] },
+    "Tool: consultar_rastreio":  { "ai_tool": [[ { "node": "AGENT_START", "type": "ai_tool", "index": 0 } ]] },
+    "Tool: consultar_cep":       { "ai_tool": [[ { "node": "AGENT_START", "type": "ai_tool", "index": 0 } ]] },
+    "Tool: escalar_suporte":     { "ai_tool": [[ { "node": "AGENT_START", "type": "ai_tool", "index": 0 } ]] }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "meta": { "instanceId": "santa-flor-crm" },
+  "tags": []
+}

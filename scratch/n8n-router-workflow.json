@@ -531,22 +531,24 @@
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "resp",
-              "name": "resposta_texto",
-              "value": "=Olá {{ $('GET/CREATE Contato').item.json.nome.split(' ')[0] }}! Recebi sua mensagem. Em breve te respondo melhor 🌸\n\n_[Router operacional. AGENT_START + RAG em construção.]_",
-              "type": "string"
-            }
-          ]
+        "method": "POST",
+        "url": "https://n8n.melhorgestao.online/webhook/agent-start",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [ { "name": "Content-Type", "value": "application/json" } ]
         },
-        "options": {}
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contato_id\":   \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"mensagens\":    \"{{ $('PROCESS BATCH').item.json.mensagens_concat?.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\"\n}",
+        "options": {
+          "timeout": 60000,
+          "response": { "response": { "neverError": true } }
+        }
       },
-      "id": "agent-stub",
-      "name": "AGENT_START (stub)",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
+      "id": "agent-call",
+      "name": "AGENT_START (call)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         0,
         500
@@ -571,7 +573,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"text\": \"{{ $('AGENT_START (stub)').item.json.resposta_texto.replace(/\\n/g, '\\\\n').replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"delay\": 1500\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"text\": \"{{ $('AGENT_START (call)').item.json.resposta_texto.replace(/\\n/g, '\\\\n').replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"delay\": 1500\n}",
         "options": {
           "response": {
             "response": {
@@ -606,7 +608,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"mensagem\": \"{{ $('AGENT_START (stub)').item.json.resposta_texto.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"tipo\": \"text\",\n  \"direcao\": \"out\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\",\n  \"processada_em\": \"{{ $now.toISO() }}\"\n}",
+        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"mensagem\": \"{{ $('AGENT_START (call)').item.json.resposta_texto.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"tipo\": \"text\",\n  \"direcao\": \"out\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\",\n  \"processada_em\": \"{{ $now.toISO() }}\"\n}",
         "options": {}
       },
       "id": "save-buffer-out",
@@ -635,7 +637,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"tipo\": \"router_turn\",\n  \"canal\": \"{{ $('EXTRAI CAMPOS').item.json.instancia_nome }}\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\",\n  \"metadata\": {{ JSON.stringify({msg_in: $('PROCESS BATCH').item.json.mensagens_concat, msg_in_count: $('PROCESS BATCH').item.json.count_msgs, msg_out: $('AGENT_START (stub)').item.json.resposta_texto.substring(0, 200)}) }}\n}",
+        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"tipo\": \"router_turn\",\n  \"canal\": \"{{ $('EXTRAI CAMPOS').item.json.instancia_nome }}\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\",\n  \"metadata\": {{ JSON.stringify({msg_in: $('PROCESS BATCH').item.json.mensagens_concat, msg_in_count: $('PROCESS BATCH').item.json.count_msgs, msg_out: $('AGENT_START (call)').item.json.resposta_texto.substring(0, 200)}) }}\n}",
         "options": {}
       },
       "id": "log-event",
@@ -849,7 +851,7 @@
       "main": [
         [
           {
-            "node": "AGENT_START (stub)",
+            "node": "AGENT_START (call)",
             "type": "main",
             "index": 0
           }
@@ -863,7 +865,7 @@
         ]
       ]
     },
-    "AGENT_START (stub)": {
+    "AGENT_START (call)": {
       "main": [
         [
           {
