@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Columns3, ShoppingCart, DollarSign, BarChart3, Users, Package, Truck, Settings, Shield, Wallet, Percent } from 'lucide-react';
+import { LayoutDashboard, Columns3, ShoppingCart, DollarSign, BarChart3, Users, Package, Truck, Settings, Shield, Wallet, Percent, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -18,6 +18,7 @@ const adminTabs = [
   { to: '/estoque', label: 'Estoque', icon: Package, key: 'estoque' },
   { to: '/logistica', label: 'Logística', icon: Truck, key: 'logistica' },
   { to: '/integracoes', label: 'Integrações', icon: Settings, key: 'integracoes' },
+  { to: '/instancias', label: 'Instâncias', icon: Smartphone, key: 'instancias' },
   { to: '/admin', label: 'Administração', icon: Shield, key: 'admin' },
 ];
 

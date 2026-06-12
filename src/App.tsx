@@ -46,6 +46,7 @@ const EstoquePage = lazyWithRetry(() => import("./pages/EstoquePage"));
 const LogisticaPage = lazyWithRetry(() => import("./pages/LogisticaPage"));
 const IntegracoesPage = lazyWithRetry(() => import("./pages/IntegracoesPage"));
 const AdminPage = lazyWithRetry(() => import("./pages/AdminPage"));
+const InstanciasPage = lazyWithRetry(() => import("./pages/InstanciasPage"));
 const ComissoesPage = lazyWithRetry(() => import("./pages/ComissoesPage"));
 
 const queryClient = new QueryClient({
@@ -108,6 +109,9 @@ function AppRoutes() {
                 <Route path="/contatos" element={<ProtectedRoute><ContatosPage /></ProtectedRoute>} />
                 <Route path="/estoque" element={<ProtectedRoute><EstoquePage /></ProtectedRoute>} />
                 <Route path="/integracoes" element={<ProtectedRoute><IntegracoesPage /></ProtectedRoute>} />
+                {isAdmin && (
+                  <Route path="/instancias" element={<ProtectedRoute><InstanciasPage /></ProtectedRoute>} />
+                )}
                 <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
               </>
             )}
