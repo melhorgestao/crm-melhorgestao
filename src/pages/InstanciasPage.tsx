@@ -5,10 +5,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
+import { Plus, Settings2 } from 'lucide-react';
 import { InstanciaCard, type InstanciaRow } from '@/components/instancias/InstanciaCard';
 import { InstanciaDrawer } from '@/components/instancias/InstanciaDrawer';
 import { InstanciaCreateModal } from '@/components/instancias/InstanciaCreateModal';
+import { GlobalConfigModal } from '@/components/instancias/GlobalConfigModal';
 
 export default function InstanciasPage() {
   const { isAdmin } = useAuth();
@@ -16,13 +17,14 @@ export default function InstanciasPage() {
   const [selected, setSelected] = useState<InstanciaRow | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
 
   const { data: instancias, isLoading } = useQuery({
     queryKey: ['instancias_list'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('instancias')
-        .select('id, nome, evolution_instance, evolution_url, evolution_apikey, status, pausado_ate, motivo_pausa, alerta_admin, ativo')
+        .select('id, nome, evolution_instance, evolution_url, evolution_apikey, status, pausado_ate, motivo_pausa, alerta_admin, alerta_telefone, ativo, chatwoot_inbox_id, chatwoot_integrated')
         .order('nome');
       if (error) throw error;
       return ((data || []) as any[])
@@ -66,13 +68,16 @@ export default function InstanciasPage() {
 
   return (
     <div className="space-y-4 pb-24">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold">Instâncias</h1>
           <p className="text-xs text-muted-foreground">
             {isLoading ? 'carregando…' : `${ativas} ativa${ativas !== 1 ? 's' : ''} • ${pausadas} pausada${pausadas !== 1 ? 's' : ''}`}
           </p>
         </div>
+        <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)}>
+          <Settings2 className="w-4 h-4 mr-1" /> Configurações
+        </Button>
       </div>
 
       {isLoading ? (
@@ -114,6 +119,10 @@ export default function InstanciasPage() {
       <InstanciaCreateModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+      />
+      <GlobalConfigModal
+        open={configOpen}
+        onClose={() => setConfigOpen(false)}
       />
     </div>
   );

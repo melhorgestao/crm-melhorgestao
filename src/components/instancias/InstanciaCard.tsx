@@ -15,7 +15,10 @@ export interface InstanciaRow {
   pausado_ate: string | null;
   motivo_pausa: string | null;
   alerta_admin: boolean;
+  alerta_telefone: string | null;
   ativo: boolean;
+  chatwoot_inbox_id: string | null;
+  chatwoot_integrated: boolean;
 }
 
 interface Props {

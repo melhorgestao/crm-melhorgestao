@@ -8,8 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Eye, EyeOff, RefreshCw, QrCode, RotateCcw, Trash2, Loader2 } from 'lucide-react';
-import { getConnectionState, fetchQrCode, restartInstance, deleteInstance } from '@/lib/evolutionApi';
+import { Eye, EyeOff, RefreshCw, QrCode, RotateCcw, Trash2, Loader2, MessageSquare } from 'lucide-react';
+import { getConnectionState, fetchQrCode, restartInstance, deleteInstance, connectChatwoot } from '@/lib/evolutionApi';
 import type { InstanciaRow } from './InstanciaCard';
 
 interface Props {
@@ -25,12 +25,15 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
   const [editEvoUrl, setEditEvoUrl] = useState('');
   const [editApikey, setEditApikey] = useState('');
   const [editAlertaAdmin, setEditAlertaAdmin] = useState(false);
+  const [editAlertaTel, setEditAlertaTel] = useState('');
+  const [editChatwootInbox, setEditChatwootInbox] = useState('');
   const [editAtivo, setEditAtivo] = useState(true);
   const [showApikey, setShowApikey] = useState(false);
   const [qrBase64, setQrBase64] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [connectingCw, setConnectingCw] = useState(false);
 
   useEffect(() => {
     if (!instancia) return;
@@ -39,6 +42,8 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
     setEditEvoUrl(instancia.evolution_url || 'https://evo.melhorgestao.online');
     setEditApikey(instancia.evolution_apikey || '');
     setEditAlertaAdmin(!!instancia.alerta_admin);
+    setEditAlertaTel(instancia.alerta_telefone || '');
+    setEditChatwootInbox(instancia.chatwoot_inbox_id || '');
     setEditAtivo(!!instancia.ativo);
     setShowApikey(false);
     setQrBase64(null);
@@ -83,6 +88,8 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
     if (editEvoUrl !== (instancia.evolution_url || '')) changes.evolution_url = editEvoUrl.trim() || null;
     if (editApikey !== (instancia.evolution_apikey || '')) changes.evolution_apikey = editApikey.trim() || null;
     if (editAlertaAdmin !== instancia.alerta_admin) changes.alerta_admin = editAlertaAdmin;
+    if (editAlertaTel !== (instancia.alerta_telefone || '')) changes.alerta_telefone = editAlertaTel.trim() || null;
+    if (editChatwootInbox !== (instancia.chatwoot_inbox_id || '')) changes.chatwoot_inbox_id = editChatwootInbox.trim() || null;
     if (editAtivo !== instancia.ativo) changes.ativo = editAtivo;
     if (Object.keys(changes).length === 0) { toast.info('Sem alterações'); return; }
 
@@ -132,6 +139,31 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
     } else {
       toast.error('Evolution não retornou QR Code');
     }
+  };
+
+  const handleConnectChatwoot = async () => {
+    setConnectingCw(true);
+    // Busca config global do Chatwoot
+    const { data: configs } = await supabase
+      .from('configuracoes')
+      .select('chave, valor')
+      .in('chave', ['chatwoot_url', 'chatwoot_account_id', 'chatwoot_api_token']);
+    const cfg = Object.fromEntries((configs || []).map((c: any) => [c.chave, c.valor]));
+    const r = await connectChatwoot({
+      inst: {
+        evolution_url: instancia.evolution_url || '',
+        evolution_instance: instancia.evolution_instance || '',
+        evolution_apikey: instancia.evolution_apikey || '',
+      },
+      chatwootUrl: cfg.chatwoot_url || '',
+      accountId: cfg.chatwoot_account_id || '',
+      apiToken: cfg.chatwoot_api_token || '',
+    });
+    setConnectingCw(false);
+    if (!r.ok) { toast.error('Chatwoot: ' + r.error); return; }
+    await supabase.from('instancias').update({ chatwoot_integrated: true }).eq('id', instancia.id);
+    qc.invalidateQueries({ queryKey: ['instancias_list'] });
+    toast.success('Conectada ao Chatwoot');
   };
 
   const handleRestart = async () => {
@@ -244,13 +276,53 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
             </div>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={editAlertaAdmin} onCheckedChange={v => setEditAlertaAdmin(!!v)} />
-              <span>Recebe alertas (👑 destino dos avisos de erro)</span>
+              <span>Recebe alertas (👑 envia avisos de erro pelo WhatsApp)</span>
             </label>
+            {editAlertaAdmin && (
+              <div className="space-y-1 pl-6">
+                <Label className="text-xs">Telefone destino dos alertas</Label>
+                <Input
+                  value={editAlertaTel}
+                  onChange={e => setEditAlertaTel(e.target.value)}
+                  placeholder="5511991282579"
+                  className="font-mono text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">Apenas dígitos com 55 na frente. Para onde os alertas serão enviados.</p>
+              </div>
+            )}
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={editAtivo} onCheckedChange={v => setEditAtivo(!!v)} />
               <span>Ativa (campo ativo — workflows também filtram)</span>
             </label>
             <Button className="w-full" onClick={saveChanges}>Salvar alterações</Button>
+          </section>
+
+          {/* Chatwoot */}
+          <section className="space-y-2">
+            <p className="text-xs uppercase text-muted-foreground tracking-wide flex items-center gap-1.5">
+              <MessageSquare className="w-3 h-3" /> Chatwoot
+            </p>
+            <div className="space-y-1">
+              <Label className="text-xs">Inbox ID</Label>
+              <Input
+                value={editChatwootInbox}
+                onChange={e => setEditChatwootInbox(e.target.value)}
+                placeholder="ex: 12"
+                className="font-mono text-xs"
+              />
+            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleConnectChatwoot}
+              disabled={connectingCw}
+            >
+              {connectingCw ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}
+              {instancia.chatwoot_integrated ? 'Reconectar ao Chatwoot' : 'Conectar ao Chatwoot'}
+            </Button>
+            {instancia.chatwoot_integrated && (
+              <p className="text-xs text-sf-green">✓ Integração ativa</p>
+            )}
           </section>
 
           {/* Ações de pausa */}

@@ -102,6 +102,38 @@ export async function deleteInstance(instanceName: string, evolutionUrl: string)
 }
 
 /**
+ * POST /chatwoot/set/<instance> — conecta a instância a um inbox do Chatwoot.
+ * Requer config global: chatwoot_url, chatwoot_account_id, chatwoot_api_token.
+ */
+export async function connectChatwoot(params: {
+  inst: EvolutionInstance;
+  chatwootUrl: string;
+  accountId: string;
+  apiToken: string;
+  signMsg?: boolean;
+  reopenConversation?: boolean;
+  conversationPending?: boolean;
+}): Promise<ApiResponse> {
+  if (!params.chatwootUrl || !params.accountId || !params.apiToken) {
+    return { ok: false, status: 0, error: 'Config Chatwoot incompleta (url/account_id/api_token)' };
+  }
+  const url = `${params.inst.evolution_url || DEFAULT_BASE_URL}/chatwoot/set/${encodeURIComponent(params.inst.evolution_instance)}`;
+  const body = {
+    enabled: true,
+    accountId: params.accountId,
+    token: params.apiToken,
+    url: params.chatwootUrl,
+    signMsg: params.signMsg ?? false,
+    reopenConversation: params.reopenConversation ?? true,
+    conversationPending: params.conversationPending ?? false,
+    importContacts: true,
+    importMessages: true,
+    daysLimitImportMessages: 7,
+  };
+  return evoFetch(url, params.inst.evolution_apikey, { method: 'POST', body: JSON.stringify(body) });
+}
+
+/**
  * POST /instance/create — cria instância no Evolution.
  * Retorna apikey (per-instance) e qrcode base64 quando disponível.
  */
