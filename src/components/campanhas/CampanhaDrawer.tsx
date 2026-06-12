@@ -315,14 +315,23 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {matrizData?.map((i: any) => (
-                      <tr key={i.id} className="border-t">
+                    {matrizData?.map((i: any) => {
+                      const paused = i.status !== 'ativo';
+                      return (
+                      <tr key={i.id} className={`border-t ${paused ? 'opacity-50' : ''}`}>
                         <td className="px-3 py-2">
-                          <p className="font-medium">Instância {i.nome}</p>
+                          <p className="font-medium flex items-center gap-1.5">
+                            Instância {i.nome}
+                            {paused && <span className="text-[10px] text-amber-600 font-normal">(pausada — não roda)</span>}
+                          </p>
                           <p className="text-[10px] text-muted-foreground">{i.status}</p>
                         </td>
                         <td className="text-center px-2 py-2">
-                          <Switch checked={i.ativa} onCheckedChange={(v) => toggleInstancia(i.id, v)} />
+                          <Switch
+                            checked={i.ativa}
+                            onCheckedChange={(v) => toggleInstancia(i.id, v)}
+                            title={paused ? 'Instância pausada globalmente — esse toggle só vale quando ela voltar a ficar ativa' : ''}
+                          />
                         </td>
                         <td className="px-3 py-2">
                           <Input
@@ -334,10 +343,13 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                           />
                         </td>
                       </tr>
-                    ))}
+                    );})}
                   </tbody>
                 </table>
               </div>
+              <p className="text-[10px] text-muted-foreground">
+                Pausar instância em <code className="font-mono">/instancias</code> sobrepõe esses toggles — workflows nem tentam usar instância pausada. Os toggles aqui só importam quando a instância está online.
+              </p>
             </section>
 
             {/* Templates */}
