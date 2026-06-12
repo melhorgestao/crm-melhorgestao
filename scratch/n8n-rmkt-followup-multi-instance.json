@@ -3,15 +3,13 @@
   "nodes": [
     {
       "parameters": {
-        "rule": {
-          "interval": [ { "field": "minutes", "minutesInterval": 30 } ]
-        }
+        "rule": { "interval": [ { "field": "minutes", "minutesInterval": 30 } ] }
       },
       "id": "schedule",
       "name": "Schedule 30min",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-2200, 320]
+      "position": [-2400, 320]
     },
     {
       "parameters": {
@@ -34,17 +32,17 @@
       "name": "GET INSTÂNCIAS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1980, 320]
+      "position": [-2180, 320]
     },
     {
       "parameters": {
-        "jsCode": "const instancias = $input.all().map(i => i.json)\n  .filter(i => i.evolution_apikey && String(i.evolution_apikey).trim().length > 0);\nreturn instancias.map(i => ({ json: i }));"
+        "jsCode": "const instancias = $input.all().map(i => i.json).filter(i => i.evolution_apikey && String(i.evolution_apikey).trim().length > 0);\nreturn instancias.map(i => ({ json: i }));"
       },
       "id": "prep-instancias",
       "name": "PREP INSTÂNCIAS",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1760, 320]
+      "position": [-1960, 320]
     },
     {
       "parameters": { "batchSize": 1, "options": {} },
@@ -52,34 +50,32 @@
       "name": "Split por Instância",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [-1540, 320]
+      "position": [-1740, 320]
     },
     {
       "parameters": {
         "method": "GET",
         "url": "={{ $json.evolution_url }}/instance/connectionState/{{ encodeURIComponent($json.evolution_instance) }}",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [ { "name": "apikey", "value": "={{ $json.evolution_apikey }}" } ]
-        },
+        "headerParameters": { "parameters": [ { "name": "apikey", "value": "={{ $json.evolution_apikey }}" } ] },
         "options": { "response": { "response": { "neverError": true } } }
       },
       "id": "preflight",
       "name": "PRE-FLIGHT connectionState",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1320, 320],
+      "position": [-1520, 320],
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const inst = $('Split por Instância').item.json;\nconst resp = $input.first().json;\nconst state = resp?.instance?.state || resp?.state || null;\nif (state !== 'open') {\n  return [{ json: { ...inst, _skip: true, _detected_state: state || 'unreachable' } }];\n}\nreturn [{ json: { ...inst, _skip: false } }];"
+        "jsCode": "const inst = $('Split por Instância').item.json;\nconst resp = $input.first().json;\nconst state = resp?.instance?.state || resp?.state || null;\nreturn [{ json: { ...inst, _skip: state !== 'open', _detected_state: state || 'unreachable' } }];"
       },
       "id": "check-state",
       "name": "CHECK STATE",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1100, 320]
+      "position": [-1300, 320]
     },
     {
       "parameters": {
@@ -96,7 +92,7 @@
       "name": "Pular instância?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [-880, 320]
+      "position": [-1080, 320]
     },
     {
       "parameters": {
@@ -105,9 +101,7 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [ { "name": "Content-Type", "value": "application/json" } ]
-        },
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"p_id\": \"{{ $json.id }}\",\n  \"p_motivo\": \"connectionState={{ $json._detected_state }}\",\n  \"p_horas\": 6\n}",
@@ -117,7 +111,7 @@
       "name": "PAUSA INSTÂNCIA",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-660, 120]
+      "position": [-860, 100]
     },
     {
       "parameters": {
@@ -126,9 +120,7 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [ { "name": "Content-Type", "value": "application/json" } ]
-        },
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"p_instancia_id\": \"{{ $json.id }}\"\n}",
@@ -138,7 +130,7 @@
       "name": "CLAIM follow-up",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-660, 480]
+      "position": [-860, 480]
     },
     {
       "parameters": {
@@ -155,7 +147,7 @@
       "name": "Tem follow-up?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [-440, 480]
+      "position": [-640, 480]
     },
     {
       "parameters": {
@@ -164,9 +156,7 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [ { "name": "Content-Type", "value": "application/json" } ]
-        },
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"p_instancia_id\": \"{{ $('Split por Instância').item.json.id }}\",\n  \"p_dias_gap\": 30\n}",
@@ -176,7 +166,7 @@
       "name": "CLAIM rmkt",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-220, 680]
+      "position": [-420, 680]
     },
     {
       "parameters": {
@@ -193,49 +183,101 @@
       "name": "Tem rmkt?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [0, 680]
+      "position": [-200, 680]
     },
     {
       "parameters": {
-        "jsCode": "// Unifica payload de followup ou rmkt em {contato_id, telefone, categoria, subcategoria}\nlet payload;\nconst tipo = $('Tem follow-up?').item.json.length > 0 ? 'followup' : 'rmkt';\nif (tipo === 'followup') {\n  const lead = $('CLAIM follow-up').item.json[0];\n  // tentativa 0=24h, 1=3d, 2=7d — claim já incrementou pra 1/2/3, então subtrai 1 pra mapear sub\n  const sub = ({ 1: '24h', 2: '3d', 3: '7d' })[lead.tentativa] || '24h';\n  payload = { contato_id: lead.id, telefone: lead.telefone, categoria: 'followup', subcategoria: sub };\n} else {\n  const lead = $('CLAIM rmkt').item.json[0];\n  payload = { contato_id: lead.id, telefone: lead.telefone, categoria: 'rmkt', subcategoria: null };\n}\nreturn [{ json: payload }];"
+        "jsCode": "let payload;\nconst hasFu = $('Tem follow-up?').item.json.length > 0;\nif (hasFu) {\n  const lead = $('CLAIM follow-up').item.json[0];\n  const sub = ({ 1: '24h', 2: '3d', 3: '7d' })[lead.tentativa] || '24h';\n  payload = { contato_id: lead.id, telefone: lead.telefone, categoria: 'followup', subcategoria: sub };\n} else {\n  const lead = $('CLAIM rmkt').item.json[0];\n  payload = { contato_id: lead.id, telefone: lead.telefone, categoria: 'rmkt', subcategoria: null };\n}\nreturn [{ json: payload }];"
       },
       "id": "merge-lead",
       "name": "UNIFICA LEAD",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [220, 580]
+      "position": [20, 580]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/escolhe_template",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/escolhe_template_v2",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [ { "name": "Content-Type", "value": "application/json" } ]
-        },
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_categoria\": \"{{ $json.categoria }}\",\n  \"p_subcategoria\": {{ $json.subcategoria ? '\"' + $json.subcategoria + '\"' : 'null' }},\n  \"p_contato_id\": \"{{ $json.contato_id }}\"\n}",
+        "jsonBody": "={\n  \"p_categoria\": \"{{ $json.categoria }}\",\n  \"p_subcategoria\": {{ $json.subcategoria ? '\"' + $json.subcategoria + '\"' : 'null' }},\n  \"p_contato_id\": \"{{ $json.contato_id }}\",\n  \"p_instancia_id\": \"{{ $('Split por Instância').item.json.id }}\"\n}",
         "options": {}
       },
       "id": "escolhe-template",
-      "name": "ESCOLHE TEMPLATE",
+      "name": "ESCOLHE TEMPLATE v2",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 580]
+      "position": [240, 580]
     },
     {
       "parameters": {
-        "amount": "={{ Math.floor(Math.random() * 60) + 30 }}",
-        "unit": "seconds"
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "id": "tpl-ok", "leftValue": "={{ $json?.texto }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
+      "id": "if-template",
+      "name": "Template liberado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [460, 580]
+    },
+    {
+      "parameters": { "amount": "={{ Math.floor(Math.random() * 60) + 30 }}", "unit": "seconds" },
       "id": "wait-jitter",
       "name": "JITTER 30-90s",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [660, 580]
+      "position": [680, 580]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "id": "has-anexo", "leftValue": "={{ $('ESCOLHE TEMPLATE v2').item.json?.anexo_url }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-anexo",
+      "name": "Tem anexo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 580]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Split por Instância').item.json.evolution_url }}/message/sendMedia/{{ encodeURIComponent($('Split por Instância').item.json.evolution_instance) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $('Split por Instância').item.json.evolution_apikey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('UNIFICA LEAD').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"mediatype\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.anexo_tipo }}\",\n  \"media\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.anexo_url }}\",\n  \"caption\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.texto.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"delay\": 2000\n}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "send-media",
+      "name": "SEND MEDIA EVO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 480],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -250,14 +292,14 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('UNIFICA LEAD').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"={{ $('ESCOLHE TEMPLATE').item.json }}\",\n  \"delay\": 2000\n}",
+        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('UNIFICA LEAD').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.texto.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"delay\": 2000\n}",
         "options": { "response": { "response": { "neverError": true } } }
       },
-      "id": "send-evo",
-      "name": "SEND MSG EVO",
+      "id": "send-text",
+      "name": "SEND TEXT EVO",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [880, 580],
+      "position": [1120, 680],
       "onError": "continueRegularOutput"
     },
     {
@@ -275,7 +317,7 @@
       "name": "DETECTA FALHA?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1100, 580]
+      "position": [1360, 580]
     },
     {
       "parameters": {
@@ -284,9 +326,7 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [ { "name": "Content-Type", "value": "application/json" } ]
-        },
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"p_id\": \"{{ $('Split por Instância').item.json.id }}\",\n  \"p_motivo\": \"send falhou — sem key.id\",\n  \"p_horas\": 6\n}",
@@ -296,7 +336,26 @@
       "name": "PAUSA instância (falha send)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1320, 480]
+      "position": [1580, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/registrar_envio_campanha",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_campanha_id\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.campanha_id }}\",\n  \"p_template_id\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.template_id }}\",\n  \"p_instancia_id\": \"{{ $('Split por Instância').item.json.id }}\",\n  \"p_contato_id\": \"{{ $('UNIFICA LEAD').item.json.contato_id }}\"\n}",
+        "options": {}
+      },
+      "id": "registra-envio",
+      "name": "REGISTRA ENVIO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1580, 680]
     },
     {
       "parameters": {
@@ -305,94 +364,75 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [ { "name": "Content-Type", "value": "application/json" } ]
-        },
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contato_id\": \"{{ $('UNIFICA LEAD').item.json.contato_id }}\",\n  \"tipo\": \"{{ $('UNIFICA LEAD').item.json.categoria }}_enviado\",\n  \"canal\": \"{{ $('Split por Instância').item.json.evolution_instance }}\",\n  \"instancia_id\": \"{{ $('Split por Instância').item.json.id }}\",\n  \"metadata\": {{ JSON.stringify({sub: $('UNIFICA LEAD').item.json.subcategoria, texto: $('ESCOLHE TEMPLATE').item.json?.substring(0,200)}) }}\n}",
+        "jsonBody": "={\n  \"contato_id\": \"{{ $('UNIFICA LEAD').item.json.contato_id }}\",\n  \"tipo\": \"{{ $('UNIFICA LEAD').item.json.categoria }}_enviado\",\n  \"canal\": \"{{ $('Split por Instância').item.json.evolution_instance }}\",\n  \"instancia_id\": \"{{ $('Split por Instância').item.json.id }}\",\n  \"metadata\": {{ JSON.stringify({sub: $('UNIFICA LEAD').item.json.subcategoria, campanha_id: $('ESCOLHE TEMPLATE v2').item.json.campanha_id, template_id: $('ESCOLHE TEMPLATE v2').item.json.template_id, anexo: !!$('ESCOLHE TEMPLATE v2').item.json.anexo_url, texto: $('ESCOLHE TEMPLATE v2').item.json.texto?.substring(0,200)}) }}\n}",
         "options": {}
       },
       "id": "log-evento",
       "name": "LOG eventos_contato",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1320, 680]
+      "position": [1800, 680]
     }
   ],
   "connections": {
-    "Schedule 30min": {
-      "main": [[ { "node": "GET INSTÂNCIAS", "type": "main", "index": 0 } ]]
-    },
-    "GET INSTÂNCIAS": {
-      "main": [[ { "node": "PREP INSTÂNCIAS", "type": "main", "index": 0 } ]]
-    },
-    "PREP INSTÂNCIAS": {
-      "main": [[ { "node": "Split por Instância", "type": "main", "index": 0 } ]]
-    },
+    "Schedule 30min": { "main": [[ { "node": "GET INSTÂNCIAS", "type": "main", "index": 0 } ]] },
+    "GET INSTÂNCIAS":  { "main": [[ { "node": "PREP INSTÂNCIAS", "type": "main", "index": 0 } ]] },
+    "PREP INSTÂNCIAS": { "main": [[ { "node": "Split por Instância", "type": "main", "index": 0 } ]] },
     "Split por Instância": {
-      "main": [
-        [],
-        [ { "node": "PRE-FLIGHT connectionState", "type": "main", "index": 0 } ]
-      ]
+      "main": [ [], [ { "node": "PRE-FLIGHT connectionState", "type": "main", "index": 0 } ] ]
     },
-    "PRE-FLIGHT connectionState": {
-      "main": [[ { "node": "CHECK STATE", "type": "main", "index": 0 } ]]
-    },
-    "CHECK STATE": {
-      "main": [[ { "node": "Pular instância?", "type": "main", "index": 0 } ]]
-    },
+    "PRE-FLIGHT connectionState": { "main": [[ { "node": "CHECK STATE", "type": "main", "index": 0 } ]] },
+    "CHECK STATE":     { "main": [[ { "node": "Pular instância?", "type": "main", "index": 0 } ]] },
     "Pular instância?": {
       "main": [
         [ { "node": "PAUSA INSTÂNCIA", "type": "main", "index": 0 } ],
         [ { "node": "CLAIM follow-up", "type": "main", "index": 0 } ]
       ]
     },
-    "PAUSA INSTÂNCIA": {
-      "main": [[ { "node": "Split por Instância", "type": "main", "index": 0 } ]]
-    },
-    "CLAIM follow-up": {
-      "main": [[ { "node": "Tem follow-up?", "type": "main", "index": 0 } ]]
-    },
+    "PAUSA INSTÂNCIA":  { "main": [[ { "node": "Split por Instância", "type": "main", "index": 0 } ]] },
+    "CLAIM follow-up":  { "main": [[ { "node": "Tem follow-up?", "type": "main", "index": 0 } ]] },
     "Tem follow-up?": {
       "main": [
         [ { "node": "UNIFICA LEAD", "type": "main", "index": 0 } ],
         [ { "node": "CLAIM rmkt", "type": "main", "index": 0 } ]
       ]
     },
-    "CLAIM rmkt": {
-      "main": [[ { "node": "Tem rmkt?", "type": "main", "index": 0 } ]]
-    },
+    "CLAIM rmkt":       { "main": [[ { "node": "Tem rmkt?", "type": "main", "index": 0 } ]] },
     "Tem rmkt?": {
       "main": [
         [ { "node": "UNIFICA LEAD", "type": "main", "index": 0 } ],
         [ { "node": "Split por Instância", "type": "main", "index": 0 } ]
       ]
     },
-    "UNIFICA LEAD": {
-      "main": [[ { "node": "ESCOLHE TEMPLATE", "type": "main", "index": 0 } ]]
+    "UNIFICA LEAD":     { "main": [[ { "node": "ESCOLHE TEMPLATE v2", "type": "main", "index": 0 } ]] },
+    "ESCOLHE TEMPLATE v2": { "main": [[ { "node": "Template liberado?", "type": "main", "index": 0 } ]] },
+    "Template liberado?": {
+      "main": [
+        [ { "node": "JITTER 30-90s", "type": "main", "index": 0 } ],
+        [ { "node": "Split por Instância", "type": "main", "index": 0 } ]
+      ]
     },
-    "ESCOLHE TEMPLATE": {
-      "main": [[ { "node": "JITTER 30-90s", "type": "main", "index": 0 } ]]
+    "JITTER 30-90s":    { "main": [[ { "node": "Tem anexo?", "type": "main", "index": 0 } ]] },
+    "Tem anexo?": {
+      "main": [
+        [ { "node": "SEND MEDIA EVO", "type": "main", "index": 0 } ],
+        [ { "node": "SEND TEXT EVO", "type": "main", "index": 0 } ]
+      ]
     },
-    "JITTER 30-90s": {
-      "main": [[ { "node": "SEND MSG EVO", "type": "main", "index": 0 } ]]
-    },
-    "SEND MSG EVO": {
-      "main": [[ { "node": "DETECTA FALHA?", "type": "main", "index": 0 } ]]
-    },
+    "SEND MEDIA EVO":   { "main": [[ { "node": "DETECTA FALHA?", "type": "main", "index": 0 } ]] },
+    "SEND TEXT EVO":    { "main": [[ { "node": "DETECTA FALHA?", "type": "main", "index": 0 } ]] },
     "DETECTA FALHA?": {
       "main": [
         [ { "node": "PAUSA instância (falha send)", "type": "main", "index": 0 } ],
-        [ { "node": "LOG eventos_contato", "type": "main", "index": 0 } ]
+        [ { "node": "REGISTRA ENVIO", "type": "main", "index": 0 } ]
       ]
     },
-    "PAUSA instância (falha send)": {
-      "main": [[ { "node": "Split por Instância", "type": "main", "index": 0 } ]]
-    },
-    "LOG eventos_contato": {
-      "main": [[ { "node": "Split por Instância", "type": "main", "index": 0 } ]]
-    }
+    "PAUSA instância (falha send)": { "main": [[ { "node": "Split por Instância", "type": "main", "index": 0 } ]] },
+    "REGISTRA ENVIO":   { "main": [[ { "node": "LOG eventos_contato", "type": "main", "index": 0 } ]] },
+    "LOG eventos_contato": { "main": [[ { "node": "Split por Instância", "type": "main", "index": 0 } ]] }
   },
   "pinData": {},
   "settings": { "executionOrder": "v1" },
