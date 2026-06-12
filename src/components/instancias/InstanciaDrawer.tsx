@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Eye, EyeOff, RefreshCw, QrCode, RotateCcw, Trash2, Loader2, MessageSquare } from 'lucide-react';
+import { Eye, EyeOff, RefreshCw, QrCode, RotateCcw, Trash2, Loader2, MessageSquare, CheckCircle2, ExternalLink } from 'lucide-react';
 import { getConnectionState, fetchQrCode, restartInstance, deleteInstance, connectChatwoot } from '@/lib/evolutionApi';
 import { getChatwootConfig, findInboxByName } from '@/lib/chatwootApi';
 import type { InstanciaRow } from './InstanciaCard';
@@ -62,6 +62,21 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
       });
     },
     refetchInterval: open ? 15_000 : false,
+  });
+
+  // config Chatwoot (pra deeplink do inbox)
+  const { data: cwConfig } = useQuery({
+    queryKey: ['chatwoot_config'],
+    enabled: open,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('configuracoes')
+        .select('chave, valor')
+        .in('chave', ['chatwoot_url', 'chatwoot_account_id']);
+      const map = Object.fromEntries((data || []).map((c: any) => [c.chave, c.valor]));
+      return { url: map.chatwoot_url || '', accountId: map.chatwoot_account_id || '' };
+    },
+    staleTime: 5 * 60 * 1000,
   });
 
   // histórico (eventos_contato filtrados por instancia)
@@ -315,30 +330,78 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
             <p className="text-xs uppercase text-muted-foreground tracking-wide flex items-center gap-1.5">
               <MessageSquare className="w-3 h-3" /> Chatwoot
             </p>
-            <div className="space-y-1">
-              <Label className="text-xs">Inbox ID</Label>
-              <Input
-                value={editChatwootInbox}
-                onChange={e => setEditChatwootInbox(e.target.value)}
-                placeholder="auto-detectado após conectar"
-                className="font-mono text-xs"
-              />
-              <p className="text-[10px] text-muted-foreground">
-                Evolution cria automaticamente um inbox com nome = "{instancia.evolution_instance}".
-                O CRM detecta e preenche aqui depois de conectar.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleConnectChatwoot}
-              disabled={connectingCw}
-            >
-              {connectingCw ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}
-              {instancia.chatwoot_integrated ? 'Reconectar ao Chatwoot' : 'Conectar ao Chatwoot'}
-            </Button>
-            {instancia.chatwoot_integrated && (
-              <p className="text-xs text-sf-green">✓ Integração ativa</p>
+
+            {instancia.chatwoot_integrated ? (
+              <>
+                {/* Card de status conectado — destaque visual */}
+                <div className="rounded-xl border-2 border-blue-500/30 bg-blue-500/5 p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="rounded-full bg-blue-500/15 p-2">
+                      <CheckCircle2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-blue-900 dark:text-blue-200">Integração ativa</p>
+                      <p className="text-xs text-muted-foreground">
+                        Inbox {editChatwootInbox ? `#${editChatwootInbox}` : '—'} · {instancia.evolution_instance}
+                      </p>
+                    </div>
+                  </div>
+                  {cwConfig?.url && cwConfig?.accountId && editChatwootInbox && (
+                    <a
+                      href={`${cwConfig.url.replace(/\/$/, '')}/app/accounts/${cwConfig.accountId}/inbox/${editChatwootInbox}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline"
+                    >
+                      Abrir inbox no Chatwoot
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+                {/* Reconectar — pequeno, secundário */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs text-muted-foreground hover:text-foreground"
+                  onClick={handleConnectChatwoot}
+                  disabled={connectingCw}
+                >
+                  {connectingCw ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1.5" />}
+                  Reconectar (re-importa contatos/msgs)
+                </Button>
+                {/* Inbox ID editável — collapsed sob acordeão visual minimalista */}
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground select-none">
+                    Inbox ID manual
+                  </summary>
+                  <div className="mt-2 space-y-1">
+                    <Input
+                      value={editChatwootInbox}
+                      onChange={e => setEditChatwootInbox(e.target.value)}
+                      placeholder="auto-detectado após conectar"
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Preencha manualmente apenas se o auto-detect falhar.
+                    </p>
+                  </div>
+                </details>
+              </>
+            ) : (
+              <>
+                {/* Não conectada — call to action prominente */}
+                <p className="text-xs text-muted-foreground">
+                  Evolution cria um inbox com nome <span className="font-mono">"{instancia.evolution_instance}"</span> no Chatwoot.
+                </p>
+                <Button
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={handleConnectChatwoot}
+                  disabled={connectingCw}
+                >
+                  {connectingCw ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}
+                  Conectar ao Chatwoot
+                </Button>
+              </>
             )}
           </section>
 
