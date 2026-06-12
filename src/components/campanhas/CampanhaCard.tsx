@@ -18,6 +18,9 @@ export interface CampanhaRow {
   dias_inativo_min: number | null;
   dias_sem_envio: number | null;
   max_tentativas_categoria: number | null;
+  coffee_break_inicio: string | null;
+  coffee_break_fim: string | null;
+  skip_rate: number;
   observacao: string | null;
 }
 

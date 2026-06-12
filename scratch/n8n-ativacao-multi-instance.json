@@ -115,13 +115,39 @@
     },
     {
       "parameters": {
-        "jsCode": "// ANTI-BAN: Coffee break (12:00-13:30 BRT) + Skip aleatório 10%.\n// Aplicado ANTES do claim pra não consumir ativacao_tentativas à toa.\nconst tz = 'America/Sao_Paulo';\nconst now = new Date();\nconst opts = { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false };\nconst [hh, mm] = new Intl.DateTimeFormat('en-GB', opts).format(now).split(':').map(Number);\nconst minutesNow = hh * 60 + mm;\n\n// COFFEE BREAK 12:00-13:30 (horário humano, evita padrão de bot)\nif (minutesNow >= 720 && minutesNow <= 810) {\n  return [];\n}\n\n// SKIP ALEATÓRIO 10% — ativação é a mais arriscada (lead frio)\nconst SKIP_RATE = 0.10;\nif (Math.random() < SKIP_RATE) {\n  return [];\n}\n\nreturn $input.all();"
+        "method": "POST",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/pode_disparar_campanha",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_tipo\": \"ativacao\"\n}",
+        "options": {}
       },
       "id": "anti-ban",
       "name": "ANTI-BAN CHECK",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [-860, 480]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "id": "ok", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-anti-ban",
+      "name": "Pode disparar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-700, 480]
     },
     {
       "parameters": {
@@ -358,7 +384,13 @@
     },
     "ANTI-BAN CHECK": {
       "main": [
-        [ { "node": "CLAIM lead ativação", "type": "main", "index": 0 } ]
+        [ { "node": "Pode disparar?", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Pode disparar?": {
+      "main": [
+        [ { "node": "CLAIM lead ativação", "type": "main", "index": 0 } ],
+        [ { "node": "Split por Instância", "type": "main", "index": 0 } ]
       ]
     },
     "PAUSA INSTÂNCIA":   { "main": [[ { "node": "Split por Instância", "type": "main", "index": 0 } ]] },

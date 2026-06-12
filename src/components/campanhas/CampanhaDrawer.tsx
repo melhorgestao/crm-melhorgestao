@@ -31,6 +31,9 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
   const [editDiasInativo, setEditDiasInativo] = useState<string>('');
   const [editDiasSemEnvio, setEditDiasSemEnvio] = useState<string>('');
   const [editMaxTent, setEditMaxTent] = useState<string>('');
+  const [editCoffeeIni, setEditCoffeeIni] = useState<string>('');
+  const [editCoffeeFim, setEditCoffeeFim] = useState<string>('');
+  const [editSkipRate, setEditSkipRate] = useState<string>('');
   const [tplModalOpen, setTplModalOpen] = useState(false);
   const [tplEdit, setTplEdit] = useState<TemplateRow | null>(null);
   const [tplSubcat, setTplSubcat] = useState<string | null>(null);
@@ -47,6 +50,9 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     setEditDiasInativo(campanha.dias_inativo_min?.toString() || '');
     setEditDiasSemEnvio(campanha.dias_sem_envio?.toString() || '');
     setEditMaxTent(campanha.max_tentativas_categoria?.toString() || '');
+    setEditCoffeeIni(campanha.coffee_break_inicio?.slice(0, 5) || '');
+    setEditCoffeeFim(campanha.coffee_break_fim?.slice(0, 5) || '');
+    setEditSkipRate(campanha.skip_rate != null ? (campanha.skip_rate * 100).toString() : '0');
   }, [campanha]);
 
   // Templates da campanha
@@ -105,6 +111,13 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     if (diasInativo !== campanha.dias_inativo_min) changes.dias_inativo_min = diasInativo;
     if (diasSemEnvio !== campanha.dias_sem_envio) changes.dias_sem_envio = diasSemEnvio;
     if (maxTent !== campanha.max_tentativas_categoria) changes.max_tentativas_categoria = maxTent;
+
+    const coffeeIni = editCoffeeIni.trim() === '' ? null : (editCoffeeIni.length === 5 ? editCoffeeIni + ':00' : editCoffeeIni);
+    const coffeeFim = editCoffeeFim.trim() === '' ? null : (editCoffeeFim.length === 5 ? editCoffeeFim + ':00' : editCoffeeFim);
+    if (coffeeIni !== campanha.coffee_break_inicio) changes.coffee_break_inicio = coffeeIni;
+    if (coffeeFim !== campanha.coffee_break_fim) changes.coffee_break_fim = coffeeFim;
+    const skip = Math.max(0, Math.min(100, parseFloat(editSkipRate) || 0)) / 100;
+    if (Math.abs(skip - (campanha.skip_rate || 0)) > 0.001) changes.skip_rate = skip;
     if (Object.keys(changes).length === 0) { setSaving(false); toast.info('Sem alterações'); return; }
     changes.updated_at = new Date().toISOString();
     const { error } = await supabase.from('campanhas').update(changes).eq('id', campanha.id);
@@ -300,6 +313,52 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                   ✓ Valores aplicados imediatamente — o claim do workflow lê estas regras a cada execução.
                 </p>
               )}
+            </section>
+
+            {/* Anti-ban */}
+            <section className="space-y-3">
+              <p className="text-xs uppercase text-muted-foreground tracking-wide">🛡 Anti-ban</p>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Coffee break (BRT)</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="time"
+                    value={editCoffeeIni}
+                    onChange={e => setEditCoffeeIni(e.target.value)}
+                    placeholder="início"
+                  />
+                  <Input
+                    type="time"
+                    value={editCoffeeFim}
+                    onChange={e => setEditCoffeeFim(e.target.value)}
+                    placeholder="fim"
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Janela do dia em que NÃO dispara (ex: 12:00 → 13:30 simula pausa de almoço, evita padrão de bot). Deixe ambos vazios pra desativar.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Skip aleatório (%)</Label>
+                <Input
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="100"
+                  value={editSkipRate}
+                  onChange={e => setEditSkipRate(e.target.value)}
+                  placeholder="0 = desativado"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Probabilidade de pular cada execução. <strong>Ativação: 10%</strong> recomendado (lead frio). <strong>RMKT/Follow-up: 3-5%</strong> (clientes engajados, não atrapalha cadência).
+                </p>
+              </div>
+
+              <p className="text-[10px] text-sf-green">
+                ✓ Workflow chama <code className="font-mono">pode_disparar_campanha</code> antes de cada claim. Valores aplicados na próxima execução.
+              </p>
             </section>
 
             {/* Matriz por instância */}
