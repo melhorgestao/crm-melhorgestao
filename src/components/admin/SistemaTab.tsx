@@ -180,17 +180,21 @@ export function SistemaTab() {
 }
 
 function CronRow({ cron, onClick, onRun, running }: { cron: CronStatus; onClick: () => void; onRun: () => void; running: boolean }) {
-  const isHealthy = !cron.last_status || cron.last_status === 'succeeded';
+  const lastOk = !cron.last_status || cron.last_status === 'succeeded';
   const hasFails = cron.failures_24h > 0;
+  // 3 estados: verde (tudo ok), amber (ok agora mas teve falha 24h), vermelho (última falhou)
+  const variant: 'ok' | 'warn' | 'fail' = !lastOk ? 'fail' : hasFails ? 'warn' : 'ok';
+  const styles = {
+    ok:   { bg: 'bg-sf-green/15',     text: 'text-sf-green',     icon: <CheckCircle2 className="w-4 h-4" /> },
+    warn: { bg: 'bg-amber-500/15',    text: 'text-amber-600',    icon: <CheckCircle2 className="w-4 h-4" /> },
+    fail: { bg: 'bg-destructive/15',  text: 'text-destructive',  icon: <AlertTriangle className="w-4 h-4" /> },
+  }[variant];
 
   return (
     <div className="border rounded-xl p-3 hover:bg-muted/30 transition-colors">
       <div className="flex items-start gap-3">
-        <div className={cn(
-          'rounded-lg p-2 shrink-0',
-          isHealthy ? 'bg-sf-green/15 text-sf-green' : 'bg-destructive/15 text-destructive'
-        )}>
-          {isHealthy ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+        <div className={cn('rounded-lg p-2 shrink-0', styles.bg, styles.text)}>
+          {styles.icon}
         </div>
 
         <div className="flex-1 min-w-0">
