@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Loader2, Play, RefreshCw, AlertTriangle, CheckCircle2, Clock, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -60,6 +61,7 @@ export function SistemaTab() {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<CronStatus | null>(null);
   const [running, setRunning] = useState<string | null>(null);
+  const [confirmRun, setConfirmRun] = useState<string | null>(null);
 
   const { data: crons, isLoading, error, refetch } = useQuery({
     queryKey: ['cron_status_list'],
@@ -74,8 +76,12 @@ export function SistemaTab() {
 
   const totalFails = crons?.reduce((s, c) => s + (c.failures_24h || 0), 0) || 0;
 
-  const runNow = async (jobname: string) => {
-    if (!confirm(`Executar "${jobname}" agora? Roda o comando imediatamente.`)) return;
+  const requestRun = (jobname: string) => setConfirmRun(jobname);
+
+  const confirmAndRun = async () => {
+    const jobname = confirmRun;
+    setConfirmRun(null);
+    if (!jobname) return;
     setRunning(jobname);
     const { data, error } = await supabase.rpc('executar_cron_agora', { p_jobname: jobname });
     setRunning(null);
@@ -126,7 +132,7 @@ export function SistemaTab() {
               key={c.jobid}
               cron={c}
               onClick={() => setSelected(c)}
-              onRun={() => runNow(c.jobname)}
+              onRun={() => requestRun(c.jobname)}
               running={running === c.jobname}
             />
           ))}
@@ -142,9 +148,33 @@ export function SistemaTab() {
         cron={selected}
         open={!!selected}
         onClose={() => setSelected(null)}
-        onRun={(name) => runNow(name)}
+        onRun={(name) => requestRun(name)}
         running={running}
       />
+
+      {/* Confirmação Bonita pra "Rodar agora" */}
+      <AlertDialog open={!!confirmRun} onOpenChange={(o) => !o && setConfirmRun(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Executar cron agora?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="block mb-2">
+                Vai rodar o comando SQL de <code className="font-mono bg-muted px-1 rounded text-foreground">{confirmRun}</code> imediatamente,
+                como se fosse a execução automática.
+              </span>
+              <span className="block text-xs">
+                Não interrompe a próxima execução agendada. Útil pra testar ou recuperar atraso.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmAndRun} className="bg-sf-green hover:bg-sf-green/90">
+              <Play className="w-4 h-4 mr-1" /> Executar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
