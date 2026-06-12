@@ -48,6 +48,7 @@ const IntegracoesPage = lazyWithRetry(() => import("./pages/IntegracoesPage"));
 const AdminPage = lazyWithRetry(() => import("./pages/AdminPage"));
 const InstanciasPage = lazyWithRetry(() => import("./pages/InstanciasPage"));
 const CampanhasPage = lazyWithRetry(() => import("./pages/CampanhasPage"));
+const DadosAgentsPage = lazyWithRetry(() => import("./pages/DadosAgentsPage"));
 const ComissoesPage = lazyWithRetry(() => import("./pages/ComissoesPage"));
 
 const queryClient = new QueryClient({
@@ -114,6 +115,7 @@ function AppRoutes() {
                   <>
                     <Route path="/instancias" element={<ProtectedRoute><InstanciasPage /></ProtectedRoute>} />
                     <Route path="/campanhas" element={<ProtectedRoute><CampanhasPage /></ProtectedRoute>} />
+                    <Route path="/dados-agents" element={<ProtectedRoute><DadosAgentsPage /></ProtectedRoute>} />
                   </>
                 )}
                 <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
