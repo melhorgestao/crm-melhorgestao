@@ -380,19 +380,21 @@ const CRON_DOCS: Record<string, CronDoc> = {
       'canal_origem é estado do CONTATO no funil — não tipifica a instância. ADS = lead frio, BASE = cliente que comprou.',
     ],
   },
-  'auto-reativar-instancias-pausadas': {
-    resumo: 'Destrava instâncias cujo período de pausa já expirou — auto-cura do sistema.',
+  'auto-reativar-pausas-admin-expiradas': {
+    resumo: 'Auto-destrava pausas com timer feitas pelo admin (não cura desconexão real).',
     grupos: [
       {
         titulo: '🟢 Status da instância',
         transicoes: [
-          { from: 'desconectado', to: 'ativo', when: 'pausado_ate < now' },
-          { from: 'banido', to: 'ativo', when: 'pausado_ate < now' },
-          { from: 'pausado_admin', to: 'ativo', when: 'pausado_ate < now' },
+          { from: 'pausado_admin', to: 'ativo', when: 'pausado_ate < now (timer expirou)' },
         ],
       },
     ],
-    notas: ['Roda 1x por dia (00:00 BRT). Workflows pausados se autoreativam após o tempo determinado.'],
+    notas: [
+      'Roda 1x por dia (00:00 BRT). Só faz sentido pra pausas voluntárias com prazo.',
+      'desconectado → precisa Mostrar QR Code no /instancias (ação manual).',
+      'banido → WhatsApp baniu o número de vez. Deletar e refazer com chip novo.',
+    ],
   },
   'monitor-crons-falhas': {
     resumo: 'Guardião dos outros crons — detecta falhas e envia WhatsApp pra você.',
