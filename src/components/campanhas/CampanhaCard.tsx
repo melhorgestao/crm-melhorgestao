@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Sparkles, Repeat, TrendingUp, Clock, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -16,6 +15,9 @@ export interface CampanhaRow {
   horario_fim: string;
   limite_diario_total: number | null;
   cooldown_dias: number;
+  dias_inativo_min: number | null;
+  dias_sem_envio: number | null;
+  max_tentativas_categoria: number | null;
   observacao: string | null;
 }
 
@@ -72,7 +74,7 @@ export function CampanhaCard({ campanha, onOpenDetails, onToggleAtiva }: Props) 
           </div>
           <div className="min-w-0">
             <h3 className="font-bold truncate">{c.nome}</h3>
-            <Badge variant="outline" className="text-[10px] mt-0.5">{meta.label}</Badge>
+            {c.observacao && <p className="text-[10px] text-muted-foreground truncate">{c.observacao}</p>}
           </div>
         </div>
         <Switch checked={c.ativa} onCheckedChange={() => onToggleAtiva(c)} />

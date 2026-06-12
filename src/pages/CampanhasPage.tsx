@@ -34,7 +34,7 @@ export default function CampanhasPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('campanhas')
-        .select('id, nome, tipo, ativa, pausa_global, horario_inicio, horario_fim, limite_diario_total, cooldown_dias, observacao')
+        .select('id, nome, tipo, ativa, pausa_global, horario_inicio, horario_fim, limite_diario_total, cooldown_dias, dias_inativo_min, dias_sem_envio, max_tentativas_categoria, observacao')
         .order('tipo')
         .order('nome');
       if (error) throw error;
@@ -144,7 +144,7 @@ export default function CampanhasPage() {
           const { data, error } = await supabase
             .from('campanhas')
             .insert({ nome: nome.trim(), tipo, ativa: true } as any)
-            .select('id, nome, tipo, ativa, pausa_global, horario_inicio, horario_fim, limite_diario_total, cooldown_dias, observacao')
+            .select('id, nome, tipo, ativa, pausa_global, horario_inicio, horario_fim, limite_diario_total, cooldown_dias, dias_inativo_min, dias_sem_envio, max_tentativas_categoria, observacao')
             .single();
           if (error) { toast.error(error.message); return; }
           toast.success('Campanha criada — abra Detalhes para adicionar templates');

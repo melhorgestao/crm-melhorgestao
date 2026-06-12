@@ -28,6 +28,9 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
   const [editLimite, setEditLimite] = useState<string>('');
   const [editCooldown, setEditCooldown] = useState(0);
   const [editObs, setEditObs] = useState('');
+  const [editDiasInativo, setEditDiasInativo] = useState<string>('');
+  const [editDiasSemEnvio, setEditDiasSemEnvio] = useState<string>('');
+  const [editMaxTent, setEditMaxTent] = useState<string>('');
   const [tplModalOpen, setTplModalOpen] = useState(false);
   const [tplEdit, setTplEdit] = useState<TemplateRow | null>(null);
   const [tplSubcat, setTplSubcat] = useState<string | null>(null);
@@ -41,6 +44,9 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     setEditLimite(campanha.limite_diario_total?.toString() || '');
     setEditCooldown(campanha.cooldown_dias);
     setEditObs(campanha.observacao || '');
+    setEditDiasInativo(campanha.dias_inativo_min?.toString() || '');
+    setEditDiasSemEnvio(campanha.dias_sem_envio?.toString() || '');
+    setEditMaxTent(campanha.max_tentativas_categoria?.toString() || '');
   }, [campanha]);
 
   // Templates da campanha
@@ -93,6 +99,12 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     if (limite !== campanha.limite_diario_total) changes.limite_diario_total = limite;
     if (editCooldown !== campanha.cooldown_dias) changes.cooldown_dias = editCooldown;
     if (editObs !== (campanha.observacao || '')) changes.observacao = editObs.trim() || null;
+    const diasInativo = editDiasInativo.trim() === '' ? null : parseInt(editDiasInativo, 10);
+    const diasSemEnvio = editDiasSemEnvio.trim() === '' ? null : parseInt(editDiasSemEnvio, 10);
+    const maxTent = editMaxTent.trim() === '' ? null : parseInt(editMaxTent, 10);
+    if (diasInativo !== campanha.dias_inativo_min) changes.dias_inativo_min = diasInativo;
+    if (diasSemEnvio !== campanha.dias_sem_envio) changes.dias_sem_envio = diasSemEnvio;
+    if (maxTent !== campanha.max_tentativas_categoria) changes.max_tentativas_categoria = maxTent;
     if (Object.keys(changes).length === 0) { setSaving(false); toast.info('Sem alterações'); return; }
     changes.updated_at = new Date().toISOString();
     const { error } = await supabase.from('campanhas').update(changes).eq('id', campanha.id);
@@ -136,16 +148,28 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     refetchTpls();
   };
 
-  // Agrupa templates por subcategoria pra exibição
+  // Subcategoria principal da campanha (inferida pelos templates existentes ou pelo nome)
+  const subcatPrincipal: string | null = (() => {
+    if (campanha.tipo !== 'followup') return null;
+    const t = (templates || []).find(x => x.subcategoria);
+    if (t?.subcategoria) return t.subcategoria;
+    const m = campanha.nome.match(/24h|3d|7d|3\s*dias?|7\s*dias?/i)?.[0];
+    if (!m) return '24h';
+    if (/3/.test(m)) return '3d';
+    if (/7/.test(m)) return '7d';
+    return '24h';
+  })();
+
+  // Agrupa templates — pra followup, mostra só a subcategoria principal dessa campanha
   const tplGroups: Array<{ key: string; label: string; items: TemplateRow[] }> = (() => {
     if (campanha.tipo !== 'followup') {
       return [{ key: 'all', label: 'Templates', items: templates || [] }];
     }
-    return FOLLOWUP_SUBS.map(sub => ({
-      key: sub,
-      label: `Follow-up ${sub}`,
-      items: (templates || []).filter(t => t.subcategoria === sub),
-    }));
+    return [{
+      key: subcatPrincipal!,
+      label: `Variações ${subcatPrincipal}`,
+      items: (templates || []).filter(t => t.subcategoria === subcatPrincipal),
+    }];
   })();
 
   return (
@@ -180,9 +204,9 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                   <Input type="number" value={editLimite} onChange={e => setEditLimite(e.target.value)} placeholder="sem limite" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Cooldown (dias)</Label>
-                  <Input type="number" value={editCooldown} onChange={e => setEditCooldown(parseInt(e.target.value) || 0)} />
-                  <p className="text-[10px] text-muted-foreground">Mesmo contato não recebe outra campanha em X dias</p>
+                  <Label className="text-xs">Cooldown cross-campanha (dias)</Label>
+                  <Input type="number" value={editCooldown} onChange={e => setEditCooldown(parseInt(e.target.value) || 0)} placeholder="0 = desativado" />
+                  <p className="text-[10px] text-muted-foreground">⚠️ Bloqueia <strong>qualquer outra campanha</strong> pro contato em X dias após esta — pode interromper RMKT/Follow-up dele. Use 0 a menos que precise.</p>
                 </div>
               </div>
               <div className="space-y-1">
@@ -193,6 +217,82 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                 {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 Salvar configurações
               </Button>
+            </section>
+
+            {/* Regras de elegibilidade */}
+            <section className="space-y-3">
+              <p className="text-xs uppercase text-muted-foreground tracking-wide">Regras de elegibilidade</p>
+
+              {campanha.tipo === 'followup' && (
+                <div className="border rounded-lg bg-muted/30 p-3 text-xs space-y-1">
+                  <p className="font-medium text-sm">📋 Critérios fixos</p>
+                  <p className="text-muted-foreground">
+                    Contatos com <code className="font-mono">ultima_interacao = wait_follow_up</code> e tempo desde <code className="font-mono">data_wait_follow_up</code> ≥ ao gap da tentativa:
+                  </p>
+                  <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
+                    <li><strong>Follow-up 24h</strong>: 1ª tentativa após 24h sem resposta</li>
+                    <li><strong>Follow-up 3 dias</strong>: 2ª tentativa após 3 dias</li>
+                    <li><strong>Follow-up 7 dias</strong>: 3ª tentativa após 7 dias</li>
+                  </ul>
+                  <p className="text-muted-foreground pt-1">Limite total: 3 tentativas (controlado por <code className="font-mono">follow_up_tentativas</code>).</p>
+                </div>
+              )}
+
+              {campanha.tipo === 'rmkt' && (
+                <>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Dias sem compra (mínimo)</Label>
+                    <Input
+                      type="number"
+                      value={editDiasInativo}
+                      onChange={e => setEditDiasInativo(e.target.value)}
+                      placeholder="ex: 30"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Cliente só entra se está há pelo menos X dias sem comprar (<code className="font-mono">data_cliente</code>).</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Dias sem receber esta campanha</Label>
+                    <Input
+                      type="number"
+                      value={editDiasSemEnvio}
+                      onChange={e => setEditDiasSemEnvio(e.target.value)}
+                      placeholder="ex: 30"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Gap entre envios de RMKT pro mesmo contato (<code className="font-mono">data_ultimo_rmkt</code>). Diferente do cooldown — não afeta outras campanhas.</p>
+                  </div>
+                </>
+              )}
+
+              {campanha.tipo === 'ativacao' && (
+                <>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Dias sem receber esta campanha</Label>
+                    <Input
+                      type="number"
+                      value={editDiasSemEnvio}
+                      onChange={e => setEditDiasSemEnvio(e.target.value)}
+                      placeholder="ex: 30"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Gap entre envios de ativação pro mesmo contato (<code className="font-mono">data_ultimo_ativacao</code>).</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Máx. de ativações por contato</Label>
+                    <Input
+                      type="number"
+                      value={editMaxTent}
+                      onChange={e => setEditMaxTent(e.target.value)}
+                      placeholder="ex: 3"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Contato sai da lista após receber X ativações (<code className="font-mono">ativacao_tentativas</code>).</p>
+                  </div>
+                </>
+              )}
+
+              {campanha.tipo !== 'followup' && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  ⚙️ Valores serão usados pelos workflows n8n no próximo deploy (Sprint 3). Por enquanto são armazenados mas o claim ainda usa defaults históricos (30 dias / 3 tentativas).
+                </p>
+              )}
             </section>
 
             {/* Matriz por instância */}
@@ -242,7 +342,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                   size="sm"
                   onClick={() => {
                     setTplEdit(null);
-                    setTplSubcat(campanha.tipo === 'followup' ? '24h' : null);
+                    setTplSubcat(campanha.tipo === 'followup' ? subcatPrincipal : null);
                     setTplModalOpen(true);
                   }}
                 >
