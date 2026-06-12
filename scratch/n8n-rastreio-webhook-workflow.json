@@ -1,0 +1,286 @@
+{
+  "name": "Disparo Rastreio Webhook (event-driven)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rastreio-postado",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: pedido postado",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-2080, 320],
+      "webhookId": "rastreio-postado"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"pedido_id\":\"{{ $json.body.pedido_id }}\"}",
+        "options": {}
+      },
+      "id": "respond-ack",
+      "name": "Responde ACK 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [-1860, 480]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/pedidos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $('Webhook: pedido postado').item.json.body.pedido_id }}" },
+            { "name": "status_pedido", "value": "eq.postado" },
+            { "name": "link_rastreio", "value": "not.is.null" },
+            { "name": "rastreio_enviado_em", "value": "is.null" },
+            { "name": "rastreio_tentativas", "value": "lt.5" },
+            { "name": "select", "value": "id,order_number,link_rastreio,codigo_rastreio,contato_id,rastreio_tentativas" },
+            { "name": "limit", "value": "1" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-pedido",
+      "name": "GET PEDIDO BY ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1860, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/instancias",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "ativo", "value": "eq.true" },
+            { "name": "evolution_apikey", "value": "not.is.null" },
+            { "name": "select", "value": "id,nome,evolution_instance,evolution_url,evolution_apikey,alerta_admin" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-instancias",
+      "name": "GET INSTÂNCIAS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1640, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filtra instâncias com apikey válida e expõe lookup para resolução\nconst pedidos = $('GET PEDIDO BY ID').all().map(i => i.json);\nconst instancias = $('GET INSTÂNCIAS').all().map(i => i.json)\n  .filter(i => i.evolution_apikey && String(i.evolution_apikey).trim().length > 0);\nconst byId = Object.fromEntries(instancias.map(i => [i.id, i]));\nconst adminInst = instancias.find(i => i.alerta_admin === true) || instancias[0] || null;\nreturn pedidos.map(p => ({ json: { ...p, _byId: byId, _admin_instancia: adminInst } }));"
+      },
+      "id": "merge-config",
+      "name": "MERGE PEDIDO+CONFIG",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1420, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/contatos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $json.contato_id }}" },
+            { "name": "select", "value": "id,nome,telefone,instancia_id,canal_origem,canal_atual,representante_id,representante:representante_id(id,nome,telefone,instancia_id)" },
+            { "name": "limit", "value": "1" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-contato",
+      "name": "GET CONTATO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1200, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resolve destinatário e instância (mesma lógica do workflow Schedule).\nconst contato = $input.first().json;\nconst pedido = $('MERGE PEDIDO+CONFIG').item.json;\nconst byId = pedido._byId || {};\nconst adminInst = pedido._admin_instancia || null;\n\nconst isCRep = (contato.canal_origem === 'C-REP' || contato.canal_atual === 'C-REP');\nconst rep = (isCRep && contato.representante) ? contato.representante : null;\n\nconst destinatario = rep ? {\n  nome: rep.nome, telefone: rep.telefone,\n  instancia_id: rep.instancia_id || contato.instancia_id,\n  via_rep: true, cliente_nome: contato.nome,\n} : {\n  nome: contato.nome, telefone: contato.telefone,\n  instancia_id: contato.instancia_id,\n  via_rep: false, cliente_nome: contato.nome,\n};\n\nconst inst = destinatario.instancia_id ? (byId[destinatario.instancia_id] || null) : null;\n\nreturn [{ json: { ...destinatario, _instancia: inst, _admin_instancia: adminInst } }];"
+      },
+      "id": "resolve-instancia",
+      "name": "RESOLVE INSTÂNCIA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-980, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "id": "tel", "leftValue": "={{ $json.telefone }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty" } },
+            { "id": "inst", "leftValue": "={{ $json._instancia?.evolution_apikey }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-telefone",
+      "name": "IF telefone+instância OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-760, 320]
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 60) + 30 }}",
+        "unit": "seconds"
+      },
+      "id": "wait-jitter",
+      "name": "JITTER 30-90s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-540, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('RESOLVE INSTÂNCIA').item.json._instancia.evolution_url }}/message/sendText/{{ encodeURIComponent($('RESOLVE INSTÂNCIA').item.json._instancia.evolution_instance) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $('RESOLVE INSTÂNCIA').item.json._instancia.evolution_apikey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('RESOLVE INSTÂNCIA').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"={{ $('RESOLVE INSTÂNCIA').item.json.via_rep ? ('Olá ' + $('RESOLVE INSTÂNCIA').item.json.nome.split(' ')[0] + '!\\n\\nPedido do cliente *' + $('RESOLVE INSTÂNCIA').item.json.cliente_nome + '* foi postado pela Santa Flor.\\n\\nLink de rastreio para repassar ao cliente:\\n' + $('MERGE PEDIDO+CONFIG').item.json.link_rastreio) : ('Olá ' + $('RESOLVE INSTÂNCIA').item.json.nome.split(' ')[0] + '!\\n\\nSeu pedido foi postado pela Santa Flor.\\n\\nAcompanhe a entrega:\\n' + $('MERGE PEDIDO+CONFIG').item.json.link_rastreio + '\\n\\nBom uso!') }}\",\n  \"delay\": 2000\n}",
+        "options": {
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "send-msg-evo",
+      "name": "SEND MSG EVO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-320, 220],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "id": "nokey", "leftValue": "={{ $json.key?.id }}", "rightValue": "", "operator": { "type": "string", "operation": "empty" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "detecta-falha",
+      "name": "DETECTA FALHA?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-100, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/incrementar_tentativa_rastreio",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [ { "name": "Content-Type", "value": "application/json" } ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"pedido_id\": \"{{ $('MERGE PEDIDO+CONFIG').item.json.id }}\"\n}",
+        "options": {}
+      },
+      "id": "increment-tentativa",
+      "name": "INCREMENT TENTATIVA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [120, 100]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/pedidos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $('MERGE PEDIDO+CONFIG').item.json.id }}" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [ { "name": "Prefer", "value": "return=minimal" } ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"rastreio_enviado_em\": \"{{ $now.toISO() }}\"\n}",
+        "options": {}
+      },
+      "id": "marca-enviado",
+      "name": "MARCA ENVIADO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [120, 340]
+    }
+  ],
+  "connections": {
+    "Webhook: pedido postado": {
+      "main": [[
+        { "node": "GET PEDIDO BY ID", "type": "main", "index": 0 },
+        { "node": "Responde ACK 200", "type": "main", "index": 0 }
+      ]]
+    },
+    "GET PEDIDO BY ID": {
+      "main": [[ { "node": "GET INSTÂNCIAS", "type": "main", "index": 0 } ]]
+    },
+    "GET INSTÂNCIAS": {
+      "main": [[ { "node": "MERGE PEDIDO+CONFIG", "type": "main", "index": 0 } ]]
+    },
+    "MERGE PEDIDO+CONFIG": {
+      "main": [[ { "node": "GET CONTATO", "type": "main", "index": 0 } ]]
+    },
+    "GET CONTATO": {
+      "main": [[ { "node": "RESOLVE INSTÂNCIA", "type": "main", "index": 0 } ]]
+    },
+    "RESOLVE INSTÂNCIA": {
+      "main": [[ { "node": "IF telefone+instância OK", "type": "main", "index": 0 } ]]
+    },
+    "IF telefone+instância OK": {
+      "main": [
+        [ { "node": "JITTER 30-90s", "type": "main", "index": 0 } ],
+        []
+      ]
+    },
+    "JITTER 30-90s": {
+      "main": [[ { "node": "SEND MSG EVO", "type": "main", "index": 0 } ]]
+    },
+    "SEND MSG EVO": {
+      "main": [[ { "node": "DETECTA FALHA?", "type": "main", "index": 0 } ]]
+    },
+    "DETECTA FALHA?": {
+      "main": [
+        [ { "node": "INCREMENT TENTATIVA", "type": "main", "index": 0 } ],
+        [ { "node": "MARCA ENVIADO", "type": "main", "index": 0 } ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "meta": { "instanceId": "santa-flor-crm" },
+  "tags": []
+}

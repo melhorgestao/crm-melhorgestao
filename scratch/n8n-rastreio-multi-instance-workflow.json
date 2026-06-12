@@ -7,13 +7,13 @@
           "interval": [
             {
               "field": "minutes",
-              "minutesInterval": 10
+              "minutesInterval": 30
             }
           ]
         }
       },
       "id": "schedule-trigger",
-      "name": "Schedule 10 min",
+      "name": "Schedule 30 min (fallback)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [-2080, 320]
@@ -150,6 +150,17 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [-760, 320]
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 60) + 30 }}",
+        "unit": "seconds"
+      },
+      "id": "wait-jitter",
+      "name": "JITTER 30-90s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-640, 220]
     },
     {
       "parameters": {
@@ -304,7 +315,7 @@
     }
   ],
   "connections": {
-    "Schedule 10 min": {
+    "Schedule 30 min (fallback)": {
       "main": [
         [ { "node": "GET PEDIDOS POSTADOS", "type": "main", "index": 0 } ]
       ]
@@ -342,8 +353,13 @@
     },
     "IF telefone+instância OK": {
       "main": [
-        [ { "node": "SEND MSG EVO", "type": "main", "index": 0 } ],
+        [ { "node": "JITTER 30-90s", "type": "main", "index": 0 } ],
         [ { "node": "Split In Batches", "type": "main", "index": 0 } ]
+      ]
+    },
+    "JITTER 30-90s": {
+      "main": [
+        [ { "node": "SEND MSG EVO", "type": "main", "index": 0 } ]
       ]
     },
     "SEND MSG EVO": {
