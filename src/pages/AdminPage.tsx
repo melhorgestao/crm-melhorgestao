@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { formatDateTime } from '@/lib/format';
 import { Switch } from '@/components/ui/switch';
 import { ChevronLeft, ChevronRight, Plus, Trash2, Shield, Loader2, Users } from 'lucide-react';
+import { SistemaTab } from '@/components/admin/SistemaTab';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
@@ -292,8 +293,9 @@ export default function AdminPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="usuarios">Usuários</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
+          <TabsTrigger value="usuarios">👥 Usuários</TabsTrigger>
+          <TabsTrigger value="logs">📋 Logs</TabsTrigger>
+          <TabsTrigger value="sistema">⚙️ Sistema</TabsTrigger>
         </TabsList>
 
         {/* ==================== USUARIOS TAB ==================== */}
@@ -451,6 +453,11 @@ export default function AdminPage() {
               </div>
             </>
           )}
+        </TabsContent>
+
+        {/* ==================== SISTEMA TAB ==================== */}
+        <TabsContent value="sistema" className="space-y-4">
+          <SistemaTab />
         </TabsContent>
       </Tabs>
 
