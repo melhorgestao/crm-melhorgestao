@@ -31,6 +31,7 @@
             { "name": "link_rastreio", "value": "not.is.null" },
             { "name": "rastreio_enviado_em", "value": "is.null" },
             { "name": "rastreio_tentativas", "value": "lt.5" },
+            { "name": "updated_at", "value": "=lt.{{ new Date(Date.now() - 60*60*1000).toISOString() }}" },
             { "name": "select", "value": "id,order_number,link_rastreio,codigo_rastreio,contato_id,rastreio_tentativas" },
             { "name": "order", "value": "data.asc" },
             { "name": "limit", "value": "20" }
