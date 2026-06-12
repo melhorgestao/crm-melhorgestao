@@ -28,7 +28,7 @@ export default function CampanhasPage() {
   });
 
   // campanhas
-  const { data: campanhas, isLoading } = useQuery({
+  const { data: campanhas, isLoading, error: campanhasError } = useQuery({
     queryKey: ['campanhas_list'],
     enabled: isAdmin,
     queryFn: async () => {
@@ -37,10 +37,15 @@ export default function CampanhasPage() {
         .select('id, nome, tipo, ativa, pausa_global, horario_inicio, horario_fim, limite_diario_total, cooldown_dias, dias_inativo_min, dias_sem_envio, max_tentativas_categoria, observacao')
         .order('tipo')
         .order('nome');
-      if (error) throw error;
+      if (error) {
+        console.error('[campanhas_list] erro:', error);
+        toast.error(`Erro ao carregar campanhas: ${error.message}`);
+        throw error;
+      }
       return (data || []) as any[] as CampanhaRow[];
     },
     refetchInterval: 60_000,
+    retry: 1,
   });
 
   if (!isAdmin) {
@@ -102,6 +107,12 @@ export default function CampanhasPage() {
       {isLoading ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
+        </div>
+      ) : campanhasError ? (
+        <div className="text-center py-16 bg-destructive/10 rounded-2xl border-2 border-dashed border-destructive/30 text-destructive">
+          <p className="font-semibold">Erro ao carregar campanhas</p>
+          <p className="text-xs mt-1">{(campanhasError as any).message}</p>
+          <p className="text-xs mt-2 text-muted-foreground">Provavelmente faltou rodar uma migration no Supabase.</p>
         </div>
       ) : total === 0 ? (
         <div className="text-center py-16 bg-muted/20 rounded-2xl border-2 border-dashed text-muted-foreground">
