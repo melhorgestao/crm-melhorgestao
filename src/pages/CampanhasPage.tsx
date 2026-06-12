@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, PauseOctagon, PlayCircle } from 'lucide-react';
+import { PauseOctagon, PlayCircle } from 'lucide-react';
 import { CampanhaCard, type CampanhaRow } from '@/components/campanhas/CampanhaCard';
 import { CampanhaDrawer } from '@/components/campanhas/CampanhaDrawer';
 
@@ -145,28 +145,9 @@ export default function CampanhasPage() {
         </div>
       )}
 
-      {/* FAB */}
-      <Button
-        onClick={async () => {
-          const nome = prompt('Nome da campanha:');
-          if (!nome?.trim()) return;
-          const tipo = prompt('Tipo (ativacao | followup | rmkt):', 'ativacao');
-          if (!tipo || !['ativacao', 'followup', 'rmkt'].includes(tipo)) { toast.error('Tipo inválido'); return; }
-          const { data, error } = await supabase
-            .from('campanhas')
-            .insert({ nome: nome.trim(), tipo, ativa: true } as any)
-            .select('id, nome, tipo, ativa, pausa_global, horario_inicio, horario_fim, limite_diario_total, cooldown_dias, dias_inativo_min, dias_sem_envio, max_tentativas_categoria, observacao')
-            .single();
-          if (error) { toast.error(error.message); return; }
-          toast.success('Campanha criada — abra Detalhes para adicionar templates');
-          qc.invalidateQueries({ queryKey: ['campanhas_list'] });
-          openDrawer(data as any);
-        }}
-        className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-sf-green hover:bg-sf-green/90 text-primary-foreground z-50"
-        size="icon"
-      >
-        <Plus className="w-6 h-6" />
-      </Button>
+      {/* FAB removido — criação de campanha exige redesenho de RPCs e workflows
+          (atualmente apenas 5 campanhas fixas, 1 por tipo). Quando habilitar
+          múltiplas campanhas por tipo, reativar com fluxo completo. */}
 
       <CampanhaDrawer
         open={drawerOpen}
