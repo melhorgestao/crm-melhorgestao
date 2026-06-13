@@ -170,14 +170,13 @@ BEGIN
          updated_at               = now()
    WHERE id = p_contato_id;
 
-  -- log
+  -- log na auditoria do router
   BEGIN
-    INSERT INTO public.eventos_contato (contato_id, tipo, payload)
-    VALUES (p_contato_id, 'retroceder_estagio',
-            jsonb_build_object('motivo', p_motivo, 'novo_estado', v_estado_final));
+    INSERT INTO public.eventos_contato (contato_id, tipo, estado_para, metadata)
+    VALUES (p_contato_id, 'retroceder_estagio', v_estado_final,
+            jsonb_build_object('motivo', p_motivo));
   EXCEPTION WHEN OTHERS THEN
-    -- tabela eventos_contato pode não existir em alguns ambientes
-    NULL;
+    NULL; -- não falhar a transição por erro de log
   END;
 
   RETURN jsonb_build_object('ok', true, 'novo_estado', v_estado_final);
@@ -269,10 +268,12 @@ BEGIN
     INTO v_qtd
     FROM jsonb_array_elements(v_rascunho.itens);
 
-  -- canal vem do contato
-  SELECT canal_atual INTO v_canal
+  -- canal vem do contato (canal_origem é a coluna canônica)
+  SELECT canal_origem INTO v_canal
     FROM public.contatos WHERE id = v_rascunho.contato_id;
   v_canal := COALESCE(v_canal, 'BASE');
+  -- normaliza pro CHECK constraint de pedidos.canal (ADS|BASE|REP)
+  IF v_canal NOT IN ('ADS','BASE','REP') THEN v_canal := 'BASE'; END IF;
 
   -- INSERT pedidos (forma legada — produto/quantidade/valor)
   INSERT INTO public.pedidos (
