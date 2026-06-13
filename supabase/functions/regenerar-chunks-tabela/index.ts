@@ -67,17 +67,11 @@ Deno.serve(async (req) => {
       const titulo = `${p.emoji} ${p.nome_oficial}`.trim()
       titulosGerados.add(titulo)
 
-      // Catálogo deve ficar limpo: só nome + preço.
-      // Apelidos vão em "sobre_produtos", posologia/modo de uso também.
-      // Embedding focado ranqueia melhor pra "quanto custa X" e nada mais.
-      const conteudoLinhas = [
-        p.nome_oficial,
-        '',
-        p.preco != null
-          ? `Preço: R$ ${Number(p.preco).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
-          : 'Preço: a consultar',
-      ]
-      const conteudo = conteudoLinhas.join('\n')
+      // Catálogo: só preço no corpo. Nome já vai no título (sem duplicar no vetor).
+      // Apelidos/posologia/modo de uso vão em "sobre_produtos".
+      const conteudo = p.preco != null
+        ? `Preço: R$ ${Number(p.preco).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+        : 'Preço: a consultar'
 
       const textForEmbedding = `${titulo}\n\n${conteudo}`
       const embRes = await fetch('https://api.openai.com/v1/embeddings', {
@@ -115,19 +109,24 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Desativa chunks de produto que não existe mais (mas só os auto-gerados)
-    let desativados = 0
-    for (const c of (existentes || []) as any[]) {
-      if (titulosGerados.has(c.titulo)) continue
-      if (c.observacao !== 'auto-gerado a partir da tabela produtos') continue
-      if (!c.ativo) continue
+    // DELETA chunks auto-gerados que não correspondem mais a nenhum produto ativo
+    // (nome mudou, produto removido, emoji alterado, etc). Não deixa lixo no RAG.
+    // Só toca em chunks que TÊM o marcador 'auto-gerado a partir da tabela produtos'
+    // — chunks criados manualmente nunca são deletados aqui.
+    let deletados = 0
+    const idsParaDeletar = ((existentes || []) as any[])
+      .filter(c => !titulosGerados.has(c.titulo)
+                && c.observacao === 'auto-gerado a partir da tabela produtos')
+      .map(c => c.id)
+    if (idsParaDeletar.length > 0) {
       const { error } = await supabase
-        .from('knowledge_chunks').update({ ativo: false, updated_at: new Date().toISOString() }).eq('id', c.id)
-      if (!error) desativados++
+        .from('knowledge_chunks').delete().in('id', idsParaDeletar)
+      if (error) return j({ error: error.message, on: 'delete-orphans' }, 500)
+      deletados = idsParaDeletar.length
     }
 
     return j({
-      ok: true, criados, atualizados, desativados, ignorados,
+      ok: true, criados, atualizados, deletados, ignorados,
       total_produtos_processados: ativos.length,
     })
 

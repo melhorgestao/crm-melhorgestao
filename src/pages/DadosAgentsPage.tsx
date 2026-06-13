@@ -36,7 +36,7 @@ export default function DadosAgentsPage() {
     if (error) { toast.error(`Erro: ${error.message}`); return; }
     const d = data as any;
     if (d?.error) { toast.error(`Erro: ${d.error}`); return; }
-    toast.success(`✅ ${d.criados} criados · ${d.atualizados} atualizados · ${d.desativados} desativados (sem produto)`);
+    toast.success(`✅ ${d.criados} criados · ${d.atualizados} atualizados · ${d.deletados ?? d.desativados ?? 0} órfãos removidos`);
     qc.invalidateQueries({ queryKey: ['chunks_categoria'] });
     qc.invalidateQueries({ queryKey: ['chunks_count'] });
   };
