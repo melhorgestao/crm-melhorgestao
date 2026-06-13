@@ -35,6 +35,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
   const [editCoffeeFim, setEditCoffeeFim] = useState<string>('');
   const [editSkipRate, setEditSkipRate] = useState<string>('');
   const [editIntervalo, setEditIntervalo] = useState<string>('');
+  const [limiteInstLocal, setLimiteInstLocal] = useState<Record<string, string>>({});
   const [tplModalOpen, setTplModalOpen] = useState(false);
   const [tplEdit, setTplEdit] = useState<TemplateRow | null>(null);
   const [tplSubcat, setTplSubcat] = useState<string | null>(null);
@@ -83,13 +84,24 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
         supabase.from('campanha_instancia' as any).select('*').eq('campanha_id', campanha!.id),
       ]);
       const ci = Object.fromEntries(((ciRes.data || []) as any[]).map((r: any) => [r.instancia_id, r]));
-      return ((instsRes.data || []) as any[])
+      const rows = ((instsRes.data || []) as any[])
         .filter((i: any) => i.nome !== 'Instancia ADMIN')
         .map((i: any) => ({
           ...i,
           ativa: ci[i.id]?.ativa !== false, // default true se não existe linha
           limite_diario_instancia: ci[i.id]?.limite_diario_instancia ?? null,
         }));
+      // sync estado local de inputs (sem sobrescrever se usuário já está digitando)
+      setLimiteInstLocal(prev => {
+        const next = { ...prev };
+        for (const r of rows) {
+          if (next[r.id] === undefined) {
+            next[r.id] = r.limite_diario_instancia?.toString() ?? '';
+          }
+        }
+        return next;
+      });
+      return rows;
     },
   });
 
@@ -141,14 +153,18 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     qc.invalidateQueries({ queryKey: ['campanha_stats', campanha.id] });
   };
 
-  const setLimiteInstancia = async (instId: string, valor: string) => {
-    const num = valor.trim() === '' ? null : parseInt(valor, 10);
+  const commitLimiteInstancia = async (instId: string, atualNoBanco: number | null) => {
+    const raw = (limiteInstLocal[instId] ?? '').trim();
+    const num = raw === '' ? null : Math.max(1, Math.min(99999, parseInt(raw, 10) || 0));
+    if (num === atualNoBanco) return; // nada mudou
     const { error } = await supabase
       .from('campanha_instancia' as any)
       .upsert({ campanha_id: campanha.id, instancia_id: instId, limite_diario_instancia: num },
               { onConflict: 'campanha_id,instancia_id' });
     if (error) { toast.error(error.message); return; }
+    toast.success(num === null ? 'Limite removido (usa global)' : `Limite: ${num}/dia`);
     refetchMatriz();
+    qc.invalidateQueries({ queryKey: ['campanha_stats', campanha.id] });
   };
 
   const deleteTpl = async (id: string) => {
@@ -420,9 +436,13 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                         <td className="px-3 py-2">
                           <Input
                             type="number"
-                            value={i.limite_diario_instancia ?? ''}
-                            onChange={e => setLimiteInstancia(i.id, e.target.value)}
+                            min="1"
+                            value={limiteInstLocal[i.id] ?? ''}
+                            onChange={e => setLimiteInstLocal(prev => ({ ...prev, [i.id]: e.target.value }))}
+                            onBlur={() => commitLimiteInstancia(i.id, i.limite_diario_instancia)}
+                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                             placeholder="—"
+                            title="Vazio = sem limite por instância (só o total da campanha vale). Número = teto diário só desta instância."
                             className="w-20 ml-auto text-right text-sm"
                           />
                         </td>
@@ -432,7 +452,10 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                 </table>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Pausar instância em <code className="font-mono">/instancias</code> sobrepõe esses toggles — workflows nem tentam usar instância pausada. Os toggles aqui só importam quando a instância está online.
+                <strong>Ativa</strong>: liga/desliga esta campanha só pra esta instância. <strong>Limite/dia</strong>: teto de envios desta campanha só por esta instância (vazio = sem teto individual, só vale o limite total da campanha). Pressione Enter ou clique fora pra salvar.
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                Pausar instância em <code className="font-mono">/instancias</code> sobrepõe esses toggles — workflows nem tentam usar instância pausada.
               </p>
             </section>
 
