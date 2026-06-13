@@ -9,8 +9,8 @@
 //   {
 //     contato_id: uuid,
 //     instancia_id: uuid,
-//     itens: [{ slug: "verde", qtd: 2 }, ...],
-//     brindes_slugs?: ["pomada", "gummy"],   // opcional, requerido se qtd dispara bônus
+//     itens: [{ tag: "verde", qtd: 2 }, ...],
+//     brindes_tags?: ["pomada", "gummy"],   // opcional, requerido se qtd dispara bônus
 //     modalidade_frete_escolhida?: "PAC" | "MINI" | "SEDEX"  // só quando frete não é grátis
 //   }
 //
@@ -40,9 +40,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface Item { slug: string; qtd: number }
+interface Item { tag: string; qtd: number }
 interface ProdutoRow {
-  slug: string; nome_oficial: string; emoji: string;
+  tag: string; nome_oficial: string; emoji: string;
   preco: number; peso: number; ativo: boolean; ordem: number;
 }
 
@@ -64,13 +64,13 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const {
       contato_id, instancia_id,
-      itens, brindes_slugs = [],
+      itens, brindes_tags = [],
       modalidade_frete_escolhida,
     } = body as {
       contato_id: string
       instancia_id: string
       itens: Item[]
-      brindes_slugs?: string[]
+      brindes_tags?: string[]
       modalidade_frete_escolhida?: 'PAC'|'MINI'|'SEDEX'
     }
 
@@ -95,25 +95,25 @@ Deno.serve(async (req) => {
     }
 
     // 2) Carrega catálogo
-    const slugsNecessarios = Array.from(new Set([...itens.map(i => i.slug),
-                                                  ...(brindes_slugs || [])]))
+    const tagsNecessarios = Array.from(new Set([...itens.map(i => i.tag),
+                                                  ...(brindes_tags || [])]))
     const { data: produtos, error: pErr } = await supabase
-      .from('produtos').select('slug, nome_oficial, emoji, preco, peso, ativo, ordem')
-      .in('slug', slugsNecessarios)
+      .from('produtos').select('tag, nome_oficial, emoji, preco, peso, ativo, ordem')
+      .in('tag', tagsNecessarios)
     if (pErr) return j({ error: pErr.message }, 500)
     const prodMap = new Map<string, ProdutoRow>(
-      (produtos || []).map((p: any) => [p.slug, p as ProdutoRow])
+      (produtos || []).map((p: any) => [p.tag, p as ProdutoRow])
     )
 
     // 3) Valida itens
     const itensEnriquecidos = itens
       .filter(i => i.qtd > 0)
       .map(i => {
-        const p = prodMap.get(i.slug)
-        if (!p) throw new Error(`produto não encontrado: ${i.slug}`)
-        if (!p.ativo) throw new Error(`produto inativo: ${i.slug}`)
+        const p = prodMap.get(i.tag)
+        if (!p) throw new Error(`produto não encontrado: ${i.tag}`)
+        if (!p.ativo) throw new Error(`produto inativo: ${i.tag}`)
         return {
-          slug: i.slug,
+          tag: i.tag,
           nome_oficial: p.nome_oficial,
           emoji: p.emoji || '•',
           qtd: i.qtd,
@@ -131,15 +131,15 @@ Deno.serve(async (req) => {
     const { brindesDevidos, freteGratis } = calcularBonusEFrete(qtdTotal)
     const pendencias: string[] = []
 
-    let brindesAplicados: Array<{ slug: string; nome_oficial: string; emoji: string }> = []
+    let brindesAplicados: Array<{ tag: string; nome_oficial: string; emoji: string }> = []
     if (brindesDevidos > 0) {
-      if (brindes_slugs.length < brindesDevidos) {
+      if (brindes_tags.length < brindesDevidos) {
         pendencias.push('escolher_brinde')
       } else {
-        brindesAplicados = brindes_slugs.slice(0, brindesDevidos).map(s => {
+        brindesAplicados = brindes_tags.slice(0, brindesDevidos).map(s => {
           const p = prodMap.get(s)
           if (!p) throw new Error(`brinde não encontrado: ${s}`)
-          return { slug: s, nome_oficial: p.nome_oficial, emoji: p.emoji || '🎁' }
+          return { tag: s, nome_oficial: p.nome_oficial, emoji: p.emoji || '🎁' }
         })
       }
     }

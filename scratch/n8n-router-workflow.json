@@ -532,7 +532,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://n8n.melhorgestao.online/webhook/agent-start",
+        "url": "={{ ['em_fechamento','aguardando_pagamento'].includes($('GET/CREATE Contato').item.json.ultima_interacao) ? 'https://n8n.melhorgestao.online/webhook/agent-closing' : 'https://n8n.melhorgestao.online/webhook/agent-start' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [ { "name": "Content-Type", "value": "application/json" } ]

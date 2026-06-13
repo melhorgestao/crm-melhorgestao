@@ -22,7 +22,7 @@ const corsHeaders = {
 }
 
 interface Produto {
-  id: string; slug: string | null; nome_oficial: string; emoji: string | null;
+  id: string; tag: string | null; nome_oficial: string; emoji: string | null;
   preco: number | null; posologia: string | null; ativo: boolean; ordem: number;
 }
 
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
 
     const { data: produtos, error: pErr } = await supabase
       .from('produtos')
-      .select('id, slug, nome_oficial, emoji, preco, posologia, ativo, ordem')
+      .select('id, tag, nome_oficial, emoji, preco, posologia, ativo, ordem')
       .eq('ativo', true)
       .order('ordem', { ascending: true })
       .order('nome_oficial', { ascending: true })
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       const conteudoLinhas = [
         `Produto: ${p.nome_oficial}`,
         p.emoji ? `Emoji oficial: ${p.emoji}` : null,
-        p.slug ? `Apelido interno (não exibir ao cliente): ${p.slug}` : null,
+        p.tag ? `Apelido interno (não exibir ao cliente): ${p.tag}` : null,
         p.preco != null ? `Preço: R$ ${Number(p.preco).toLocaleString('pt-BR',{minimumFractionDigits:2})}` : null,
         p.posologia ? `Posologia/uso: ${p.posologia}` : null,
       ].filter(Boolean) as string[]
