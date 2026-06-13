@@ -7,9 +7,9 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type ChunkCategoria = 'tabela' | 'sobre_produtos' | 'bonus' | 'argumentos_venda' | 'faq';
 
-export const CATEGORIAS: Array<{ key: ChunkCategoria; label: string; emoji: string; descricao: string }> = [
-  { key: 'tabela',           emoji: '📋', label: 'Tabela',           descricao: 'Nome oficial do produto + preço atual' },
-  { key: 'sobre_produtos',   emoji: '🌿', label: 'Sobre Produtos',   descricao: 'Descrição ampla, modo de uso, características' },
+export const CATEGORIAS: Array<{ key: ChunkCategoria; label: string; emoji: string; descricao: string; systemManaged?: boolean }> = [
+  { key: 'tabela',           emoji: '📋', label: 'Catálogo',         descricao: 'Auto-gerado a partir de Estoque → Cadastro (não editável manualmente)', systemManaged: true },
+  { key: 'sobre_produtos',   emoji: '🌿', label: 'Sobre Produtos',   descricao: 'Descrição ampla, modo de uso, características, apelidos' },
   { key: 'bonus',            emoji: '🎁', label: 'Bônus',            descricao: 'Regras de bônus (ex: 4 produtos = +1 grátis)' },
   { key: 'argumentos_venda', emoji: '💪', label: 'Argumentos',       descricao: 'Benefícios, custo-benefício, diferenciais' },
   { key: 'faq',              emoji: '❓', label: 'FAQ',              descricao: 'Interações, golpes, efeitos colaterais, dúvidas comuns' },

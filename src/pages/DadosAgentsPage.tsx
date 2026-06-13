@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, FlaskConical, AlertTriangle, RefreshCw } from 'lucide-react';
@@ -23,6 +25,8 @@ export default function DadosAgentsPage() {
   const [editorChunk, setEditorChunk] = useState<ChunkRow | null>(null);
   const [testarOpen, setTestarOpen] = useState(false);
   const [regenerando, setRegenerando] = useState(false);
+  const [novoCategoriaOpen, setNovoCategoriaOpen] = useState(false);
+  const [novoCategoria, setNovoCategoria] = useState<ChunkCategoria>('sobre_produtos');
 
   const regenerarChunksTabela = async () => {
     if (!confirm('Regenerar chunks da Tabela a partir de produtos?\n\n• 1 chunk por produto ativo (com slug+emoji)\n• Atualiza embedding de todos\n• Custo: ~$0.001 OpenAI\n\nProsseguir?')) return;
@@ -78,7 +82,19 @@ export default function DadosAgentsPage() {
     return <div className="text-center py-12 text-muted-foreground">Acesso restrito a administradores.</div>;
   }
 
-  const openNew = () => { setEditorChunk(null); setEditorOpen(true); };
+  // FAB sempre abre dropdown de categoria (exceto Catálogo, que é auto-gerado)
+  const openNew = () => {
+    const def = (CATEGORIAS.find(c => c.key === tab && !c.systemManaged)?.key) || 'sobre_produtos';
+    setNovoCategoria(def);
+    setNovoCategoriaOpen(true);
+  };
+  const confirmarNovoChunk = () => {
+    setNovoCategoriaOpen(false);
+    setEditorChunk(null);
+    // troca a tab pra refletir onde o chunk vai aparecer depois
+    if (tab !== novoCategoria) setTab(novoCategoria);
+    setEditorOpen(true);
+  };
   const openEdit = (c: ChunkRow) => { setEditorChunk(c); setEditorOpen(true); };
 
   const handleDelete = async (c: ChunkRow) => {
@@ -133,22 +149,18 @@ export default function DadosAgentsPage() {
             </div>
 
             {c.key === 'tabela' && (
-              <div className="border rounded-xl bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
-                <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
-                  ⚙️ Catálogo é gerenciado em <strong>Estoque</strong> — não edite chunks da Tabela manualmente.
-                </p>
-                <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                  Cada produto ativo com <code className="font-mono">slug</code> + <code className="font-mono">emoji</code> vira 1 chunk.
-                  Ao mudar preço/nome em Estoque, clique abaixo pra ressincronizar e regenerar embeddings.
+              <div className="border rounded-xl bg-amber-50 dark:bg-amber-950/20 p-3 flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-snug">
+                  ⚙️ Catálogo é gerenciado em <strong>Estoque → Cadastro</strong>. Ao mudar preço/nome, clique pra regerar embeddings.
                 </p>
                 <Button
                   variant="outline" size="sm"
-                  className="bg-white dark:bg-background"
+                  className="bg-white dark:bg-background shrink-0"
                   onClick={regenerarChunksTabela}
                   disabled={regenerando}
                 >
                   <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${regenerando ? 'animate-spin' : ''}`} />
-                  {regenerando ? 'Regenerando…' : 'Regerar a partir de produtos'}
+                  {regenerando ? 'Sincronizando…' : 'Sincronizar'}
                 </Button>
               </div>
             )}
@@ -184,12 +196,16 @@ export default function DadosAgentsPage() {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <Switch checked={chunk.ativo} onCheckedChange={(v) => handleToggle(chunk, v)} />
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(chunk)}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(chunk)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        {!c.systemManaged && (
+                          <>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(chunk)}>
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(chunk)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                     <p className="text-xs whitespace-pre-wrap text-muted-foreground line-clamp-3 font-mono">{chunk.conteudo}</p>
@@ -212,6 +228,37 @@ export default function DadosAgentsPage() {
       >
         <Plus className="w-6 h-6" />
       </Button>
+
+      {/* Dropdown de categoria ao clicar no FAB */}
+      <Dialog open={novoCategoriaOpen} onOpenChange={setNovoCategoriaOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Novo chunk</DialogTitle>
+            <DialogDescription>Em qual seção?</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <Select value={novoCategoria} onValueChange={(v) => setNovoCategoria(v as ChunkCategoria)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIAS.filter(c => !c.systemManaged).map(c => (
+                  <SelectItem key={c.key} value={c.key}>
+                    {c.emoji} {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              📋 Catálogo não aparece — é gerenciado em Estoque → Cadastro.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setNovoCategoriaOpen(false)}>Cancelar</Button>
+              <Button className="flex-1 bg-sf-green hover:bg-sf-green/90" onClick={confirmarNovoChunk}>Continuar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ChunkEditorModal
         open={editorOpen}

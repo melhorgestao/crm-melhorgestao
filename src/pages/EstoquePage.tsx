@@ -72,6 +72,7 @@ export default function EstoquePage() {
   const [formBoxSize, setFormBoxSize] = useState('');
   const [formBoxQtyMax, setFormBoxQtyMax] = useState(10);
   const [formPeso, setFormPeso] = useState(300);
+  const [formPreco, setFormPreco] = useState<string>('');
 
   // Estoque state
   const [produtos, setProdutos] = useState<any[]>([]);
@@ -353,6 +354,7 @@ export default function EstoquePage() {
             p_box_size: formBoxSize || null,
             p_box_qty_max: formBoxQtyMax || 10,
             p_peso: formPeso || 300,
+            p_preco: formPreco === '' ? null : Number(formPreco),
           }),
         });
         console.log('Update response:', response.status, response.statusText);
@@ -383,6 +385,7 @@ export default function EstoquePage() {
             p_box_size: formBoxSize || null,
             p_box_qty_max: formBoxQtyMax || 10,
             p_peso: formPeso || 300,
+            p_preco: formPreco === '' ? null : Number(formPreco),
           }),
         });
         console.log('Create response:', response.status, response.statusText);
@@ -547,6 +550,7 @@ export default function EstoquePage() {
     setFormLimite(0);
     setFormGrupo('');
     setFormBoxSize('');
+    setFormPreco('');
   };
 
   const openEditProduct = (p: any) => {
@@ -560,6 +564,7 @@ export default function EstoquePage() {
     setFormBoxSize(p.box_size || '');
     setFormBoxQtyMax(p.box_qty_max || 10);
     setFormPeso(p.peso || 300);
+    setFormPreco(p.preco != null ? String(p.preco) : '');
     setShowAddProduct(true);
   };
 
@@ -1060,6 +1065,7 @@ export default function EstoquePage() {
                   <th className="text-left py-2">Nome Oficial</th>
                   <th className="text-left py-2">Tag</th>
                   <th className="text-left py-2">Grupo</th>
+                  <th className="text-right py-2">Preço</th>
                   <th className="text-left py-2">Status</th>
                   <th className="text-left py-2">Ações</th>
                 </tr>
@@ -1077,8 +1083,11 @@ export default function EstoquePage() {
                         <Badge variant="outline" className="text-xs">Sem grupo</Badge>
                       )}
                     </td>
+                    <td className="py-2 text-right tabular-nums">
+                      {p.preco != null ? `R$ ${Number(p.preco).toFixed(2).replace('.', ',')}` : <span className="text-muted-foreground text-xs">—</span>}
+                    </td>
                     <td className="py-2">
-                      <Badge 
+                      <Badge
                         variant={p.ativo ? 'default' : 'secondary'}
                         className={cn('cursor-pointer', !p.ativo && 'bg-red-100 text-red-700')}
                         onClick={() => toggleProductStatus(p)}
@@ -1346,14 +1355,28 @@ export default function EstoquePage() {
             </div>
             <div>
               <Label>Peso (g por unidade)</Label>
-              <Input 
-                type="number" 
-                min={1} 
-                value={formPeso} 
-                onChange={e => setFormPeso(Number(e.target.value))} 
-                placeholder="300" 
+              <Input
+                type="number"
+                min={1}
+                value={formPeso}
+                onChange={e => setFormPeso(Number(e.target.value))}
+                placeholder="300"
               />
               <p className="text-xs text-muted-foreground mt-1">Peso em gramas. Usado para cálculo de frete.</p>
+            </div>
+            <div>
+              <Label>Preço (R$)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                value={formPreco}
+                onChange={e => setFormPreco(e.target.value)}
+                placeholder="180.00"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Usado pelo bot de fechamento (Pix, total, resumo do pedido). Não é usado em lançamentos financeiros — lá o valor é manual.
+              </p>
             </div>
             <Button onClick={handleSaveProduct} disabled={submitting} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground">
               {submitting ? 'Salvando...' : 'Salvar'}
