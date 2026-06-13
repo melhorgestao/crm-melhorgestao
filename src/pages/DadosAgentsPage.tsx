@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, FlaskConical, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, FlaskConical, AlertTriangle, RefreshCw } from 'lucide-react';
 import { CATEGORIAS, deleteChunk, toggleChunkAtivo, type ChunkCategoria, type ChunkRow } from '@/lib/chunksApi';
 import { ChunkEditorModal } from '@/components/dados-agents/ChunkEditorModal';
 import { TestarBuscaModal } from '@/components/dados-agents/TestarBuscaModal';
@@ -22,6 +22,20 @@ export default function DadosAgentsPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorChunk, setEditorChunk] = useState<ChunkRow | null>(null);
   const [testarOpen, setTestarOpen] = useState(false);
+  const [regenerando, setRegenerando] = useState(false);
+
+  const regenerarChunksTabela = async () => {
+    if (!confirm('Regenerar chunks da Tabela a partir de produtos?\n\n• 1 chunk por produto ativo (com slug+emoji)\n• Atualiza embedding de todos\n• Custo: ~$0.001 OpenAI\n\nProsseguir?')) return;
+    setRegenerando(true);
+    const { data, error } = await supabase.functions.invoke('regenerar-chunks-tabela', { body: {} });
+    setRegenerando(false);
+    if (error) { toast.error(`Erro: ${error.message}`); return; }
+    const d = data as any;
+    if (d?.error) { toast.error(`Erro: ${d.error}`); return; }
+    toast.success(`✅ ${d.criados} criados · ${d.atualizados} atualizados · ${d.desativados} desativados (sem produto)`);
+    qc.invalidateQueries({ queryKey: ['chunks_categoria'] });
+    qc.invalidateQueries({ queryKey: ['chunks_count'] });
+  };
 
   // Contagem por categoria
   const { data: counts } = useQuery({
@@ -117,6 +131,27 @@ export default function DadosAgentsPage() {
             <div className="text-xs text-muted-foreground border-l-2 border-muted pl-3">
               {c.descricao}
             </div>
+
+            {c.key === 'tabela' && (
+              <div className="border rounded-xl bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
+                <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                  ⚙️ Catálogo é gerenciado em <strong>Estoque</strong> — não edite chunks da Tabela manualmente.
+                </p>
+                <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                  Cada produto ativo com <code className="font-mono">slug</code> + <code className="font-mono">emoji</code> vira 1 chunk.
+                  Ao mudar preço/nome em Estoque, clique abaixo pra ressincronizar e regenerar embeddings.
+                </p>
+                <Button
+                  variant="outline" size="sm"
+                  className="bg-white dark:bg-background"
+                  onClick={regenerarChunksTabela}
+                  disabled={regenerando}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${regenerando ? 'animate-spin' : ''}`} />
+                  {regenerando ? 'Regenerando…' : 'Regerar a partir de produtos'}
+                </Button>
+              </div>
+            )}
 
             <Input
               placeholder="Buscar por título ou conteúdo..."

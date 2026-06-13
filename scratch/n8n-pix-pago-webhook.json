@@ -1,0 +1,156 @@
+{
+  "name": "PIX PAGO (webhook DeFlow → fechar pedido)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pix-pago",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook DeFlow",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1600, 360],
+      "webhookId": "pix-pago"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrai pedido_em_aberto_id do payload do DeFlow.\n// DeFlow real: { event: 'payment.confirmed', data: { external_id, id } }\n// Stub manual: { pedido_em_aberto_id, pix_id }\nconst b = $('Webhook DeFlow').item.json.body || $('Webhook DeFlow').item.json || {};\nconst pedidoId = b.external_id || b?.data?.external_id || b.pedido_em_aberto_id || null;\nconst pixId    = b.id || b?.data?.id || b.pix_id || null;\nif (!pedidoId) throw new Error('pedido_em_aberto_id ausente no payload');\nreturn [{ json: { pedido_em_aberto_id: pedidoId, pix_id: pixId } }];"
+      },
+      "id": "extract",
+      "name": "EXTRAI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1380, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/fechar_pedido_pago",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_pedido_em_aberto_id\": \"{{ $('EXTRAI').item.json.pedido_em_aberto_id }}\",\n  \"p_pix_id\":              \"{{ $('EXTRAI').item.json.pix_id }}\"\n}",
+        "options": {}
+      },
+      "id": "rpc-fechar",
+      "name": "RPC fechar_pedido_pago",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1160, 360]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/pedido_em_aberto",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id",     "value": "=eq.{{ $('EXTRAI').item.json.pedido_em_aberto_id }}" },
+            { "name": "select", "value": "contato_id,instancia_id,total,resumo_formatado" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-pedido",
+      "name": "GET pedido pago",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-940, 360]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/contatos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id",     "value": "=eq.{{ $('GET pedido pago').item.json[0].contato_id }}" },
+            { "name": "select", "value": "nome,telefone,instancia_id" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-contato",
+      "name": "GET contato",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-720, 360]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/instancias",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id",     "value": "=eq.{{ $('GET pedido pago').item.json[0].instancia_id || $('GET contato').item.json[0].instancia_id }}" },
+            { "name": "select", "value": "evolution_url,evolution_instance,evolution_apikey" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-inst",
+      "name": "GET instância",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-500, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('GET instância').item.json[0].evolution_url }}/message/sendText/{{ $('GET instância').item.json[0].evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "apikey",       "value": "={{ $('GET instância').item.json[0].evolution_apikey }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('GET contato').item.json[0].telefone }}\",\n  \"text\":   \"✅ Pagamento confirmado, {{ ($('GET contato').item.json[0].nome || '').split(' ')[0] }}!\\n\\n📦 Vou postar nas próximas 24h e te envio o código de rastreio assim que sair do depósito 💚\"\n}"
+      },
+      "id": "send-conf",
+      "name": "Evolution: confirma pagamento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-280, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ok: true, contato_id: $('GET pedido pago').item.json[0].contato_id, total: $('GET pedido pago').item.json[0].total } }];"
+      },
+      "id": "respond",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-60, 360]
+    }
+  ],
+  "connections": {
+    "Webhook DeFlow":         { "main": [[ { "node": "EXTRAI",                       "type": "main", "index": 0 } ]] },
+    "EXTRAI":                 { "main": [[ { "node": "RPC fechar_pedido_pago",       "type": "main", "index": 0 } ]] },
+    "RPC fechar_pedido_pago": { "main": [[ { "node": "GET pedido pago",              "type": "main", "index": 0 } ]] },
+    "GET pedido pago":        { "main": [[ { "node": "GET contato",                  "type": "main", "index": 0 } ]] },
+    "GET contato":            { "main": [[ { "node": "GET instância",                "type": "main", "index": 0 } ]] },
+    "GET instância":          { "main": [[ { "node": "Evolution: confirma pagamento","type": "main", "index": 0 } ]] },
+    "Evolution: confirma pagamento": { "main": [[ { "node": "Respond OK",            "type": "main", "index": 0 } ]] }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "meta": { "instanceId": "santa-flor-crm" },
+  "tags": []
+}
