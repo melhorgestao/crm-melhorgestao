@@ -115,7 +115,6 @@ export function CampanhaCard({ campanha, onOpenDetails, onToggleAtiva }: Props) 
 
       {/* Stats */}
       <div className="space-y-1.5 text-sm mb-3">
-        <Row icon={Send} label="Enviados hoje (total)" value={stats?.envios_hoje ?? '—'} />
         {stats?.por_instancia?.map((p) => (
           <Row
             key={p.instancia_id}
