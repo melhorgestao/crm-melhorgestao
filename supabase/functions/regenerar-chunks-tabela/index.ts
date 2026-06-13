@@ -67,13 +67,16 @@ Deno.serve(async (req) => {
       const titulo = `${p.emoji} ${p.nome_oficial}`.trim()
       titulosGerados.add(titulo)
 
+      // Catálogo deve ficar limpo: só nome + preço.
+      // Apelidos vão em "sobre_produtos", posologia/modo de uso também.
+      // Embedding focado ranqueia melhor pra "quanto custa X" e nada mais.
       const conteudoLinhas = [
-        `Produto: ${p.nome_oficial}`,
-        p.emoji ? `Emoji oficial: ${p.emoji}` : null,
-        p.tag ? `Apelido interno (não exibir ao cliente): ${p.tag}` : null,
-        p.preco != null ? `Preço: R$ ${Number(p.preco).toLocaleString('pt-BR',{minimumFractionDigits:2})}` : null,
-        p.posologia ? `Posologia/uso: ${p.posologia}` : null,
-      ].filter(Boolean) as string[]
+        p.nome_oficial,
+        '',
+        p.preco != null
+          ? `Preço: R$ ${Number(p.preco).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+          : 'Preço: a consultar',
+      ]
       const conteudo = conteudoLinhas.join('\n')
 
       const textForEmbedding = `${titulo}\n\n${conteudo}`

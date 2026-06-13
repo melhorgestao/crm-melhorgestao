@@ -144,9 +144,11 @@ export default function DadosAgentsPage() {
 
         {CATEGORIAS.map(c => (
           <TabsContent key={c.key} value={c.key} className="space-y-3 mt-4">
-            <div className="text-xs text-muted-foreground border-l-2 border-muted pl-3">
-              {c.descricao}
-            </div>
+            {!c.systemManaged && (
+              <div className="text-xs text-muted-foreground border-l-2 border-muted pl-3">
+                {c.descricao}
+              </div>
+            )}
 
             {c.key === 'tabela' && (
               <div className="border rounded-xl bg-amber-50 dark:bg-amber-950/20 p-3 flex items-center justify-between gap-3 flex-wrap">
