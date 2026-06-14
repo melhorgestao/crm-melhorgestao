@@ -387,8 +387,11 @@ export default function KanbanPage() {
   if (loading) return <Skeleton className="h-96" />;
 
   const renderCard = (contact: Contact, col: ColumnKey) => {
-    // Não pode arrastar pra fora se em em_fechamento com sessão Typebot ativa
-    const isDraggable = true;
+    // Drag-drop manual DESABILITADO — estado do contato é gerenciado
+    // exclusivamente pelo agent (router/closing) e por crons.
+    // Movimentação manual quebrava regras automáticas (data_*, campanhas).
+    // Pra forçar mudança de estado, use comandos /cliente, /sumiu, /banir, /voltar.
+    const isDraggable = false;
     return (
       <KanbanCard
         key={contact.id}
