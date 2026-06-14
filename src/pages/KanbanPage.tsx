@@ -127,8 +127,19 @@ const KanbanCard = memo(({
   })();
 
   // Card pulsante se em suporte há mais de 24h
-  const isUrgent = column === 'suporte' && contact.data_suporte
-    && (Date.now() - new Date(contact.data_suporte).getTime()) > 24 * 3600 * 1000;
+  // Suporte tem 3 níveis de urgência por idade do card
+  const horasNoSuporte = column === 'suporte' && contact.data_suporte
+    ? (Date.now() - new Date(contact.data_suporte).getTime()) / (3600 * 1000)
+    : 0;
+  const suporteNivel: 'ok' | 'atrasado' | 'urgente' =
+    horasNoSuporte >= 48 ? 'urgente'
+    : horasNoSuporte >= 24 ? 'atrasado'
+    : 'ok';
+  const isUrgent = suporteNivel === 'urgente';
+  const suporteLabel = horasNoSuporte >= 24
+    ? `${Math.floor(horasNoSuporte / 24)}d ${Math.floor(horasNoSuporte % 24)}h no suporte`
+    : horasNoSuporte >= 1 ? `${Math.floor(horasNoSuporte)}h no suporte`
+    : '';
 
   return (
     <Card
@@ -144,7 +155,8 @@ const KanbanCard = memo(({
         'cursor-grab active:cursor-grabbing mb-2',
         draggedCard === contact.id && 'opacity-50',
         !isDraggable && 'cursor-default',
-        isUrgent && 'animate-pulse border-2 border-destructive'
+        suporteNivel === 'atrasado' && 'border-2 border-amber-500',
+        suporteNivel === 'urgente'  && 'animate-pulse border-2 border-destructive'
       )}
     >
       <CardContent className="p-3">
@@ -186,6 +198,18 @@ const KanbanCard = memo(({
             {column === 'suporte' && contact.suporte_motivo && (
               <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" /> {contact.suporte_motivo}
+              </p>
+            )}
+
+            {/* Tempo no suporte com cor por urgência */}
+            {column === 'suporte' && suporteLabel && (
+              <p className={cn(
+                'text-[11px] mt-1 font-medium flex items-center gap-1',
+                suporteNivel === 'urgente'  ? 'text-destructive' :
+                suporteNivel === 'atrasado' ? 'text-amber-600' :
+                'text-muted-foreground'
+              )}>
+                <Clock className="w-3 h-3" /> {suporteLabel}
               </p>
             )}
           </div>
@@ -288,7 +312,17 @@ export default function KanbanPage() {
   }, [queryClient]);
 
   const getColumnContacts = (col: ColumnKey) => {
-    return contacts.filter(c => c.ultima_interacao === col);
+    const list = contacts.filter(c => c.ultima_interacao === col);
+    // Coluna SUPORTE: ordena por data_suporte ASC (mais antigos no topo,
+    // pra atendente atacar primeiro os que estão esperando mais tempo).
+    if (col === 'suporte') {
+      return list.sort((a, b) => {
+        const ta = a.data_suporte ? new Date(a.data_suporte).getTime() : Infinity;
+        const tb = b.data_suporte ? new Date(b.data_suporte).getTime() : Infinity;
+        return ta - tb;
+      });
+    }
+    return list;
   };
 
   // Drag-and-drop entre colunas → UPDATE ultima_interacao
@@ -342,38 +376,31 @@ export default function KanbanPage() {
     queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
   };
 
-  // Suporte Realizado → volta pro estado anterior baseado em canal/ja_comprou
+  // Suporte Finalizado → chama RPC que restaura estado_antes_suporte
+  // (cobre cliente, wait_follow_up, rmkt, follow_up, em_fechamento, etc).
   const handleSuporteRealizado = async () => {
     if (!suporteTarget) return;
     try {
-      const returnState = computeReturnState(suporteTarget);
-      const now = new Date().toISOString();
-      const updates: any = {
-        ultima_interacao: returnState,
-        duvidas_consecutivas: 0,
-        updated_at: now,
-      };
-      if (returnState === 'wait_follow_up') {
-        updates.data_wait_follow_up = now;
-      } else if (returnState === 'ativacao_contatos') {
-        updates.data_ultimo_ativacao = now;
-      }
-
-      await supabase.from('contatos').update(updates).eq('id', suporteTarget.id);
+      const { data, error } = await supabase.rpc('finalizar_suporte_contato' as any, {
+        p_contato_id: suporteTarget.id,
+      });
+      if (error) throw error;
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error || 'falha desconhecida');
 
       await supabase.from('log_atividades').insert({
         usuario: profile?.nome || 'Desconhecido',
-        acao: `Suporte resolvido — retornou para ${returnState}`,
+        acao: `Suporte finalizado via UI — destino: ${r.destino}`,
         tabela_afetada: 'contatos',
         registro_id: suporteTarget.id,
         detalhe: suporteTarget.nome,
       });
 
-      toast.success(`Suporte finalizado! Estado: ${returnState}`);
+      toast.success(`Suporte finalizado! → ${r.destino}`);
       setSuporteTarget(null);
       queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
     } catch (err: any) {
-      toast.error('Erro ao processar: ' + err.message);
+      toast.error('Erro ao finalizar suporte: ' + err.message);
     }
   };
 
