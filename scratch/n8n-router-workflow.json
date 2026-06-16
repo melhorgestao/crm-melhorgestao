@@ -110,10 +110,22 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "ativo", "value": "eq.true" },
-            { "name": "status", "value": "eq.ativo" },
-            { "name": "evolution_apikey", "value": "not.is.null" },
-            { "name": "select", "value": "id,nome,evolution_instance,evolution_url,evolution_apikey" }
+            {
+              "name": "ativo",
+              "value": "eq.true"
+            },
+            {
+              "name": "status",
+              "value": "eq.ativo"
+            },
+            {
+              "name": "evolution_apikey",
+              "value": "not.is.null"
+            },
+            {
+              "name": "select",
+              "value": "id,nome,evolution_instance,evolution_url,evolution_apikey"
+            }
           ]
         },
         "options": {}
@@ -122,7 +134,10 @@
       "name": "GET INSTÂNCIAS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1870, 400]
+      "position": [
+        -1870,
+        400
+      ]
     },
     {
       "parameters": {
@@ -132,7 +147,10 @@
       "name": "RESOLVE CONFIG INSTÂNCIA",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1760, 400]
+      "position": [
+        -1760,
+        400
+      ]
     },
     {
       "parameters": {
@@ -381,7 +399,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"mensagem\": \"{{ $('EXTRAI CAMPOS').item.json.msg_text.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"tipo\": \"{{ $('EXTRAI CAMPOS').item.json.message_type === 'audioMessage' ? 'audio' : 'text' }}\",\n  \"direcao\": \"in\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\"\n}",
+        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"mensagem\": \"{{ $('PREP TEXTO (transcreve áudio)').item.json.texto_final.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"tipo\": \"{{ $('EXTRAI CAMPOS').item.json.message_type === 'audioMessage' ? 'audio' : 'text' }}\",\n  \"direcao\": \"in\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\"\n}",
         "options": {}
       },
       "id": "insert-buffer-in",
@@ -535,14 +553,23 @@
         "url": "={{ ['em_fechamento','aguardando_pagamento'].includes($('GET/CREATE Contato').item.json.ultima_interacao) ? 'https://n8n.melhorgestao.online/webhook/agent-closing' : 'https://n8n.melhorgestao.online/webhook/agent-start' }}",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [ { "name": "Content-Type", "value": "application/json" } ]
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"contato_id\":   \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"mensagens\":    \"{{ $('PROCESS BATCH').item.json.mensagens_concat?.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\"\n}",
         "options": {
           "timeout": 60000,
-          "response": { "response": { "neverError": true } }
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "agent-call",
@@ -661,6 +688,19 @@
       "position": [
         880,
         500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Se for áudio, chama edge transcrever-audio. Senão, repassa msg_text original.\nconst e = $('EXTRAI CAMPOS').item.json;\nconst msgText = e.msg_text || '';\nconst msgType = e.message_type || '';\nconst msgId   = e.msg_id || '';\nconst instId  = $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid;\n\nif (msgType !== 'audioMessage') {\n  return [{ json: { texto_final: msgText, foi_transcrito: false, tipo_origem: msgType || 'text' } }];\n}\n\nif (!msgId || !instId) {\n  return [{ json: { texto_final: '(áudio recebido sem msg_id — não foi possível transcrever)', foi_transcrito: false, tipo_origem: 'audio' } }];\n}\n\ntry {\n  const r = await fetch('https://epreaawpvxrpqqthcczu.supabase.co/functions/v1/transcrever-audio', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E',\n      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E'\n    },\n    body: JSON.stringify({ instancia_id: instId, msg_id: msgId })\n  });\n  const data = await r.json();\n  if (!data.ok) {\n    return [{ json: { texto_final: '(áudio recebido — falha ao transcrever: ' + (data.error || 'erro desconhecido') + ')', foi_transcrito: false, tipo_origem: 'audio', erro: data.error } }];\n  }\n  const texto = (data.texto || '').trim();\n  if (!texto) {\n    return [{ json: { texto_final: '(áudio sem voz reconhecida)', foi_transcrito: false, tipo_origem: 'audio' } }];\n  }\n  return [{ json: { texto_final: texto, foi_transcrito: true, tipo_origem: 'audio' } }];\n} catch (err) {\n  return [{ json: { texto_final: '(áudio recebido — erro na transcrição: ' + err.message + ')', foi_transcrito: false, tipo_origem: 'audio' } }];\n}"
+      },
+      "id": "prep-texto-mensagem",
+      "name": "PREP TEXTO (transcreve áudio)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1210,
+        600
       ]
     }
   ],
@@ -789,7 +829,7 @@
       "main": [
         [
           {
-            "node": "SAVE Buffer (in)",
+            "node": "PREP TEXTO (transcreve áudio)",
             "type": "main",
             "index": 0
           }
@@ -903,6 +943,17 @@
         [
           {
             "node": "Respond: processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREP TEXTO (transcreve áudio)": {
+      "main": [
+        [
+          {
+            "node": "SAVE Buffer (in)",
             "type": "main",
             "index": 0
           }
