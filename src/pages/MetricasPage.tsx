@@ -584,24 +584,32 @@ export default function MetricasPage() {
           if (filter.isPendente) {
             q = q.eq('status_pagamento', 'pendente').gte('data', start).lt('data', end);
           } else {
-            // pagos + pendentes do periodo (mesma logica do faturamento)
-            // executa 2 queries em paralelo
-            const [pagos, pend] = await Promise.all([
-              supabase.from('pedidos')
+            // Regra alinhada com os cards de Visão Geral / Faturamento Total:
+            // atribuir pelo MES DE CRIAÇÃO (data) — regime de competência.
+            // Pedido criado em mai pago em jun conta em mai (faturamento estável,
+            // não muda com status). Caixa real (recebimento) é responsabilidade
+            // do módulo Financeiro/Caixa, não desta tela.
+            // isPagoOnly preserva semântica de "vendas que foram pagas no mês"
+            // (caixa) e portanto usa data_pago — útil pra cruzar com caixa.
+            if (filter.isPagoOnly) {
+              const { data: pagos } = await supabase.from('pedidos')
                 .select('id, order_number, data, data_pago, valor, valor_original, desconto_total, canal, status_pagamento, quantidade, produto, is_free, contatos(nome)')
                 .eq('status_pagamento', 'pago').neq('is_free', true)
-                .gte('data_pago', start).lt('data_pago', end),
-              ...(filter.isPagoOnly ? [{ data: [] as any[] }] :
-                [supabase.from('pedidos')
-                  .select('id, order_number, data, data_pago, valor, valor_original, desconto_total, canal, status_pagamento, quantidade, produto, is_free, contatos(nome)')
-                  .eq('status_pagamento', 'pendente').neq('is_free', true)
-                  .gte('data', start).lt('data', end)
-                ]),
-            ]);
-            let all = [...(pagos.data || []), ...(pend.data || [])];
-            if (filter.canal) all = all.filter((p: any) => p.canal === filter.canal);
-            all.sort((a: any, b: any) => (b.order_number || 0) - (a.order_number || 0));
-            setRows(all);
+                .gte('data_pago', start).lt('data_pago', end);
+              let arr = (pagos || []);
+              if (filter.canal) arr = arr.filter((p: any) => p.canal === filter.canal);
+              arr.sort((a: any, b: any) => (b.order_number || 0) - (a.order_number || 0));
+              setRows(arr);
+              return;
+            }
+            const { data: all } = await supabase.from('pedidos')
+              .select('id, order_number, data, data_pago, valor, valor_original, desconto_total, canal, status_pagamento, quantidade, produto, is_free, contatos(nome)')
+              .in('status_pagamento', ['pago', 'pendente']).neq('is_free', true)
+              .gte('data', start).lt('data', end);
+            let arr = (all || []);
+            if (filter.canal) arr = arr.filter((p: any) => p.canal === filter.canal);
+            arr.sort((a: any, b: any) => (b.order_number || 0) - (a.order_number || 0));
+            setRows(arr);
             return;
           }
         }
