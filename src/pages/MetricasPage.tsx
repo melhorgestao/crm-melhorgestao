@@ -61,6 +61,7 @@ export default function MetricasPage() {
   const [detail, setDetail] = useState<
     | { type: 'formula'; title: string; body: React.ReactNode }
     | { type: 'pedidos'; title: string; filter: { canal?: string; isFreeOnly?: boolean; isPendente?: boolean; isPagoOnly?: boolean } }
+    | { type: 'recebimentos'; title: string; filter: { canal?: string } }
     | { type: 'lancamentos'; title: string; categoria?: string }
     | null
   >(null);
@@ -518,6 +519,23 @@ export default function MetricasPage() {
     const influencerTotal = despesas.filter(d => d.categoria === 'influencer').reduce((s, d) => s + Number(d.valor), 0);
     const infraestruturaTotal = despesas.filter(d => d.categoria === 'infraestrutura').reduce((s, d) => s + Number(d.valor), 0);
 
+    // ---------- CAIXA REAL DO MÊS ----------
+    // Soma TUDO que entrou efetivamente no caixa neste mês, independente
+    // de quando o pedido foi criado:
+    //   - VENDA à vista (criada e paga no mês)
+    //   - PARCELA_VENDA (parcela paga no mês, mesmo se o pedido é antigo)
+    // Fonte: lancamentos_socios.data (data do recebimento).
+    // Status_pagamento='pago' garante que é dinheiro confirmado.
+    const { data: receb } = await supabase.from('lancamentos_socios')
+      .select('valor, tipo, canal')
+      .in('tipo', ['VENDA', 'PARCELA_VENDA'])
+      .eq('status_pagamento', 'pago')
+      .gte('data', start).lt('data', end);
+    const caixaTotal = (receb || []).reduce((s, r) => s + (Number(r.valor) || 0), 0);
+    const caixaBase  = (receb || []).filter(r => r.canal === 'BASE').reduce((s, r) => s + (Number(r.valor) || 0), 0);
+    const caixaAds   = (receb || []).filter(r => r.canal === 'ADS' ).reduce((s, r) => s + (Number(r.valor) || 0), 0);
+    const caixaRep   = (receb || []).filter(r => r.canal === 'REP' ).reduce((s, r) => s + (Number(r.valor) || 0), 0);
+
     const prodTotal = (ped || []).reduce((s, p) => s + (p.quantidade || 0), 0);
     const prodAds = (ped || []).filter(p => p.canal === 'ADS').reduce((s, p) => s + (p.quantidade || 0), 0);
     const prodBase = (ped || []).filter(p => p.canal === 'BASE').reduce((s, p) => s + (p.quantidade || 0), 0);
@@ -547,6 +565,7 @@ export default function MetricasPage() {
 
     setData({
       fatTotal, fatBase, fatAds, fatRep,
+      caixaTotal, caixaBase, caixaAds, caixaRep,
       custoTotal, custoAds, etiquetaTotal, logTotal, materialTotal, influencerTotal, infraestruturaTotal,
       prodTotal, prodAds, prodBase, prodRep, prodFree, prodTotalRealistico, pedidosAds,
       lucro, margem, icm, cpaUnAds, cac, custoOpUn, custoProdUn,
@@ -648,6 +667,64 @@ export default function MetricasPage() {
               <span className={cn('font-medium ml-2 shrink-0', p.is_free && 'text-sky-600')}>
                 {p.is_free ? 'FREE' : formatBRL(Number((p.valor_original ?? p.valor) || 0) - Number(p.desconto_total || 0))}
               </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- Drill-down: recebimentos do mês (CAIXA — vendas + parcelas) ----------
+  const RecebimentosDetail = ({ filter }: { filter: { canal?: string } }) => {
+    const [rows, setRows] = useState<any[] | null>(null);
+    useEffect(() => {
+      const start = `${year}-${String(month).padStart(2, '0')}-01`;
+      const nextM = month === 12 ? 1 : month + 1;
+      const nextY = month === 12 ? year + 1 : year;
+      const end = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+      const fetch = async () => {
+        let q = supabase.from('lancamentos_socios')
+          .select('id, tipo, valor, canal, descricao, data, pedido_id, status_pagamento')
+          .in('tipo', ['VENDA', 'PARCELA_VENDA'])
+          .eq('status_pagamento', 'pago')
+          .gte('data', start).lt('data', end)
+          .order('data', { ascending: false });
+        if (filter.canal) q = q.eq('canal', filter.canal);
+        const { data } = await q;
+        setRows((data || []) as any[]);
+      };
+      fetch();
+    }, [filter.canal]);
+
+    if (rows === null) return <p className="text-center text-muted-foreground py-6 text-sm">Carregando...</p>;
+    if (rows.length === 0) return <p className="text-center text-muted-foreground py-6 text-sm">Nenhum recebimento no período.</p>;
+
+    const total = rows.reduce((s, r) => s + (Number(r.valor) || 0), 0);
+    const nVendas = rows.filter(r => r.tipo === 'VENDA').length;
+    const nParcelas = rows.filter(r => r.tipo === 'PARCELA_VENDA').length;
+
+    return (
+      <div className="space-y-2">
+        <div className="text-xs text-muted-foreground flex justify-between border-b pb-2">
+          <span>{rows.length} recebimento(s) — {nVendas} venda(s) à vista · {nParcelas} parcela(s)</span>
+          <span className="font-medium text-foreground">{formatBRL(total)}</span>
+        </div>
+        <div className="max-h-[420px] overflow-y-auto space-y-1.5 pr-1">
+          {rows.map((r: any) => (
+            <button
+              key={r.id}
+              onClick={() => { setDetail(null); navigate('/financeiro'); }}
+              className="w-full text-left flex justify-between items-center text-xs p-2 rounded hover:bg-muted/50 transition border border-transparent hover:border-border"
+            >
+              <div className="flex flex-col items-start min-w-0 flex-1">
+                <span className="font-semibold truncate">
+                  {r.tipo === 'PARCELA_VENDA' ? '🧾' : '💵'} {r.descricao || (r.tipo === 'VENDA' ? 'Venda à vista' : 'Parcela')}
+                </span>
+                <span className="text-muted-foreground text-[10px]">
+                  {r.canal || '—'} · {r.data} · {r.tipo === 'PARCELA_VENDA' ? 'parcela' : 'à vista'}
+                </span>
+              </div>
+              <span className="font-medium ml-2 shrink-0 text-emerald-700">{formatBRL(Number(r.valor) || 0)}</span>
             </button>
           ))}
         </div>
@@ -1146,14 +1223,14 @@ export default function MetricasPage() {
                 tip="Soma de pedidos do mês de criação (pagos + pendentes, exclui FREE). Atribui a venda ao mês em que foi feita, independente do pagamento."
                 onClick={() => showPedidos('Faturamento Total (pagos + pendentes)', {})}
               />
-              <Card className="bg-card border-2 border-emerald-300 cursor-pointer hover:shadow-md transition" onClick={() => showPedidos('Vendas Pagas do período', { isPagoOnly: true })}>
+              <Card className="bg-card border-2 border-emerald-300 cursor-pointer hover:shadow-md transition" onClick={() => setDetail({ type: 'recebimentos', title: 'Recebimentos do mês (vendas + parcelas)', filter: {} })}>
                 <CardContent className="p-3">
                   <div className="flex items-center gap-1.5">
                     <p className="text-xs text-muted-foreground">💰 Em Caixa</p>
-                    <span onClick={e => e.stopPropagation()}><InfoTip>Dinheiro que já entrou efetivamente. Aproximação a partir de Fat. Total − Pendentes globais. Pode divergir do Realizado da Meta em cenários de parcela cross-mês.</InfoTip></span>
+                    <span onClick={e => e.stopPropagation()}><InfoTip>Dinheiro que entrou no mês — vendas à vista pagas no mês + parcelas pagas no mês (mesmo de pedidos criados antes). Fonte: lancamentos_socios. Regime de CAIXA, independente do mês de criação do pedido.</InfoTip></span>
                   </div>
-                  <p className="text-lg font-bold text-emerald-700">{formatBRL(Math.max(0, (data.fatTotal || 0) - pendentesTotal))}</p>
-                  <p className="text-[10px] text-muted-foreground">Recebido</p>
+                  <p className="text-lg font-bold text-emerald-700">{formatBRL(data.caixaTotal || 0)}</p>
+                  <p className="text-[10px] text-muted-foreground">Recebido (à vista + parcelas)</p>
                 </CardContent>
               </Card>
               <Card className="bg-card border-2 border-purple-300 cursor-pointer hover:shadow-md transition" onClick={() => showPedidos('Pedidos Pendentes (todos)', { isPendente: true })}>
@@ -1339,6 +1416,7 @@ export default function MetricasPage() {
           </DialogHeader>
           {detail?.type === 'formula' && detail.body}
           {detail?.type === 'pedidos' && <PedidosDetail filter={detail.filter} />}
+          {detail?.type === 'recebimentos' && <RecebimentosDetail filter={detail.filter} />}
           {detail?.type === 'lancamentos' && <LancamentosDetail categoria={detail.categoria} />}
         </DialogContent>
       </Dialog>
