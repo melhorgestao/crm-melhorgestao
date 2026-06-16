@@ -1,48 +1,29 @@
 {
-  "name": "PIX PAGO (webhook DeFlow → fechar pedido)",
+  "name": "PIX PAGO NOTIFY (Supabase webhook → WhatsApp confirmação)",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "pix-pago",
+        "path": "pix-pago-notify",
         "responseMode": "lastNode",
         "options": {}
       },
       "id": "webhook-trigger",
-      "name": "Webhook DeFlow",
+      "name": "Webhook Supabase",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [-1600, 360],
-      "webhookId": "pix-pago"
+      "webhookId": "pix-pago-notify"
     },
     {
       "parameters": {
-        "jsCode": "// Extrai pedido_em_aberto_id do payload do DeFlow.\n// DeFlow real: { event: 'payment.confirmed', data: { external_id, id } }\n// Stub manual: { pedido_em_aberto_id, pix_id }\nconst b = $('Webhook DeFlow').item.json.body || $('Webhook DeFlow').item.json || {};\nconst pedidoId = b.external_id || b?.data?.external_id || b.pedido_em_aberto_id || null;\nconst pixId    = b.id || b?.data?.id || b.pix_id || null;\nif (!pedidoId) throw new Error('pedido_em_aberto_id ausente no payload');\nreturn [{ json: { pedido_em_aberto_id: pedidoId, pix_id: pixId } }];"
+        "jsCode": "// Payload vindo da edge webhook-deflow:\n// { event, pedido_em_aberto_id, fechamento: { pedido_id, valor_bruto_pago, valor_liquido_caixa, ... }, acao }\nconst b = $('Webhook Supabase').item.json.body || $('Webhook Supabase').item.json || {};\nconst event = b.event;\nconst pedidoAbertoId = b.pedido_em_aberto_id;\nconst f = b.fechamento || {};\nconst acao = b.acao;\nif (!pedidoAbertoId) throw new Error('pedido_em_aberto_id ausente');\nreturn [{ json: {\n  event,\n  pedido_em_aberto_id: pedidoAbertoId,\n  pedido_id: f.pedido_id || null,\n  valor_bruto: f.valor_bruto_pago || f.valor_bruto || 0,\n  valor_liquido: f.valor_liquido_caixa || 0,\n  is_parcelado: !!f.is_parcelado,\n  acao,\n} }];"
       },
       "id": "extract",
       "name": "EXTRAI",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [-1380, 360]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/fechar_pedido_pago",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "supabaseApi",
-        "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"p_pedido_em_aberto_id\": \"{{ $('EXTRAI').item.json.pedido_em_aberto_id }}\",\n  \"p_pix_id\":              \"{{ $('EXTRAI').item.json.pix_id }}\"\n}",
-        "options": {}
-      },
-      "id": "rpc-fechar",
-      "name": "RPC fechar_pedido_pago",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [-1160, 360]
     },
     {
       "parameters": {
@@ -54,7 +35,7 @@
         "queryParameters": {
           "parameters": [
             { "name": "id",     "value": "=eq.{{ $('EXTRAI').item.json.pedido_em_aberto_id }}" },
-            { "name": "select", "value": "contato_id,instancia_id,total,resumo_formatado" }
+            { "name": "select", "value": "contato_id,instancia_id,total,resumo_formatado,is_parcelado,is_cobranca_saldo,valor_primeira_parcela" }
           ]
         },
         "options": {}
@@ -63,7 +44,7 @@
       "name": "GET pedido pago",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-940, 360]
+      "position": [-1160, 360]
     },
     {
       "parameters": {
@@ -84,7 +65,7 @@
       "name": "GET contato",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-720, 360]
+      "position": [-940, 360]
     },
     {
       "parameters": {
@@ -105,6 +86,16 @@
       "name": "GET instância",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
+      "position": [-720, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta mensagem por contexto: à vista, parcela 1, cobrança de saldo, expirado\nconst ext = $('EXTRAI').item.json;\nconst ped = $('GET pedido pago').item.json[0] || {};\nconst ct  = $('GET contato').item.json[0] || {};\nconst nome = (ct.nome || '').split(' ')[0] || 'amigo(a)';\n\nlet texto;\nif (ext.event === 'deposit.expired' || ext.acao === 'expirado') {\n  texto = `Oi ${nome}, seu PIX expirou sem pagamento. Qualquer coisa é só chamar de novo que a gente reabre o pedido.`;\n} else if (ped.is_cobranca_saldo) {\n  texto = `✅ Pagamento do saldo confirmado, ${nome}!\\n\\nValor recebido: R$ ${Number(ext.valor_bruto).toFixed(2).replace('.',',')}\\n\\nSeu saldo está zerado. Obrigado!`;\n} else if (ped.is_parcelado) {\n  const restante = Number(ped.total) - Number(ped.valor_primeira_parcela || 0);\n  texto = `✅ Entrada confirmada, ${nome}!\\n\\nValor recebido: R$ ${Number(ext.valor_bruto).toFixed(2).replace('.',',')}\\n📦 Vou postar nas próximas 24h e te envio o código de rastreio assim que sair.\\n\\n💳 Restante (R$ ${restante.toFixed(2).replace('.',',')}) em até 30 dias — qualquer coisa só me chamar pra acertar.`;\n} else {\n  texto = `✅ Pagamento confirmado, ${nome}!\\n\\n📦 Vou postar nas próximas 24h e te envio o código de rastreio assim que sair.`;\n}\n\nreturn [{ json: { texto } }];"
+      },
+      "id": "monta-msg",
+      "name": "MONTA MENSAGEM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [-500, 360]
     },
     {
@@ -120,17 +111,17 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $('GET contato').item.json[0].telefone }}\",\n  \"text\":   \"✅ Pagamento confirmado, {{ ($('GET contato').item.json[0].nome || '').split(' ')[0] }}!\\n\\n📦 Vou postar nas próximas 24h e te envio o código de rastreio assim que sair do depósito 💚\"\n}"
+        "jsonBody": "={\n  \"number\": \"{{ $('GET contato').item.json[0].telefone }}\",\n  \"text\":   {{ JSON.stringify($('MONTA MENSAGEM').item.json.texto) }}\n}"
       },
       "id": "send-conf",
-      "name": "Evolution: confirma pagamento",
+      "name": "Evolution: notifica cliente",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [-280, 360]
     },
     {
       "parameters": {
-        "jsCode": "return [{ json: { ok: true, contato_id: $('GET pedido pago').item.json[0].contato_id, total: $('GET pedido pago').item.json[0].total } }];"
+        "jsCode": "return [{ json: { ok: true, contato_id: $('GET pedido pago').item.json[0].contato_id } }];"
       },
       "id": "respond",
       "name": "Respond OK",
@@ -140,13 +131,13 @@
     }
   ],
   "connections": {
-    "Webhook DeFlow":         { "main": [[ { "node": "EXTRAI",                       "type": "main", "index": 0 } ]] },
-    "EXTRAI":                 { "main": [[ { "node": "RPC fechar_pedido_pago",       "type": "main", "index": 0 } ]] },
-    "RPC fechar_pedido_pago": { "main": [[ { "node": "GET pedido pago",              "type": "main", "index": 0 } ]] },
-    "GET pedido pago":        { "main": [[ { "node": "GET contato",                  "type": "main", "index": 0 } ]] },
-    "GET contato":            { "main": [[ { "node": "GET instância",                "type": "main", "index": 0 } ]] },
-    "GET instância":          { "main": [[ { "node": "Evolution: confirma pagamento","type": "main", "index": 0 } ]] },
-    "Evolution: confirma pagamento": { "main": [[ { "node": "Respond OK",            "type": "main", "index": 0 } ]] }
+    "Webhook Supabase":              { "main": [[ { "node": "EXTRAI",                     "type": "main", "index": 0 } ]] },
+    "EXTRAI":                        { "main": [[ { "node": "GET pedido pago",            "type": "main", "index": 0 } ]] },
+    "GET pedido pago":               { "main": [[ { "node": "GET contato",                "type": "main", "index": 0 } ]] },
+    "GET contato":                   { "main": [[ { "node": "GET instância",              "type": "main", "index": 0 } ]] },
+    "GET instância":                 { "main": [[ { "node": "MONTA MENSAGEM",             "type": "main", "index": 0 } ]] },
+    "MONTA MENSAGEM":                { "main": [[ { "node": "Evolution: notifica cliente","type": "main", "index": 0 } ]] },
+    "Evolution: notifica cliente":   { "main": [[ { "node": "Respond OK",                 "type": "main", "index": 0 } ]] }
   },
   "pinData": {},
   "settings": { "executionOrder": "v1" },
