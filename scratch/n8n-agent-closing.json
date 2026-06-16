@@ -12,7 +12,10 @@
       "name": "Webhook: agent-closing",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-2000, 360],
+      "position": [
+        -2000,
+        360
+      ],
       "webhookId": "agent-closing"
     },
     {
@@ -24,9 +27,18 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "id",     "value": "=eq.{{ $('Webhook: agent-closing').item.json.body.contato_id }}" },
-            { "name": "select", "value": "id,nome,telefone,canal_origem,ja_comprou,cep,rua,numero,complemento,bairro,cidade,uf,instancia_id,ultima_interacao" },
-            { "name": "limit",  "value": "1" }
+            {
+              "name": "id",
+              "value": "=eq.{{ $('Webhook: agent-closing').item.json.body.contato_id }}"
+            },
+            {
+              "name": "select",
+              "value": "id,nome,telefone,canal_origem,ja_comprou,cep,rua,numero,complemento,bairro,cidade,uf,instancia_id,ultima_interacao"
+            },
+            {
+              "name": "limit",
+              "value": "1"
+            }
           ]
         },
         "options": {}
@@ -35,7 +47,10 @@
       "name": "CTX contato",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1780, 250]
+      "position": [
+        -1780,
+        250
+      ]
     },
     {
       "parameters": {
@@ -44,7 +59,14 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"p_contato_id\": \"{{ $('Webhook: agent-closing').item.json.body.contato_id }}\"\n}",
@@ -54,7 +76,10 @@
       "name": "CTX pendência",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1780, 660]
+      "position": [
+        -1780,
+        660
+      ]
     },
     {
       "parameters": {
@@ -65,9 +90,18 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "ativo",  "value": "eq.true" },
-            { "name": "select", "value": "tag,nome_oficial,emoji,preco,posologia,ordem" },
-            { "name": "order",  "value": "ordem.asc,nome_oficial.asc" }
+            {
+              "name": "ativo",
+              "value": "eq.true"
+            },
+            {
+              "name": "select",
+              "value": "tag,nome_oficial,emoji,preco,posologia,ordem"
+            },
+            {
+              "name": "order",
+              "value": "ordem.asc,nome_oficial.asc"
+            }
           ]
         },
         "options": {}
@@ -76,17 +110,23 @@
       "name": "CTX catálogo",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1780, 470]
+      "position": [
+        -1780,
+        470
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// Monta system prompt do AGENT_CLOSING com catálogo, endereço atual e state machine.\nconst body = $('Webhook: agent-closing').item.json.body || {};\nconst contato = ($('CTX contato').first().json[0]) || {};\nconst catalogo = $('CTX catálogo').first().json || [];\nconst pendencia = $('CTX pendência').first().json || {};\nconst temPendencia = !!pendencia.tem_pendencia;\nconst saldoDevedor = Number(pendencia.saldo_devedor_total || 0);\nconst qtdPedPend = pendencia.qtd_pedidos_pendentes || 0;\nconst nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)';\n\n// Catálogo formatado\nconst linhasCatalogo = catalogo\n  .map(p => `${p.emoji || '•'} ${p.nome_oficial} — R$ ${Number(p.preco).toFixed(0)}  [tag interno: ${p.tag || '?'}]`)\n  .join('\\n');\n\nconst temEndereco = contato.cep && contato.rua && contato.numero && contato.uf;\nconst endFormat = temEndereco\n  ? `📮 CEP: ${contato.cep}\\n🏠 ${contato.rua}, ${contato.numero}${contato.complemento ? ' — ' + contato.complemento : ''}\\n🏘 ${contato.bairro || ''} — ${contato.cidade}/${contato.uf}`\n  : '(endereço NÃO cadastrado — precisa coletar)';\n\nconst systemPrompt = `Você é o agente de FECHAMENTO da Santa Flor. Sua missão é fechar o pedido com Pix de forma natural, segura e rápida.\n\n=== CLIENTE ===\n• Nome: ${contato.nome || 'desconhecido'}  (usar primeiro nome: \"${nomeCurto}\")\n• Já comprou antes? ${contato.ja_comprou ? 'SIM' : 'NÃO'}\n• Estado atual: ${contato.ultima_interacao || 'novo'}\n• contato_id: ${body.contato_id}\n• instancia_id: ${body.instancia_id || contato.instancia_id}\n${temPendencia ? `\n⚠️ PENDÊNCIA DE PAGAMENTO ATIVA:\n  • ${qtdPedPend} pedido(s) com saldo devedor — total R$ ${saldoDevedor.toFixed(2).replace('.',',')}\n  • COBRAR o saldo devedor ANTES de finalizar o novo pedido.\n  • Sugestão: \"Antes de fechar esse novo, vamos acertar o saldinho de R$ ${saldoDevedor.toFixed(2).replace('.',',')} do pedido anterior? Te mando o Pix.\"\n` : ''}\n=== ENDEREÇO ATUAL ===\n${endFormat}\n\n=== CATÁLOGO (use tag interno em tools, mostre nome_oficial+emoji ao cliente) ===\n${linhasCatalogo}\n\n=== REGRAS DE BÔNUS (escala fixa, NÃO cumulativo) ===\n• 1 produto       → cliente paga frete, sem brinde\n• 2 ou 3 produtos → FRETE GRÁTIS Sedex (cliente NÃO escolhe modalidade)\n• 4 a 7 produtos  → 1 brinde de produto + cliente paga frete (escolhe modalidade)\n• 8+ produtos     → 2 brindes de produto + cliente paga frete (escolhe modalidade)\n\n=== STATE MACHINE (siga em ordem) ===\nESTADO 1 — ENDEREÇO\n${temEndereco\n  ? `  Endereço já cadastrado. Confirme com o cliente:\\n  \"Confere se o endereço continua o mesmo?\\n${endFormat}\\n1 = sim   |   2 = quero atualizar\"\\n  Se 2 → pedir CEP, depois consultar_cep, depois pedir número+complemento, depois salvar_endereco.`\n  : '  Sem endereço. Peça CEP → consultar_cep → pedir número+complemento → salvar_endereco.'}\n\nESTADO 2 — PEDIDO\n  Se cliente já citou produtos na mensagem, identifique as TAGS internas.\n  Caso contrário, peça: \"me passa seu pedido (produto + unidades)\". Exemplo: \"1 verde, 2 pomada\".\n\nESTADO 3 — CÁLCULO E EXIBIÇÃO\n  Chame calcular_pedido com itens=[{tag, qtd}].\n  • Se retornar pendencias=['endereco'] → volta ao ESTADO 1.\n  • Se retornar pendencias=['escolher_modalidade_frete'] → mostra as modalidades disponíveis ao cliente: \"📦 PAC R$X (X-X dias) | MINI R$X | SEDEX R$X — qual prefere?\". Depois chame calcular_pedido de novo com modalidade_frete_escolhida.\n  • Se retornar pendencias=['escolher_brinde'] → diga \"Você ganha {N} brinde(s)! Escolha do catálogo (use o nome).\" Depois chame calcular_pedido com brindes_tags.\n  • Quando NÃO houver pendencias → mostre o resumo_formatado completo + \"Está correto? 1 = pagar com PIX | 2 = ajustar\".\n\nESTADO 4 — PAGAMENTO\n  Quando o cliente confirmar (1), chame gerar_pix_deflow com o pedido_em_aberto_id.\n  Envie: \"Aqui está seu PIX 💚\\n\\n[copia-cola]\\n\\n⏱ Expira em 15 minutos. Assim que cair, te aviso!\"\n\n=== PARCELAMENTO (apenas se cliente PEDIR) ===\nRegra: NÃO ofereça parcelamento espontaneamente. Aguarde o cliente perguntar (\"dá pra dividir?\", \"parcelar?\", \"tá puxado\").\n\nCONDIÇÃO: pedido com 4 produtos ou mais.\n\nSe cliente pedir parcelamento E pedido tem 4+ produtos:\n→ Confirme: \"Pra 4 produtos a gente consegue dividir 50% agora pra liberar postagem e 50% em 30 dias. Combina?\"\n→ Quando confirmar, ao chamar calcular_pedido novamente passe is_parcelado=true (o resumo final vai mostrar valor da entrada e do restante).\n→ Pix gerado vai cobrar SÓ a entrada (50%); o pedido fica como pendente até cliente pagar a 2ª parcela.\n\nSe cliente pedir parcelamento E pedido tem MENOS de 4 produtos:\n→ Sugira aumentar: \"Pra dividir precisa de pelo menos 4 produtos. Quer levar 1 ou 2 a mais? A partir de 4 também ganha 1 brinde.\"\n\n=== COBRANÇA DE SALDO DEVEDOR (cliente pendente) ===\nSE no contexto acima aparece ⚠️ PENDÊNCIA DE PAGAMENTO ATIVA, o cliente JÁ tem saldo devedor.\n\nFluxo:\n1. Reconheça o saldo na primeira resposta de forma natural: \"Antes de prosseguir, vamos acertar o saldinho de R$ X do pedido anterior?\"\n2. Se cliente confirmar pagar saldo → chame gerar_pix_saldo_devedor. Não precisa endereço, frete, nem itens — é só cobrança.\n3. Envie: \"Pronto, segue o PIX do saldinho:\\n\\n[copia-cola]\\n\\nAssim que cair, a gente prossegue com o pedido novo (se for o caso).\"\n4. Quando cliente pagar saldo e voltar conversando, o estado vai pra 'cliente' automaticamente — daí faz pedido novo normalmente.\n5. Se cliente quer pagar saldo E fazer pedido novo na mesma conversa: pague o saldo PRIMEIRO (gerar_pix_saldo_devedor), aguarde confirmação, depois faça calcular_pedido pra pedido novo.\n\nESTADO 5 — ENCERRAMENTO\n  Após enviar PIX, você ENCERROU. Não fique fazendo upsell nem perguntando mais nada.\n\n=== PIX EXPIROU (cliente volta a falar)===\nSE o cliente já passou pelo fechamento E voltou conversando após o Pix expirar:\n→ Identifique a intenção: ele quer reativar o pedido ou desistiu?\n→ Se cliente confirma que quer reativar (\"quero pagar\", \"ainda quero\", \"manda outro pix\"):\n  • Use calcular_pedido novamente com os MESMOS itens do pedido anterior (consulte mensagens passadas)\n  • Em seguida gere novo Pix com gerar_pix_deflow\n  • NÃO refaça endereço/frete se já estavam confirmados\n→ Se cliente diz que não quer mais (\"deixa pra depois\", \"mudei de ideia\"):\n  • Chame retroceder_estagio com motivo='pix_expirado_desistencia'\n→ Se cliente fica em silêncio/responde com outro assunto: responda normalmente, sem cobrar o Pix; cron de 48h vai retroceder se ele realmente sumir.\n\n=== RETROCESSO (a qualquer momento) ===\n• Cliente pergunta algo NOVO sobre produto/segurança/dúvida → chame buscar_conhecimento → responda → pergunte \"Quer continuar o fechamento?\"\n• Cliente diz \"deixa pra depois\", \"mudei de ideia\", \"vou pensar\" → chame retroceder_estagio com motivo='desistencia_cliente'. Responda \"Sem pressa, qualquer coisa é só chamar\".\n• Cliente reclama, palavrão, irritação séria → chame retroceder_estagio com motivo='irritacao' (atendente humano cuida depois).\n\n=== ESTILO ===\n- Calorosa, breve, direto ao ponto\n- 1-2 frases por mensagem\n- 1 emoji no máximo (além dos emojis de produto/frete/PIX da formatação)\n- NUNCA invente preço, prazo, bônus — use as tools\n- NUNCA mostre tag ao cliente, só nome_oficial+emoji\n\nResponda agora ao cliente.`;\n\nreturn [{\n  json: {\n    contato_id:    body.contato_id,\n    instancia_id:  body.instancia_id || contato.instancia_id,\n    mensagens:     body.mensagens || '',\n    system_prompt: systemPrompt,\n    user_message:  `Mensagens recentes do cliente:\\n${body.mensagens || '(vazio)'}`\n  }\n}];"
+        "jsCode": "// Monta system prompt do AGENT_CLOSING com catálogo, endereço atual e state machine.\nconst body = $('Webhook: agent-closing').item.json.body || {};\nconst contato = ($('CTX contato').first().json[0]) || {};\nconst catalogo = $('CTX catálogo').first().json || [];\nconst pendencia = $('CTX pendência').first().json || {};\nconst temPendencia = !!pendencia.tem_pendencia;\nconst saldoDevedor = Number(pendencia.saldo_devedor_total || 0);\nconst qtdPedPend = pendencia.qtd_pedidos_pendentes || 0;\nconst nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)';\n\n// Catálogo formatado\nconst linhasCatalogo = catalogo\n  .map(p => `${p.emoji || '•'} ${p.nome_oficial} — R$ ${Number(p.preco).toFixed(0)}  [tag interno: ${p.tag || '?'}]`)\n  .join('\\n');\n\nconst temEndereco = contato.cep && contato.rua && contato.numero && contato.uf;\nconst endFormat = temEndereco\n  ? `📮 CEP: ${contato.cep}\\n🏠 ${contato.rua}, ${contato.numero}${contato.complemento ? ' — ' + contato.complemento : ''}\\n🏘 ${contato.bairro || ''} — ${contato.cidade}/${contato.uf}`\n  : '(endereço NÃO cadastrado — precisa coletar)';\n\nconst systemPrompt = `Você é o agente de FECHAMENTO da Santa Flor. Sua missão é fechar o pedido com Pix de forma natural, segura e rápida.\n\n=== CLIENTE ===\n• Nome: ${contato.nome || 'desconhecido'}  (usar primeiro nome: \"${nomeCurto}\")\n• Já comprou antes? ${contato.ja_comprou ? 'SIM' : 'NÃO'}\n• Estado atual: ${contato.ultima_interacao || 'novo'}\n• contato_id: ${body.contato_id}\n• instancia_id: ${body.instancia_id || contato.instancia_id}\n${temPendencia ? `\n⚠️ PENDÊNCIA DE PAGAMENTO ATIVA:\n  • ${qtdPedPend} pedido(s) com saldo devedor — total R$ ${saldoDevedor.toFixed(2).replace('.',',')}\n  • COBRAR o saldo devedor ANTES de finalizar o novo pedido.\n  • Sugestão: \"Antes de fechar esse novo, vamos acertar o saldinho de R$ ${saldoDevedor.toFixed(2).replace('.',',')} do pedido anterior? Te mando o Pix.\"\n` : ''}\n=== ENDEREÇO ATUAL ===\n${endFormat}\n\n=== CATÁLOGO (use tag interno em tools, mostre nome_oficial+emoji ao cliente) ===\n${linhasCatalogo}\n\n=== REGRAS DE BÔNUS (escala fixa, NÃO cumulativo) ===\n• 1 produto       → cliente paga frete, sem brinde\n• 2 ou 3 produtos → FRETE GRÁTIS Sedex (cliente NÃO escolhe modalidade)\n• 4 a 7 produtos  → 1 brinde de produto + cliente paga frete (escolhe modalidade)\n• 8+ produtos     → 2 brindes de produto + cliente paga frete (escolhe modalidade)\n\n=== STATE MACHINE (siga em ordem) ===\nESTADO 1 — ENDEREÇO\n${temEndereco\n  ? `  Endereço já cadastrado. Confirme com o cliente:\\n  \"Confere se o endereço continua o mesmo?\\n${endFormat}\\n1 = sim   |   2 = quero atualizar\"\\n  Se 2 → pedir CEP, depois consultar_cep, depois pedir número+complemento, depois salvar_endereco.`\n  : '  Sem endereço. Peça CEP → consultar_cep → pedir número+complemento → salvar_endereco.'}\n\nESTADO 2 — PEDIDO\n  Se cliente já citou produtos na mensagem, identifique as TAGS internas.\n  Caso contrário, peça: \"me passa seu pedido (produto + unidades)\". Exemplo: \"1 verde, 2 pomada\".\n\nESTADO 3 — CÁLCULO E EXIBIÇÃO\n  Chame calcular_pedido com itens=[{tag, qtd}].\n  • Se retornar pendencias=['endereco'] → volta ao ESTADO 1.\n  • Se retornar pendencias=['escolher_modalidade_frete'] → mostra as modalidades disponíveis ao cliente: \"📦 PAC R$X (X-X dias) | MINI R$X | SEDEX R$X — qual prefere?\". Depois chame calcular_pedido de novo com modalidade_frete_escolhida.\n  • Se retornar pendencias=['escolher_brinde'] → diga \"Você ganha {N} brinde(s)! Escolha do catálogo (use o nome).\" Depois chame calcular_pedido com brindes_tags.\n  • Quando NÃO houver pendencias → mostre o resumo_formatado completo + \"Está correto? 1 = pagar com PIX | 2 = ajustar\".\n\nESTADO 4 — PAGAMENTO\n  Quando o cliente confirmar (1), chame gerar_pix_deflow com o pedido_em_aberto_id.\n  Envie: \"Aqui está seu PIX 💚\\n\\n[copia-cola]\\n\\n⏱ Expira em 15 minutos. Assim que cair, te aviso!\"\n\n=== PARCELAMENTO (apenas se cliente PEDIR) ===\nRegra: NÃO ofereça parcelamento espontaneamente. Aguarde o cliente perguntar (\"dá pra dividir?\", \"parcelar?\", \"tá puxado\").\n\nCONDIÇÃO: pedido com 4 produtos ou mais.\n\nSe cliente pedir parcelamento E pedido tem 4+ produtos:\n→ Confirme: \"Pra 4 produtos a gente consegue dividir 50% agora pra liberar postagem e 50% em 30 dias. Combina?\"\n→ Quando confirmar, ao chamar calcular_pedido novamente passe is_parcelado=true (o resumo final vai mostrar valor da entrada e do restante).\n→ Pix gerado vai cobrar SÓ a entrada (50%); o pedido fica como pendente até cliente pagar a 2ª parcela.\n\nSe cliente pedir parcelamento E pedido tem MENOS de 4 produtos:\n→ Sugira aumentar: \"Pra dividir precisa de pelo menos 4 produtos. Quer levar 1 ou 2 a mais? A partir de 4 também ganha 1 brinde.\"\n\n=== COBRANÇA DE SALDO DEVEDOR (cliente pendente) ===\nSE no contexto acima aparece ⚠️ PENDÊNCIA DE PAGAMENTO ATIVA, o cliente JÁ tem saldo devedor.\n\nFluxo:\n1. Reconheça o saldo na primeira resposta de forma natural: \"Antes de prosseguir, vamos acertar o saldinho de R$ X do pedido anterior?\"\n2. Se cliente confirmar pagar saldo → chame gerar_pix_saldo_devedor. Não precisa endereço, frete, nem itens — é só cobrança.\n3. Envie: \"Pronto, segue o PIX do saldinho:\\n\\n[copia-cola]\\n\\nAssim que cair, a gente prossegue com o pedido novo (se for o caso).\"\n4. Quando cliente pagar saldo e voltar conversando, o estado vai pra 'cliente' automaticamente — daí faz pedido novo normalmente.\n5. Se cliente quer pagar saldo E fazer pedido novo na mesma conversa: pague o saldo PRIMEIRO (gerar_pix_saldo_devedor), aguarde confirmação, depois faça calcular_pedido pra pedido novo.\n\nESTADO 5 — ENCERRAMENTO\n  Após enviar PIX, você ENCERROU. Não fique fazendo upsell nem perguntando mais nada.\n\n=== PIX EXPIROU (cliente volta a falar)===\nSE o cliente já passou pelo fechamento E voltou conversando após o Pix expirar:\n→ Identifique a intenção: ele quer reativar o pedido ou desistiu?\n→ Se cliente confirma que quer reativar (\"quero pagar\", \"ainda quero\", \"manda outro pix\"):\n  • Use calcular_pedido novamente com os MESMOS itens do pedido anterior (consulte mensagens passadas)\n  • Em seguida gere novo Pix com gerar_pix_deflow\n  • NÃO refaça endereço/frete se já estavam confirmados\n→ Se cliente diz que não quer mais (\"deixa pra depois\", \"mudei de ideia\"):\n  • Responda APENAS: \"Sem pressa, qualquer coisa é só chamar!\" — NÃO chame nenhuma tool de mudança de estado.\n  • Contato permanece em em_fechamento; cron retrocede automaticamente após 48h se cliente não voltar.\n→ Se cliente fica em silêncio/responde com outro assunto: responda normalmente, sem cobrar o Pix; cron de 48h cuida.\n\n=== COMPORTAMENTO QUANDO CLIENTE HESITA / DESISTE / RECLAMA ===\nREGRA ABSOLUTA: AGENT_CLOSING NUNCA muda estado pra trás. Só pode:\n  • Continuar fechamento (estado fica em em_fechamento ou aguardando_pagamento)\n  • Escalar pra humano via escalar_suporte (vira 'suporte')\n  • Fechar venda — automático via webhook DeFlow quando cliente pagar (vira 'cliente')\n\n• Cliente pergunta algo NOVO sobre produto/segurança/dúvida → chame buscar_conhecimento → responda → pergunte \"Quer continuar o fechamento?\". NÃO mude estado.\n• Cliente diz \"deixa pra depois\", \"mudei de ideia\", \"vou pensar\" → responda \"Sem pressa, qualquer coisa é só chamar!\". NÃO mude estado. Cron de 48h cuida se cliente realmente sumir.\n• Cliente reclama, palavrão, irritação séria, pede atendente → chame escalar_suporte com motivo claro (\"irritacao\", \"reclamacao\", \"pediu_atendente\"). Aí sim muda pra 'suporte'.\n• Cliente em em_fechamento que some por dias → cron 48h volta pra wait_follow_up/cliente. NUNCA faça você.\n\n=== ESTILO ===\n- Calorosa, breve, direto ao ponto\n- 1-2 frases por mensagem\n- 1 emoji no máximo (além dos emojis de produto/frete/PIX da formatação)\n- NUNCA invente preço, prazo, bônus — use as tools\n- NUNCA mostre tag ao cliente, só nome_oficial+emoji\n\nResponda agora ao cliente.`;\n\nreturn [{\n  json: {\n    contato_id:    body.contato_id,\n    instancia_id:  body.instancia_id || contato.instancia_id,\n    mensagens:     body.mensagens || '',\n    system_prompt: systemPrompt,\n    user_message:  `Mensagens recentes do cliente:\\n${body.mensagens || '(vazio)'}`\n  }\n}];"
       },
       "id": "prep-context",
       "name": "PREP CONTEXTO",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1540, 360]
+      "position": [
+        -1540,
+        360
+      ]
     },
     {
       "parameters": {
@@ -101,7 +141,10 @@
       "name": "AGENT_CLOSING",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.7,
-      "position": [-1280, 360]
+      "position": [
+        -1280,
+        360
+      ]
     },
     {
       "parameters": {
@@ -115,7 +158,10 @@
       "name": "OpenRouter (Llama 3.3 70B free)",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
-      "position": [-1340, 580],
+      "position": [
+        -1340,
+        580
+      ],
       "credentials": {
         "openAiApi": {
           "id": "REPLACE_WITH_OPENROUTER_CREDENTIAL_ID",
@@ -132,9 +178,18 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
-            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            }
           ]
         },
         "sendBody": true,
@@ -145,7 +200,10 @@
       "name": "Tool: buscar_conhecimento",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-1180, 660]
+      "position": [
+        -1180,
+        660
+      ]
     },
     {
       "parameters": {
@@ -158,7 +216,10 @@
       "name": "Tool: consultar_cep",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-1000, 660]
+      "position": [
+        -1000,
+        660
+      ]
     },
     {
       "parameters": {
@@ -169,9 +230,18 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
-            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            }
           ]
         },
         "sendBody": true,
@@ -182,7 +252,10 @@
       "name": "Tool: salvar_endereco",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-820, 660]
+      "position": [
+        -820,
+        660
+      ]
     },
     {
       "parameters": {
@@ -193,8 +266,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type",  "value": "application/json" },
-            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            }
           ]
         },
         "sendBody": true,
@@ -205,7 +284,10 @@
       "name": "Tool: calcular_pedido",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-640, 660]
+      "position": [
+        -640,
+        660
+      ]
     },
     {
       "parameters": {
@@ -216,8 +298,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type",  "value": "application/json" },
-            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            }
           ]
         },
         "sendBody": true,
@@ -228,7 +316,10 @@
       "name": "Tool: gerar_pix_deflow",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-460, 660]
+      "position": [
+        -460,
+        660
+      ]
     },
     {
       "parameters": {
@@ -239,9 +330,18 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
-            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            }
           ]
         },
         "sendBody": true,
@@ -252,31 +352,10 @@
       "name": "Tool: gerar_pix_saldo_devedor",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-100, 660]
-    },
-    {
-      "parameters": {
-        "name": "retroceder_estagio",
-        "description": "Cancela o fechamento e devolve o contato ao funil. Use quando cliente: (a) desistir explicitamente — 'deixa pra depois', 'mudei de ideia', 'vou pensar', (b) demonstrar irritação séria ou palavrão, (c) pedir explicitamente atendente humano. Cancela o pedido_em_aberto e seta ultima_interacao apropriada.",
-        "method": "POST",
-        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/retroceder_contato",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
-            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"p_contato_id\":   \"{{ $('Webhook: agent-closing').item.json.body.contato_id }}\",\n  \"p_motivo\":       \"{{ $fromAI('motivo', 'motivo curto em português (desistencia_cliente|irritacao|pedido_humano)', 'string') }}\",\n  \"p_novo_estado\":  \"{{ $fromAI('novo_estado', 'opcional: wait_follow_up | cliente | suporte. Padrão é decidido por ja_comprou.', 'string') }}\"\n}"
-      },
-      "id": "tool-retroceder",
-      "name": "Tool: retroceder_estagio",
-      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
-      "typeVersion": 1.1,
-      "position": [-280, 660]
+      "position": [
+        -100,
+        660
+      ]
     },
     {
       "parameters": {
@@ -286,39 +365,174 @@
       "name": "FORMAT OUTPUT",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1040, 360]
+      "position": [
+        -1040,
+        360
+      ]
     }
   ],
   "connections": {
     "Webhook: agent-closing": {
       "main": [
         [
-          { "node": "CTX contato",   "type": "main", "index": 0 },
-          { "node": "CTX catálogo",  "type": "main", "index": 0 },
-          { "node": "CTX pendência", "type": "main", "index": 0 }
+          {
+            "node": "CTX contato",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "CTX catálogo",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "CTX pendência",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "CTX contato":   { "main": [[ { "node": "PREP CONTEXTO", "type": "main", "index": 0 } ]] },
-    "CTX catálogo":  { "main": [[ { "node": "PREP CONTEXTO", "type": "main", "index": 0 } ]] },
-    "CTX pendência": { "main": [[ { "node": "PREP CONTEXTO", "type": "main", "index": 0 } ]] },
-    "PREP CONTEXTO": { "main": [[ { "node": "AGENT_CLOSING", "type": "main", "index": 0 } ]] },
-    "AGENT_CLOSING": { "main": [[ { "node": "FORMAT OUTPUT", "type": "main", "index": 0 } ]] },
-
-    "OpenRouter (Llama 3.3 70B free)": {
-      "ai_languageModel": [[ { "node": "AGENT_CLOSING", "type": "ai_languageModel", "index": 0 } ]]
+    "CTX contato": {
+      "main": [
+        [
+          {
+            "node": "PREP CONTEXTO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Tool: buscar_conhecimento": { "ai_tool": [[ { "node": "AGENT_CLOSING", "type": "ai_tool", "index": 0 } ]] },
-    "Tool: consultar_cep":       { "ai_tool": [[ { "node": "AGENT_CLOSING", "type": "ai_tool", "index": 0 } ]] },
-    "Tool: salvar_endereco":     { "ai_tool": [[ { "node": "AGENT_CLOSING", "type": "ai_tool", "index": 0 } ]] },
-    "Tool: calcular_pedido":     { "ai_tool": [[ { "node": "AGENT_CLOSING", "type": "ai_tool", "index": 0 } ]] },
-    "Tool: gerar_pix_deflow":    { "ai_tool": [[ { "node": "AGENT_CLOSING", "type": "ai_tool", "index": 0 } ]] },
-    "Tool: gerar_pix_saldo_devedor": { "ai_tool": [[ { "node": "AGENT_CLOSING", "type": "ai_tool", "index": 0 } ]] },
-    "Tool: retroceder_estagio":  { "ai_tool": [[ { "node": "AGENT_CLOSING", "type": "ai_tool", "index": 0 } ]] }
+    "CTX catálogo": {
+      "main": [
+        [
+          {
+            "node": "PREP CONTEXTO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CTX pendência": {
+      "main": [
+        [
+          {
+            "node": "PREP CONTEXTO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREP CONTEXTO": {
+      "main": [
+        [
+          {
+            "node": "AGENT_CLOSING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AGENT_CLOSING": {
+      "main": [
+        [
+          {
+            "node": "FORMAT OUTPUT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter (Llama 3.3 70B free)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AGENT_CLOSING",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: buscar_conhecimento": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_CLOSING",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: consultar_cep": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_CLOSING",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: salvar_endereco": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_CLOSING",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: calcular_pedido": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_CLOSING",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: gerar_pix_deflow": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_CLOSING",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: gerar_pix_saldo_devedor": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_CLOSING",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "pinData": {},
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "staticData": null,
-  "meta": { "instanceId": "santa-flor-crm" },
+  "meta": {
+    "instanceId": "santa-flor-crm"
+  },
   "tags": []
 }
