@@ -66,12 +66,14 @@ Deno.serve(async (req) => {
       contato_id, instancia_id,
       itens, brindes_tags = [],
       modalidade_frete_escolhida,
+      is_parcelado = false,
     } = body as {
       contato_id: string
       instancia_id: string
       itens: Item[]
       brindes_tags?: string[]
       modalidade_frete_escolhida?: 'PAC'|'MINI'|'SEDEX'
+      is_parcelado?: boolean
     }
 
     if (!contato_id || !instancia_id || !Array.isArray(itens) || itens.length === 0) {
@@ -245,6 +247,7 @@ Deno.serve(async (req) => {
       p_subtotal: subtotal,
       p_total: total,
       p_resumo_formatado: resumo,
+      p_is_parcelado: !!is_parcelado,
     })
     if (rpcErr) return j({ error: rpcErr.message }, 500)
 
@@ -253,6 +256,8 @@ Deno.serve(async (req) => {
       pedido_em_aberto_id: rpcRes.pedido_em_aberto_id,
       resumo_formatado: resumo,
       subtotal, total,
+      is_parcelado: !!is_parcelado,
+      valor_a_pagar_pix: rpcRes.valor_a_pagar_pix,
       frete: { gratis: freteGratis, modalidade, preco: fretePreco,
                prazo_min: prazoMin, prazo_max: prazoMax },
       brindes_aplicados: brindesAplicados,

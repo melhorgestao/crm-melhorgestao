@@ -962,7 +962,19 @@ export default function FinanceiroPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Financeiro</h1>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h1 className="text-2xl font-bold">Financeiro</h1>
+        {caixas.length < 5 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setNovaCaixaApelido(''); setShowAddCaixa(true); }}
+            title="Adicionar caixa (não-sócio, ex: gateway crypto)"
+          >
+            + Caixa
+          </Button>
+        )}
+      </div>
 
       {/* Sócios + Caixas cards */}
       <div className="flex flex-col items-center gap-3">
@@ -992,17 +1004,6 @@ export default function FinanceiroPage() {
               </Card>
             );
           })}
-          {caixas.length < 5 && (
-            <button
-              type="button"
-              onClick={() => { setNovaCaixaApelido(''); setShowAddCaixa(true); }}
-              className="min-w-[120px] rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-amber-400 hover:bg-amber-50/40 dark:hover:bg-amber-950/20 transition flex flex-col items-center justify-center p-4 text-muted-foreground hover:text-amber-700"
-              title="Adicionar caixa (não-sócio)"
-            >
-              <span className="text-xl">＋</span>
-              <span className="text-xs mt-1">Adicionar Caixa</span>
-            </button>
-          )}
         </div>
         <div className="flex gap-3">
           <Button onClick={() => { setShowLucro(true); setLucroError(''); }} className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground">Realizar Lucro</Button>
@@ -1016,7 +1017,7 @@ export default function FinanceiroPage() {
           <thead>
             <tr className="border-b font-bold">
               <th className="text-left py-2 w-[18%]">Data</th>
-              <th className="text-left py-2 w-[10%]">Sócio</th>
+              <th className="text-left py-2 w-[10%]" title="Operador (sócio ou caixa)">Op.</th>
               <th className="text-left py-2 w-[20%]">Tipo</th>
               <th className="text-right py-2 w-[28%]">Valor</th>
               <th className="py-2 w-[24%]"></th>
