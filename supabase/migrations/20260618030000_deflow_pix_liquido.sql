@@ -334,7 +334,7 @@ BEGIN
   RETURN jsonb_build_object('ok', false, 'error', 'evento desconhecido: ' || p_event);
 END $$;
 
-GRANT EXECUTE ON FUNCTION public.processar_webhook_deflow(text, text, bigint, bigint, bigint, bigint)
+GRANT EXECUTE ON FUNCTION public.processar_webhook_deflow(text, text, text, bigint, bigint, bigint)
   TO service_role;
 
 -- 5) Configs default (chaves DeFlow ficam vazias até user preencher via UI)
