@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     if (!apiKey || !secret || !passphrase) {
       const stubId   = `STUB-${pedido.id}`
       const stubCola = `00020126360014BR.GOV.BCB.PIX0114STUB${pedido.id.slice(0,8)}520400005303986540${valorBruto.toFixed(2)}5802BR5910SANTA FLOR6009SAO PAULO62070503***6304STUB`
-      const expira   = new Date(Date.now() + 24 * 3600 * 1000).toISOString()
+      const expira   = new Date(Date.now() + 15 * 60 * 1000).toISOString()
 
       await supabase.from('pedido_em_aberto').update({
         pix_id: stubId,
@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
     const qrImageUrl  = d.qrImageUrl || ''
     const feeCents    = d.feeCents ?? null
     const netAmountCents = d.netAmountCents ?? null
-    const expiresAt   = d.expiresAt || new Date(Date.now() + 24 * 3600 * 1000).toISOString()
+    const expiresAt   = d.expiresAt || new Date(Date.now() + 15 * 60 * 1000).toISOString()
 
     if (!depositId || !qrCopyPaste) {
       return j({ error: 'resposta DeFlow malformada', details: JSON.stringify(d).slice(0, 300) }, 502)
