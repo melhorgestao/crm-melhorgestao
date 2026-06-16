@@ -104,6 +104,10 @@ export default function FinanceiroPage() {
   const [transferTo, setTransferTo] = useState('');
   const [transferValue, setTransferValue] = useState('');
   const [socios, setSocios] = useState<{ key: string; nome: string; user_id: string | null }[]>([]);
+  const [caixas, setCaixas] = useState<{ codigo: string; apelido: string }[]>([]);
+  const [showAddCaixa, setShowAddCaixa] = useState(false);
+  const [novaCaixaApelido, setNovaCaixaApelido] = useState('');
+  const [savingCaixa, setSavingCaixa] = useState(false);
   const [ufsCadastradas, setUfsCadastradas] = useState<string[]>([]);
 
   const PER_PAGE = 50;
@@ -136,7 +140,7 @@ export default function FinanceiroPage() {
 
     const dataLimiteFin = getDataLimiteFin();
 
-    const [lancsResult, lancsSaldoResult, prodsResult, repsResult, perfisResult, sociosResult, ufsResult, instanciasResult] = await Promise.all([
+    const [lancsResult, lancsSaldoResult, prodsResult, repsResult, perfisResult, sociosResult, ufsResult, instanciasResult, caixasResult] = await Promise.all([
       // LISTA visual: filtrada pelos últimos 180 dias (com joins pesados para exibição)
       supabase.from('lancamentos_socios')
         .select('*, produtos(nome_oficial), contatos(id, nome, telefone, canal_origem, tag_kanban, endereco, complemento, bairro, cidade_uf, cidade, uf, cep, cpf, observacao, created_at)')
@@ -151,7 +155,12 @@ export default function FinanceiroPage() {
       supabase.from('perfis_usuario').select('user_id, nome, socio_key').not('socio_key', 'is', null).order('nome'),
       supabase.from('estoque_ufs' as any).select('uf').order('uf'),
       supabase.from('instancias').select('id, nome, ativo').eq('ativo', true).order('nome'),
+      supabase.rpc('listar_caixas' as any),
     ]);
+
+    const caixasList = ((caixasResult.data || []) as any[])
+      .map((c: any) => ({ codigo: c.codigo, apelido: c.apelido }));
+    setCaixas(caixasList);
 
     setUfsCadastradas(((ufsResult.data || []) as any[]).map((r: any) => r.uf).filter(Boolean));
     setAllInstancias(
@@ -169,6 +178,11 @@ export default function FinanceiroPage() {
     });
     if (!labels['V']) labels['V'] = 'V';
     if (!labels['A']) labels['A'] = 'A';
+    // adiciona caixas no mapa de labels pra coluna Sócio das movimentações
+    // mostrar apelido em vez de 'C1', 'C2'...
+    caixasList.forEach((c: { codigo: string; apelido: string }) => {
+      labels[c.codigo] = `🏪 ${c.apelido}`;
+    });
 
     // Dynamic socios list (max 6)
     const dynamicSocios = (sociosResult.data || [])
@@ -950,20 +964,45 @@ export default function FinanceiroPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Financeiro</h1>
 
-      {/* Sócios cards */}
+      {/* Sócios + Caixas cards */}
       <div className="flex flex-col items-center gap-3">
-        <div className={cn('grid gap-4 w-full', socios.length <= 2 ? 'grid-cols-2 max-w-sm' : socios.length <= 4 ? 'grid-cols-4 max-w-2xl' : 'grid-cols-3 md:grid-cols-6')}>
+        <div className="flex gap-3 flex-wrap justify-center max-w-4xl">
           {socios.map(s => {
             const saldo = socioBalances[s.key] ?? 0;
             return (
-            <Card key={s.key}>
-              <CardContent className="p-4 text-center">
-                <p className="text-sm font-bold text-muted-foreground">{s.nome}</p>
-                <p className={cn('text-xl font-bold', saldo < 0 ? 'text-destructive' : 'text-primary')}>{formatBRL(saldo)}</p>
-              </CardContent>
-            </Card>
+              <Card key={s.key} className="min-w-[160px]">
+                <CardContent className="p-4 text-center">
+                  <p className="text-sm font-bold text-muted-foreground">{s.nome}</p>
+                  <p className={cn('text-xl font-bold', saldo < 0 ? 'text-destructive' : 'text-primary')}>{formatBRL(saldo)}</p>
+                </CardContent>
+              </Card>
             );
           })}
+          {caixas.map(c => {
+            const saldo = socioBalances[c.codigo] ?? 0;
+            return (
+              <Card key={c.codigo} className="min-w-[160px] border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
+                <CardContent className="p-4 text-center">
+                  <p className="text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center justify-center gap-1">
+                    🏪 {c.apelido}
+                  </p>
+                  <p className={cn('text-xl font-bold', saldo < 0 ? 'text-destructive' : 'text-amber-700 dark:text-amber-300')}>{formatBRL(saldo)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Caixa · não divide lucro</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+          {caixas.length < 5 && (
+            <button
+              type="button"
+              onClick={() => { setNovaCaixaApelido(''); setShowAddCaixa(true); }}
+              className="min-w-[120px] rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-amber-400 hover:bg-amber-50/40 dark:hover:bg-amber-950/20 transition flex flex-col items-center justify-center p-4 text-muted-foreground hover:text-amber-700"
+              title="Adicionar caixa (não-sócio)"
+            >
+              <span className="text-xl">＋</span>
+              <span className="text-xs mt-1">Adicionar Caixa</span>
+            </button>
+          )}
         </div>
         <div className="flex gap-3">
           <Button onClick={() => { setShowLucro(true); setLucroError(''); }} className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground">Realizar Lucro</Button>
@@ -1053,6 +1092,56 @@ export default function FinanceiroPage() {
         <Plus className="w-6 h-6" />
       </Button>
 
+      {/* Dialog: Adicionar Caixa */}
+      <Dialog open={showAddCaixa} onOpenChange={(o) => { if (!savingCaixa) setShowAddCaixa(o); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>🏪 Adicionar Caixa</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Caixa registra recebimentos (vendas, parcelas) sem participar da divisão de
+              lucro entre sócios. Útil pra carteiras de gateway (cripto, Pix terceirizado).
+              Pode realizar transferência pra sócio. Não recebe transferência.
+            </p>
+            <div>
+              <Label>Apelido do Caixa</Label>
+              <Input
+                value={novaCaixaApelido}
+                onChange={(e) => setNovaCaixaApelido(e.target.value)}
+                placeholder="ex: DeFlow Cripto, Pix Mercado Pago"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && novaCaixaApelido.trim()) {
+                    (document.activeElement as HTMLElement)?.blur();
+                    document.getElementById('btn-criar-caixa')?.click();
+                  }
+                }}
+              />
+            </div>
+            <Button
+              id="btn-criar-caixa"
+              className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground"
+              disabled={savingCaixa || !novaCaixaApelido.trim()}
+              onClick={async () => {
+                setSavingCaixa(true);
+                const { data, error } = await supabase.rpc('criar_caixa' as any, { p_apelido: novaCaixaApelido.trim() });
+                setSavingCaixa(false);
+                if (error) { toast.error('Erro: ' + error.message); return; }
+                const r = data as any;
+                if (!r?.ok) { toast.error('Erro: ' + (r?.error || 'falha desconhecida')); return; }
+                toast.success(`Caixa "${r.apelido}" criada (${r.codigo})`);
+                setShowAddCaixa(false);
+                setNovaCaixaApelido('');
+                fetchAll();
+              }}
+            >
+              {savingCaixa ? 'Criando…' : 'Criar Caixa'}
+            </Button>
+            <p className="text-[10px] text-muted-foreground text-center">
+              Limite: 5 caixas. Atual: {caixas.length}/5
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Realizar Lucro dialog */}
       <Dialog open={showLucro} onOpenChange={setShowLucro}>
         <DialogContent>
@@ -1076,19 +1165,21 @@ export default function FinanceiroPage() {
           <DialogHeader><DialogTitle>Transferir entre Sócios</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>De</Label>
+              <Label>De (sócio ou caixa)</Label>
               <Select value={transferFrom} onValueChange={setTransferFrom}>
-                <SelectTrigger><SelectValue placeholder="Selecionar sócio" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Selecionar origem" /></SelectTrigger>
                 <SelectContent>
                   {socios.map(s => <SelectItem key={s.key} value={s.key}>{s.nome}</SelectItem>)}
+                  {caixas.map(c => <SelectItem key={c.codigo} value={c.codigo}>🏪 {c.apelido}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Para</Label>
+              <Label>Para (sócio)</Label>
               <Select value={transferTo} onValueChange={setTransferTo}>
                 <SelectTrigger><SelectValue placeholder="Selecionar sócio" /></SelectTrigger>
                 <SelectContent>
+                  {/* Caixa NÃO recebe transferência — só faz. Por isso filtra fora dos destinos. */}
                   {socios.filter(s => s.key !== transferFrom).map(s => <SelectItem key={s.key} value={s.key}>{s.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -1147,10 +1238,25 @@ export default function FinanceiroPage() {
             )}
             {(formTipo !== 'VENDA' || formStatusPagamento === 'pago') && (
                 <div>
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Sócio</Label>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Sócio / Caixa</Label>
                   <div className="flex flex-wrap gap-2 mt-1">
                     {socios.map(s => (
                       <Button key={s.key} variant={formSocio === s.key ? 'default' : 'outline'} className="min-h-[44px] flex-1" onClick={() => setFormSocio(s.key)}>{s.nome}</Button>
+                    ))}
+                    {caixas.map(c => (
+                      <Button
+                        key={c.codigo}
+                        variant={formSocio === c.codigo ? 'default' : 'outline'}
+                        className={cn(
+                          'min-h-[44px] flex-1',
+                          formSocio === c.codigo
+                            ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                            : 'border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                        )}
+                        onClick={() => setFormSocio(c.codigo)}
+                      >
+                        🏪 {c.apelido}
+                      </Button>
                     ))}
                   </div>
                 </div>
