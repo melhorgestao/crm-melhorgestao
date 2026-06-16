@@ -130,7 +130,7 @@
         "headerParameters": {
           "parameters": [
             { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "REPLACE_WITH_SUPABASE_ANON_KEY" }
+            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
           ]
         },
         "sendBody": true,
@@ -153,8 +153,8 @@
         "headerParameters": {
           "parameters": [
             { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "REPLACE_WITH_SUPABASE_ANON_KEY" },
-            { "name": "Authorization","value": "Bearer REPLACE_WITH_SUPABASE_ANON_KEY" }
+            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
+            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
           ]
         },
         "sendBody": true,
@@ -177,8 +177,8 @@
         "headerParameters": {
           "parameters": [
             { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "REPLACE_WITH_SUPABASE_ANON_KEY" },
-            { "name": "Authorization","value": "Bearer REPLACE_WITH_SUPABASE_ANON_KEY" }
+            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
+            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
           ]
         },
         "sendBody": true,
@@ -201,7 +201,7 @@
         "headerParameters": {
           "parameters": [
             { "name": "Content-Type",  "value": "application/json" },
-            { "name": "Authorization", "value": "Bearer REPLACE_WITH_SUPABASE_ANON_KEY" }
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
           ]
         },
         "sendBody": true,
@@ -224,8 +224,8 @@
         "headerParameters": {
           "parameters": [
             { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "REPLACE_WITH_SUPABASE_ANON_KEY" },
-            { "name": "Authorization","value": "Bearer REPLACE_WITH_SUPABASE_ANON_KEY" }
+            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
+            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
           ]
         },
         "sendBody": true,
@@ -248,8 +248,8 @@
         "headerParameters": {
           "parameters": [
             { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "REPLACE_WITH_SUPABASE_ANON_KEY" },
-            { "name": "Authorization","value": "Bearer REPLACE_WITH_SUPABASE_ANON_KEY" }
+            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
+            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
           ]
         },
         "sendBody": true,
