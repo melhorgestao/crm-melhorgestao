@@ -163,8 +163,8 @@
           "conditions": [
             {
               "id": "valid-type",
-              "leftValue": "={{ $json.message_type }}",
-              "rightValue": "conversation,extendedTextMessage,audioMessage,imageMessage,videoMessage,documentMessage",
+              "leftValue": "conversation,extendedTextMessage,audioMessage,imageMessage,videoMessage,documentMessage",
+              "rightValue": "={{ $json.message_type }}",
               "operator": {
                 "type": "string",
                 "operation": "contains",
