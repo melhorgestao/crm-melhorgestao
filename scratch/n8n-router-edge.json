@@ -1,0 +1,176 @@
+{
+  "name": "Router (Edge-powered, esquelético)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "router-evolution",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-in",
+      "name": "Webhook Evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-2000, 360],
+      "webhookId": "router-evolution"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/functions/v1/router-ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "router-ingest",
+      "name": "Edge: router-ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1740, 360]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.deve_processar }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-processar",
+      "name": "Deve processar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-1480, 360]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, ignored: $json.motivo || 'ignored' }) }}"
+      },
+      "id": "respond-ignored",
+      "name": "Respond: ignorado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [-1220, 540]
+    },
+    {
+      "parameters": { "amount": 12, "unit": "seconds" },
+      "id": "wait-12s",
+      "name": "WAIT 12s (debounce)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-1220, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/functions/v1/router-process",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contato_id:       $('Edge: router-ingest').item.json.contato_id,\n  instancia_uuid:   $('Edge: router-ingest').item.json.instancia_uuid,\n  telefone_clean:   $('Edge: router-ingest').item.json.telefone_clean,\n  instancia_nome:   $('Edge: router-ingest').item.json.instancia_nome,\n  evolution_url:    $('Edge: router-ingest').item.json.evolution_url,\n  evolution_apikey: $('Edge: router-ingest').item.json.evolution_apikey,\n  recebida_em:      $('Edge: router-ingest').item.json.recebida_em\n}) }}",
+        "options": { "timeout": 90000 }
+      },
+      "id": "router-process",
+      "name": "Edge: router-process",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-960, 220]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.deve_enviar }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-enviar",
+      "name": "Deve enviar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-700, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, motivo: $json.motivo || 'sem_resposta' }) }}"
+      },
+      "id": "respond-supersedido",
+      "name": "Respond: superseded/sem-resposta",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [-440, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.evolution_url }}/message/sendText/{{ encodeURIComponent($json.instancia_nome) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $json.evolution_apikey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.telefone_clean, text: $json.resposta_texto }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "evo-send",
+      "name": "EVOLUTION SEND",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-440, 100]
+    }
+  ],
+  "connections": {
+    "Webhook Evolution":   { "main": [[{ "node": "Edge: router-ingest", "type": "main", "index": 0 }]] },
+    "Edge: router-ingest": { "main": [[{ "node": "Deve processar?",     "type": "main", "index": 0 }]] },
+    "Deve processar?":     { "main": [
+      [{ "node": "WAIT 12s (debounce)", "type": "main", "index": 0 }],
+      [{ "node": "Respond: ignorado",   "type": "main", "index": 0 }]
+    ]},
+    "WAIT 12s (debounce)": { "main": [[{ "node": "Edge: router-process", "type": "main", "index": 0 }]] },
+    "Edge: router-process":{ "main": [[{ "node": "Deve enviar?",         "type": "main", "index": 0 }]] },
+    "Deve enviar?": { "main": [
+      [{ "node": "EVOLUTION SEND",                  "type": "main", "index": 0 }],
+      [{ "node": "Respond: superseded/sem-resposta","type": "main", "index": 0 }]
+    ]}
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "versionId": "",
+  "id": "",
+  "meta": {}
+}
