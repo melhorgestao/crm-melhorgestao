@@ -1,0 +1,98 @@
+{
+  "name": "AGENT_START (simple, sem tools)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-start",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-in",
+      "name": "Webhook: agent-start",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1900, 360],
+      "webhookId": "agent-start"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/contatos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $json.body.contato_id }}" },
+            { "name": "select", "value": "id,nome,ja_comprou,cidade,uf,ultima_interacao" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ctx-contato",
+      "name": "CTX contato",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1660, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PREP - monta system + user prompt\nfunction safeJson(n, d) { try { const i = $(n).first(); return (i && i.json !== undefined) ? i.json : d; } catch (e) { return d; } }\nconst body = safeJson('Webhook: agent-start', {}).body || {};\nconst c = safeJson('CTX contato', []);\nconst contato = (Array.isArray(c) && c[0]) || (typeof c === 'object' && c) || {};\nconst nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)';\nconst jaComprou = !!contato.ja_comprou;\nconst isPrimeira = !jaComprou && (!contato.ultima_interacao || ['start','NULL','ativacao_contatos'].includes(contato.ultima_interacao));\n\nconst cardapio = `Santa Flor possui óleos🥥 Base de TCM, um suplemento nutricional extraído da polpa do coco, extremamente nutritivo e de rápida absorção, o mais indicado pelos médicos.\\n\\nTodos os produtos possuem:\\n\\n🌱 Flores de cannabis de genética CBD e THC plantada em estufa livre de pesticidas.\\n\\nE são produzidos💯 sem solvente (100% natural e sabor real da cannabis)`;\n\nconst welcomeBlock = isPrimeira ? `\\n\\n=== PRIMEIRA INTERAÇÃO — APRESENTE A EMPRESA ===\\nEste é o PRIMEIRO contato. Sua PRIMEIRA mensagem deve começar EXATAMENTE com:\\n\\n${cardapio}\\n\\nDepois, em mensagem continuada (separada por \\\\n\\\\n), pergunte de forma simpática o que ele precisa.` : '';\n\nconst systemPrompt = `Você é a atendente WhatsApp da Santa Flor — loja de produtos naturais à base de canabinoides.\\n\\n=== CLIENTE ===\\n• Nome: ${contato.nome || 'desconhecido'}\\n• Primeiro contato? ${jaComprou ? 'NÃO (cliente)' : 'SIM (lead)'}\\n• Estado: ${contato.ultima_interacao || 'novo'}${welcomeBlock}\\n\\n=== ESTILO ===\\n- Calorosa, breve, humana\\n- Trate por primeiro nome (\"${nomeCurto}\")\\n- 1-2 frases curtas\\n- NUNCA use 🌸 🌺\\n- Português coloquial brasileiro\\n\\n=== REGRAS ===\\n- NUNCA negue venda. Pra todo caso existe um produto adequado.\\n- Sempre que cliente perguntar sobre produto/preço, responda com base no que sabe e empurre fechamento: \"Vamos fechar o pedido?\"\\n- Se cliente expressa intenção CLARA de comprar (\"quero\", \"manda\", \"vou levar\"), confirme e diga: \"Show! Vou te passar pro fechamento agora.\"`;\n\nreturn [{ json: {\n  contato_id: body.contato_id,\n  system_prompt: systemPrompt,\n  user_message: `Mensagens recentes do cliente:\\n${body.mensagens || '(vazio)'}`\n}}];"
+      },
+      "id": "prep",
+      "name": "PREP CONTEXTO",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1380, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Authorization", "value": "Bearer OPENROUTER_KEY_AQUI" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'meta-llama/llama-3.3-70b-instruct',\n  messages: [\n    { role: 'system', content: $json.system_prompt },\n    { role: 'user',   content: $json.user_message }\n  ],\n  temperature: 0.4,\n  max_tokens: 800\n}) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "llm-call",
+      "name": "OpenRouter LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1100, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "// FORMAT OUTPUT defensivo\nlet out = '';\ntry {\n  const r = $input.first().json;\n  out = r.choices?.[0]?.message?.content || r.output || r.text || '';\n  if (typeof out === 'object') out = JSON.stringify(out);\n} catch (e) {}\nout = String(out || '').trim();\nif (!out) out = 'Oi! Tô com uma instabilidade aqui, pode repetir sua mensagem? 🙏';\nlet contatoId = null;\ntry { contatoId = $('Webhook: agent-start').first().json.body.contato_id; } catch (e) {}\nreturn [{ json: { resposta_texto: out, contato_id: contatoId } }];"
+      },
+      "id": "format-out",
+      "name": "FORMAT OUTPUT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-820, 360]
+    }
+  ],
+  "connections": {
+    "Webhook: agent-start": { "main": [[{ "node": "CTX contato", "type": "main", "index": 0 }]] },
+    "CTX contato":          { "main": [[{ "node": "PREP CONTEXTO", "type": "main", "index": 0 }]] },
+    "PREP CONTEXTO":        { "main": [[{ "node": "OpenRouter LLM", "type": "main", "index": 0 }]] },
+    "OpenRouter LLM":       { "main": [[{ "node": "FORMAT OUTPUT", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "versionId": "",
+  "id": "",
+  "meta": {}
+}

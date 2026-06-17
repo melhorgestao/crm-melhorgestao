@@ -635,7 +635,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"mensagem\": \"{{ $('AGENT_START (call)').item.json.resposta_texto.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"tipo\": \"text\",\n  \"direcao\": \"out\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\",\n  \"processada_em\": \"{{ $now.toISO() }}\"\n}",
+        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"mensagem\": {{ JSON.stringify($('AGENT_START (call)').item.json.resposta_texto || '') }},\n  \"tipo\": \"text\",\n  \"direcao\": \"out\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\",\n  \"processada_em\": \"{{ $now.toISO() }}\"\n}",
         "options": {}
       },
       "id": "save-buffer-out",
