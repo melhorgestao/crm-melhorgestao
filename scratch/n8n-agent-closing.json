@@ -353,7 +353,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const out = $input.first().json.output || $input.first().json.text || '';\nreturn [{\n  json: {\n    resposta_texto: out,\n    contato_id:     $('Webhook: agent-closing').item.json.body.contato_id\n  }\n}];"
+        "jsCode": "// FORMAT OUTPUT defensivo com fallback obrigatorio\nlet out = '';\ntry {\n  const inp = $input.first();\n  if (inp && inp.json) {\n    out = inp.json.output || inp.json.text || inp.json.response || inp.json.message || '';\n    if (typeof out === 'object') out = JSON.stringify(out);\n  }\n} catch (e) { out = ''; }\nout = String(out || '').trim();\nif (!out) {\n  out = 'Deu uma instabilidade aqui no fechamento, pode repetir sua última mensagem? 🙏';\n}\nlet contatoId = null;\ntry { contatoId = $('Webhook: agent-closing').first().json.body.contato_id; } catch (e) {}\nreturn [{ json: { resposta_texto: out, contato_id: contatoId } }];"
       },
       "id": "format-out",
       "name": "FORMAT OUTPUT",

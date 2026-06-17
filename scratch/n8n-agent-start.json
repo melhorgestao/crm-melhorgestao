@@ -368,7 +368,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Empacota resposta pro Router\nconst out = $input.first().json.output || $input.first().json.text || '';\nreturn [{\n  json: {\n    resposta_texto: out,\n    contato_id:     $('Webhook: agent-start').item.json.body.contato_id\n  }\n}];"
+        "jsCode": "// Empacota resposta pro Router com fallback OBRIGATORIO\n// Garante que NUNCA retorna string vazia (senao Evolution Send falha).\nlet out = '';\ntry {\n  const inp = $input.first();\n  if (inp && inp.json) {\n    out = inp.json.output || inp.json.text || inp.json.response || inp.json.message || '';\n    if (typeof out === 'object') out = JSON.stringify(out);\n  }\n} catch (e) { out = ''; }\n\nout = String(out || '').trim();\n\n// Fallback se o agente nao retornou nada (loop de tool, erro, etc)\nif (!out) {\n  out = 'Oi! Tô com uma instabilidade aqui, pode me mandar de novo a sua pergunta? Em segundos te respondo. 🙏';\n}\n\nlet contatoId = null;\ntry {\n  contatoId = $('Webhook: agent-start').first().json.body.contato_id;\n} catch (e) { contatoId = null; }\n\nreturn [{\n  json: {\n    resposta_texto: out,\n    contato_id:     contatoId\n  }\n}];"
       },
       "id": "format-out",
       "name": "FORMAT OUTPUT",
