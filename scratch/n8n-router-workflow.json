@@ -562,7 +562,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"mensagens\": {{ JSON.stringify($('PROCESS BATCH').item.json.mensagens_concat || '') }},\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\"\n}",
+        "jsonBody": "{\n  \"contato_id\": \"={{ $('GET/CREATE Contato').item.json.id }}\",\n  \"mensagens\": \"={{ ($('PROCESS BATCH').item.json.mensagens_concat || '').replace(/\\\\/g,'\\\\\\\\').replace(/\\\"/g,'\\\\\\\"').replace(/\\n/g,'\\\\n').replace(/\\r/g,'\\\\r').replace(/\\t/g,'\\\\t') }}\",\n  \"instancia_id\": \"={{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\"\n}",
         "options": {
           "timeout": 60000,
           "response": {
