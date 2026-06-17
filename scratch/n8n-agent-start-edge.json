@@ -1,0 +1,51 @@
+{
+  "name": "AGENT_START (chama Edge Function)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-start",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-in",
+      "name": "Webhook: agent-start",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1500, 360],
+      "webhookId": "agent-start"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/functions/v1/agent-start",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contato_id:   $json.body.contato_id,\n  mensagens:    $json.body.mensagens || '',\n  instancia_id: $json.body.instancia_id || null\n}) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "edge-call",
+      "name": "Edge Function agent-start",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1200, 360]
+    }
+  ],
+  "connections": {
+    "Webhook: agent-start": {
+      "main": [[{ "node": "Edge Function agent-start", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "versionId": "",
+  "id": "",
+  "meta": {}
+}
