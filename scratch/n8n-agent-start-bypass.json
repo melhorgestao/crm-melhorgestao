@@ -1,0 +1,52 @@
+{
+  "name": "AGENT_START_BYPASS (teste pipeline)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-start",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-in",
+      "name": "Webhook: agent-start",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1700, 360],
+      "webhookId": "agent-start"
+    },
+    {
+      "parameters": {
+        "jsCode": "// BYPASS LLM - retorna texto fixo pra testar pipeline\nlet contatoId = null;\nlet mensagem = '';\ntry {\n  const body = $input.first().json.body || {};\n  contatoId = body.contato_id;\n  mensagem = body.mensagens || '';\n} catch (e) {}\n\nreturn [{\n  json: {\n    output: '🤖 TESTE PIPELINE OK!\\n\\nRecebi: ' + (mensagem || '(vazio)') + '\\n\\nSe você ta lendo isso, o problema NAO é Router/Evolution, é o LLM/tools.',\n    contato_id: contatoId\n  }\n}];"
+      },
+      "id": "bypass-llm",
+      "name": "BYPASS LLM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1400, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "let out = '';\ntry {\n  const inp = $input.first();\n  if (inp && inp.json) {\n    out = inp.json.output || inp.json.text || '';\n  }\n} catch (e) {}\nout = String(out || '').trim();\nif (!out) out = 'fallback vazio';\nlet contatoId = null;\ntry { contatoId = $('Webhook: agent-start').first().json.body.contato_id; } catch (e) {}\nreturn [{ json: { resposta_texto: out, contato_id: contatoId } }];"
+      },
+      "id": "format-out",
+      "name": "FORMAT OUTPUT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1100, 360]
+    }
+  ],
+  "connections": {
+    "Webhook: agent-start": {
+      "main": [[{ "node": "BYPASS LLM", "type": "main", "index": 0 }]]
+    },
+    "BYPASS LLM": {
+      "main": [[{ "node": "FORMAT OUTPUT", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "versionId": "",
+  "id": "",
+  "meta": {}
+}
