@@ -29,11 +29,26 @@ export const CLOSING_TOOL_SCHEMAS = [
     type: 'function',
     function: {
       name: 'consultar_cep',
-      description: 'Consulta ViaCEP. Use APENAS pra preencher rua/bairro/cidade/uf a partir do CEP. Retorna {cep, rua, bairro, cidade, uf}. Não calcula frete.',
+      description: 'Consulta ViaCEP. Use logo que cliente mandar o CEP pra preencher rua/bairro/cidade/uf. Retorna {cep, rua, bairro, cidade, uf}.',
       parameters: {
         type: 'object',
         properties: { cep: { type: 'string', description: 'CEP 8 dígitos sem hífen.' } },
         required: ['cep'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'consultar_frete',
+      description: 'Calcula preço e prazo de frete via Superfrete pro CEP de destino. Use IMEDIATAMENTE após consultar_cep retornar OK, pra mostrar opções de frete ao cliente ANTES de pedir mais dados.',
+      parameters: {
+        type: 'object',
+        properties: {
+          to_cep:       { type: 'string', description: 'CEP de destino 8 dígitos.' },
+          qtd_produtos: { type: 'number', description: 'Quantidade total de produtos. Default 1.' },
+        },
+        required: ['to_cep'],
       },
     },
   },
@@ -134,6 +149,15 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
           cidade: j.localidade,
           uf: j.uf,
         }
+      }
+
+      case 'consultar_frete': {
+        if (!args.to_cep) return { error: 'to_cep obrigatório' }
+        const r = await invokeFunction('consultar-frete-agent', {
+          to_cep: String(args.to_cep).replace(/\D/g, ''),
+          qtd_produtos: args.qtd_produtos || 1,
+        })
+        return r
       }
 
       case 'salvar_endereco': {

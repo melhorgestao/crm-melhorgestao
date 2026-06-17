@@ -57,34 +57,53 @@ Deno.serve(async (req) => {
     }
 
     // 2) carrega contexto em paralelo
-    const [contatoRes, pedidosRes, pendenciaRes] = await Promise.all([
+    const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes] = await Promise.all([
       supabase.from('contatos')
         .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,canal_atual')
         .eq('id', contato_id).maybeSingle(),
       supabase.rpc('consultar_pedidos_contato', { p_contato_id: contato_id }),
       supabase.rpc('consultar_pendencia_contato', { p_contato_id: contato_id }).maybeSingle(),
+      // conta msgs do bot já enviadas pra esse contato — define se é PRIMEIRA interação real
+      supabase.from('mensagens_buffer')
+        .select('id', { count: 'exact', head: true })
+        .eq('contato_id', contato_id).eq('direcao', 'out'),
+      // últimas 20 mensagens em ordem cronológica (history pro LLM)
+      supabase.from('mensagens_buffer')
+        .select('direcao,mensagem,recebida_em,processada_em')
+        .eq('contato_id', contato_id)
+        .order('recebida_em', { ascending: false }).limit(20),
     ])
 
     const contato: Contato = (contatoRes.data ?? {}) as Contato
     const pedidos = Array.isArray(pedidosRes.data) ? pedidosRes.data : []
     const pendencia = pendenciaRes.data ?? {}
+    const msgsOutCount = msgOutRes.count ?? 0
+    const history = (historyRes.data ?? []).slice().reverse() // do mais antigo pro mais novo
 
     debug.contato_carregado = !!contato.id
     debug.qtd_pedidos = pedidos.length
     debug.tem_pendencia = !!(pendencia as any)?.tem_pendencia
+    debug.msgs_out_count = msgsOutCount
+    debug.history_len = history.length
 
-    // 3) prompts
-    const systemPrompt = buildSystemPrompt({ contato, pedidos, pendencia })
-    const userMessage = `Mensagens recentes do cliente:\n${mensagens || '(vazio)'}`
+    // 3) prompts (isPrimeira agora baseado em COUNT real de msgs out, não em estado)
+    const isPrimeiraInteracao = msgsOutCount === 0
+    const systemPrompt = buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao })
+    const userMessage = `Mensagem nova do cliente:\n${mensagens || '(vazio)'}`
 
-    const messages: any[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user',   content: userMessage },
-    ]
+    // Constrói messages com history real
+    const messages: any[] = [{ role: 'system', content: systemPrompt }]
+    for (const h of history) {
+      const role = h.direcao === 'in' ? 'user' : 'assistant'
+      const content = String(h.mensagem || '').trim()
+      if (content) messages.push({ role, content })
+    }
+    messages.push({ role: 'user', content: userMessage })
 
     // 4) loop de tool calling
     let resposta = ''
     let iter = 0
+    let chainToClosing = false
     const toolsUsed: string[] = []
 
     while (iter < MAX_TOOL_ITERATIONS) {
@@ -99,10 +118,8 @@ Deno.serve(async (req) => {
         break
       }
 
-      // se tem tool_calls, executa cada uma
       const toolCalls = msg.tool_calls
       if (toolCalls && toolCalls.length > 0) {
-        // adiciona a msg do assistant antes das responses
         messages.push(msg)
 
         for (const tc of toolCalls) {
@@ -113,6 +130,7 @@ Deno.serve(async (req) => {
           const toolResult = await executeTool({
             name, args, contato_id, instancia_id, supabase, openrouterKey
           })
+          if (name === 'iniciar_fechamento' && (toolResult as any)?.ok) chainToClosing = true
           messages.push({
             role: 'tool',
             tool_call_id: tc.id,
@@ -123,9 +141,35 @@ Deno.serve(async (req) => {
         continue
       }
 
-      // resposta final em texto
       resposta = (msg.content || '').toString().trim()
       break
+    }
+
+    // 4.5) Chain pra closing: se chamou iniciar_fechamento, agente de fechamento
+    // ASSUME a conversa imediatamente — pede CEP/itens sem esperar nova mensagem.
+    if (chainToClosing) {
+      debug.chained_to_closing = true
+      try {
+        const r = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/agent-closing`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            contato_id,
+            mensagens: mensagens || '[entrou em fechamento]',
+            instancia_id,
+            entrou_agora: true,
+          }),
+        })
+        const cj = await r.json().catch(() => ({}))
+        const closingTxt = (cj?.resposta_texto || '').toString().trim()
+        if (closingTxt) resposta = closingTxt
+        debug.closing_debug = cj?.debug
+      } catch (e) {
+        debug.chain_error = e instanceof Error ? e.message : String(e)
+      }
     }
 
     if (!resposta) {

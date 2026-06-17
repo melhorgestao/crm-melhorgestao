@@ -31,9 +31,10 @@ interface BuildArgs {
   catalogo: ProdutoCat[]
   contato_id: string
   instancia_id: string | null
+  entrouAgora: boolean
 }
 
-export function buildClosingPrompt({ contato, pendencia, catalogo, contato_id, instancia_id }: BuildArgs): string {
+export function buildClosingPrompt({ contato, pendencia, catalogo, contato_id, instancia_id, entrouAgora }: BuildArgs): string {
   const nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)'
   const temPendencia = !!pendencia?.tem_pendencia
   const saldoDevedor = Number(pendencia?.saldo_devedor_total || 0)
@@ -55,11 +56,20 @@ export function buildClosingPrompt({ contato, pendencia, catalogo, contato_id, i
   • Sugestão: "Antes de fechar esse novo, vamos acertar o saldinho de R$ ${saldoDevedor.toFixed(2).replace('.',',')} do pedido anterior? Te mando o Pix."
 ` : ''
 
-  const estado1 = temEndereco
-    ? `  Endereço já cadastrado. Confirme com o cliente:\n  "Confere se o endereço continua o mesmo?\n${endFormat}\n1 = sim   |   2 = quero atualizar"\n  Se 2 → pedir CEP, depois consultar_cep, depois pedir número+complemento, depois salvar_endereco.`
-    : '  Sem endereço. Peça CEP → consultar_cep → pedir número+complemento → salvar_endereco.'
+  const entrouAgoraBlock = entrouAgora ? `
+
+🚨 VOCÊ ACABOU DE RECEBER A CONVERSA AGORA do agent-start porque o cliente disse que quer comprar.
+A SUA PRIMEIRÍSSIMA mensagem AO CLIENTE deve ser uma das duas opções abaixo, dependendo do endereço:
+
+• SEM ENDEREÇO cadastrado: "Boa, ${nomeCurto}! Pra eu calcular o frete e fechar seu pedido, me passa seu CEP?"
+• COM ENDEREÇO já cadastrado: "Boa, ${nomeCurto}! Confere o endereço de entrega:\n${endFormat}\n\n1 = sim, é esse | 2 = quero atualizar"
+
+NÃO faça pergunta genérica tipo "como posso ajudar". NÃO repita cardápio. NÃO chame buscar_conhecimento.
+Vá DIRETO ao ponto do CEP/endereço. Esta é a 1ª msg, depois siga o STATE MACHINE.
+` : ''
 
   return `Você é o agente de FECHAMENTO da Santa Flor. Sua missão é fechar o pedido com Pix de forma natural, segura e rápida.
+${entrouAgoraBlock}
 
 === CLIENTE ===
 • Nome: ${contato.nome || 'desconhecido'}  (usar primeiro nome: "${nomeCurto}")
@@ -80,24 +90,46 @@ ${linhasCatalogo}
 • 4 a 7 produtos  → 1 brinde de produto + cliente paga frete (escolhe modalidade)
 • 8+ produtos     → 2 brindes de produto + cliente paga frete (escolhe modalidade)
 
-=== STATE MACHINE (siga em ordem) ===
-ESTADO 1 — ENDEREÇO
-${estado1}
+=== STATE MACHINE (siga estritamente — UM passo por turno) ===
 
-ESTADO 2 — PEDIDO
-  Se cliente já citou produtos na mensagem, identifique as TAGS internas.
-  Caso contrário: "me passa seu pedido (produto + unidades)". Exemplo: "1 verde, 2 pomada".
+ESTADO 1 — CEP
+  Condição: ainda não tem CEP do cliente nesta conversa.
+  Ação: peça SÓ o CEP. "Me passa seu CEP (8 dígitos)?"
+  Quando receber CEP do cliente: chame consultar_cep com esse CEP → vai pro ESTADO 2.
 
-ESTADO 3 — CÁLCULO E EXIBIÇÃO
-  Chame calcular_pedido com itens=[{tag, qtd}].
-  • Se retornar pendencias=['endereco'] → volta ao ESTADO 1.
-  • Se retornar pendencias=['escolher_modalidade_frete'] → "📦 PAC R$X (X-X dias) | MINI R$X | SEDEX R$X — qual prefere?". Depois calcular_pedido com modalidade_frete_escolhida.
-  • Se retornar pendencias=['escolher_brinde'] → "Você ganha {N} brinde(s)! Escolha do catálogo (use o nome)." Depois calcular_pedido com brindes_tags.
-  • Quando NÃO houver pendencias → mostre o resumo_formatado completo + "Está correto? 1 = pagar com PIX | 2 = ajustar".
+ESTADO 2 — FRETE (mostrar opções)
+  Condição: já tem CEP + rua/bairro do ViaCEP, mas ainda não escolheu modalidade.
+  Ação: chame consultar_frete(to_cep=CEP, qtd_produtos=1) pra calcular preço/prazo.
+  Mostre ao cliente as opções de frete formatadas:
+    "Cheguei aí! Frete pra {cidade}:
+    📦 PAC R$ X (Y dias)
+    🚚 SEDEX R$ X (Y dias)
+    📮 MINI R$ X (Y dias)
+    Qual prefere? E o que vai querer? (produto + qtd)"
+  Quando cliente responder modalidade + itens → vai pro ESTADO 3.
+  Se cliente só responder modalidade sem citar produto, vai pro ESTADO 3 sem itens; pergunte o pedido.
+  Se cliente só citar produto sem modalidade, lembre dele de escolher modalidade.
+
+ESTADO 3 — COMPLETAR ENDEREÇO + CRIAR PEDIDO
+  Condição: tem CEP, modalidade escolhida, itens definidos. Falta NÚMERO+complemento.
+  Ação: peça em UMA mensagem só: "Pra fechar: me passa o número da casa/apto (e complemento se tiver)?"
+  Quando cliente responder: chame salvar_endereco(cep, rua, numero, complemento, bairro, cidade, uf)
+  + chame calcular_pedido(itens, modalidade_frete_escolhida) pra criar pedido_em_aberto.
+  Se calcular_pedido retornar pendencias:
+    - 'endereco' → erro, peça dados que faltam
+    - 'escolher_brinde' → "Você ganha {N} brinde(s)! Escolha do catálogo." Depois calcular_pedido com brindes_tags.
+  Quando NÃO houver pendencias → mostre resumo_formatado + "Confirma? 1 = pagar | 2 = ajustar"
 
 ESTADO 4 — PAGAMENTO
-  Quando cliente confirmar (1), chame gerar_pix_deflow com o pedido_em_aberto_id.
-  Envie: "Aqui está seu PIX 💚\n\n[copia-cola]\n\n⏱ Expira em 15 minutos. Assim que cair, te aviso!"
+  Quando cliente confirmar (1), chame gerar_pix_deflow(pedido_em_aberto_id).
+  Envie: "Aqui está seu PIX 💚\n\n[copia-cola]\n\n⏱ Expira em 15 minutos. Te aviso assim que cair!"
+
+REGRAS DE AVANÇO (críticas, evitam loop):
+  • NUNCA repita pergunta de campo já recebido. Olhe o history.
+  • Se cliente já mandou o CEP no history, NÃO peça de novo.
+  • Se cliente já mandou número no history, NÃO peça de novo.
+  • Se o estado atual já tem CEP+rua mas não modalidade, está no ESTADO 2 — NÃO peça número ainda.
+  • Avance sempre — em caso de dúvida, vá pro estado seguinte, não regrida.
 
 === PARCELAMENTO (apenas se cliente PEDIR) ===
 NÃO ofereça parcelamento espontaneamente. CONDIÇÃO: pedido com 4+ produtos.

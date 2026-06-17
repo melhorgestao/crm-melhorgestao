@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     }
 
     // 2) carrega contexto em paralelo
-    const [contatoRes, pendenciaRes, catalogoRes] = await Promise.all([
+    const [contatoRes, pendenciaRes, catalogoRes, historyRes] = await Promise.all([
       supabase.from('contatos')
         .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,instancia_id,cep,rua,numero,complemento,bairro')
         .eq('id', contato_id).maybeSingle(),
@@ -65,30 +65,45 @@ Deno.serve(async (req) => {
         .select('tag,nome_oficial,preco,emoji')
         .eq('ativo', true)
         .order('preco', { ascending: true }),
+      supabase.from('mensagens_buffer')
+        .select('direcao,mensagem,recebida_em')
+        .eq('contato_id', contato_id)
+        .order('recebida_em', { ascending: false }).limit(20),
     ])
 
     const contato: ContatoClosing = (contatoRes.data ?? {}) as ContatoClosing
     const pendencia = pendenciaRes.data ?? {}
     const catalogo: ProdutoCat[] = (catalogoRes.data ?? []) as ProdutoCat[]
+    const history = (historyRes.data ?? []).slice().reverse()
 
     const instanciaIdResolvido = instancia_id || (contato as any).instancia_id || null
+    const entrouAgora = !!body.entrou_agora
 
     debug.contato_carregado = !!contato.id
     debug.tem_endereco = !!(contato.cep && contato.rua && contato.numero)
     debug.tem_pendencia = !!(pendencia as any)?.tem_pendencia
     debug.catalogo_itens = catalogo.length
+    debug.history_len = history.length
+    debug.entrou_agora = entrouAgora
 
     // 3) prompts
     const systemPrompt = buildClosingPrompt({
       contato, pendencia, catalogo,
       contato_id, instancia_id: instanciaIdResolvido,
+      entrouAgora,
     })
-    const userMessage = `Mensagens recentes do cliente:\n${mensagens || '(vazio)'}`
+    const userMessage = entrouAgora
+      ? `[O cliente acabou de demonstrar intenção de compra. Última mensagem dele:\n${mensagens || '(vazio)'}\n\nAja imediatamente seguindo o ESTADO atual da state machine.]`
+      : `Mensagem nova do cliente:\n${mensagens || '(vazio)'}`
 
-    const messages: any[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user',   content: userMessage },
-    ]
+    // Constrói messages com history
+    const messages: any[] = [{ role: 'system', content: systemPrompt }]
+    for (const h of history) {
+      const role = h.direcao === 'in' ? 'user' : 'assistant'
+      const content = String(h.mensagem || '').trim()
+      if (content) messages.push({ role, content })
+    }
+    messages.push({ role: 'user', content: userMessage })
 
     // 4) loop de tool calling
     let resposta = ''

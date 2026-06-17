@@ -32,6 +32,7 @@ interface BuildArgs {
   contato: Contato
   pedidos: Pedido[]
   pendencia: Pendencia
+  isPrimeiraInteracao: boolean
 }
 
 const CARDAPIO = `Santa Flor possui óleos🥥 Base de TCM, um suplemento nutricional extraído da polpa do coco, extremamente nutritivo e de rápida absorção, o mais indicado pelos médicos.
@@ -42,12 +43,11 @@ Todos os produtos possuem:
 
 E são produzidos💯 sem solvente (100% natural e sabor real da cannabis)`
 
-export function buildSystemPrompt({ contato, pedidos, pendencia }: BuildArgs): string {
+export function buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao }: BuildArgs): string {
   const nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)'
   const jaComprou = !!contato.ja_comprou
   const cidade   = [contato.cidade, contato.uf].filter(Boolean).join('/')
-  const isPrimeira = !jaComprou && (!contato.ultima_interacao ||
-    ['start', 'NULL', 'ativacao_contatos'].includes(contato.ultima_interacao))
+  const isPrimeira = isPrimeiraInteracao
 
   const temPendencia = !!pendencia?.tem_pendencia
   const saldo = Number(pendencia?.saldo_devedor_total || 0)
@@ -172,10 +172,16 @@ Depois de recomendar, SEMPRE faça convite curto pra fechar:
 - "Manda o CEP que eu já te passo o valor."
 Evite "quer comprar?" (soa insistente).
 
-=== INTENÇÃO DE COMPRA (FECHAMENTO) ===
-Quando cliente expressar intenção CLARA ("quero o vermelho", "manda 1 amarelo", "como fecho", "bora"):
-→ Responda confirmando ("Show! Vou te passar pro fechamento agora.")
-→ Chame iniciar_fechamento. O router encaminha a próxima msg pro AGENT_CLOSING.
+=== INTENÇÃO DE COMPRA (FECHAMENTO) — REGRA CRÍTICA ===
+Quando cliente expressar QUALQUER intenção de comprar — exemplos:
+  "quero comprar", "quero o vermelho", "manda 1 amarelo", "vou levar",
+  "como fecho", "bora", "vamos", "pode mandar", "tá ok", "compro sim",
+  "quero o óleo", "quero esse", "pode separar pra mim"
+→ NÃO escreva resposta antes. NÃO diga "Show!". NÃO escreva nada de mensagem.
+→ CHAME DIRETAMENTE a tool iniciar_fechamento (sem produto_pretendido se cliente
+  não disse o item exato — passe string vazia).
+→ O sistema ENCADEIA automaticamente pro agente de fechamento que vai pedir CEP.
+→ Sua tarefa termina aí. Não responda em texto.
 
-Responda em 1-2 mensagens curtas e naturais.`
+Caso contrário (cliente perguntando algo, dúvida, info), responda em 1-2 mensagens curtas e naturais.`
 }
