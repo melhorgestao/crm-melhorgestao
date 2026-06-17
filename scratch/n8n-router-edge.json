@@ -5,7 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "router-evolution",
-        "responseMode": "lastNode",
+        "responseMode": "responseNode",
         "options": {}
       },
       "id": "webhook-in",
@@ -152,6 +152,17 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [-440, 100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, enviado: true }) }}"
+      },
+      "id": "respond-enviado",
+      "name": "Respond: enviado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [-200, 100]
     }
   ],
   "connections": {
@@ -166,7 +177,8 @@
     "Deve enviar?": { "main": [
       [{ "node": "EVOLUTION SEND",                  "type": "main", "index": 0 }],
       [{ "node": "Respond: superseded/sem-resposta","type": "main", "index": 0 }]
-    ]}
+    ]},
+    "EVOLUTION SEND": { "main": [[{ "node": "Respond: enviado", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1" },
   "active": false,
