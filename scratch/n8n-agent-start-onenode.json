@@ -1,0 +1,37 @@
+{
+  "name": "AGENT_START (one-node)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-start",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-in",
+      "name": "Webhook: agent-start",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1600, 360],
+      "webhookId": "agent-start"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// AGENT_START em UM NÓ SÓ: fetch contato + chama OpenRouter\n// ============================================================\n\n// chaves (substituir nos placeholders abaixo!)\nconst SUPABASE_URL = 'https://epreaawpvxrpqqthcczu.supabase.co';\nconst SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E';\nconst OPENROUTER_KEY = 'SUBSTITUIR_PELA_CHAVE_OPENROUTER';\n\n// 1) body do webhook\nconst body = $input.first().json.body || {};\nconst contatoId  = body.contato_id;\nconst mensagens  = body.mensagens || '';\nconst instanciaId = body.instancia_id;\n\nif (!contatoId) {\n  return [{ json: { resposta_texto: 'Oi! 👋 Em que posso te ajudar?', contato_id: null } }];\n}\n\n// 2) busca contato no Supabase\nlet contato = {};\ntry {\n  const r = await fetch(`${SUPABASE_URL}/rest/v1/contatos?id=eq.${contatoId}&select=id,nome,ja_comprou,cidade,uf,ultima_interacao`, {\n    method: 'GET',\n    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }\n  });\n  const arr = await r.json();\n  contato = (Array.isArray(arr) && arr[0]) || {};\n} catch (e) { contato = {}; }\n\nconst nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)';\nconst jaComprou = !!contato.ja_comprou;\nconst isPrimeira = !jaComprou && (!contato.ultima_interacao || ['start','NULL','ativacao_contatos'].includes(contato.ultima_interacao));\n\n// 3) cardápio + system prompt\nconst cardapio = `Santa Flor possui óleos🥥 Base de TCM, um suplemento nutricional extraído da polpa do coco, extremamente nutritivo e de rápida absorção, o mais indicado pelos médicos.\\n\\nTodos os produtos possuem:\\n\\n🌱 Flores de cannabis de genética CBD e THC plantada em estufa livre de pesticidas.\\n\\nE são produzidos💯 sem solvente (100% natural e sabor real da cannabis)`;\n\nconst welcomeBlock = isPrimeira ? `\\n\\n=== PRIMEIRA INTERAÇÃO — APRESENTE A EMPRESA ===\\nEste é o PRIMEIRO contato. Sua PRIMEIRA mensagem deve começar EXATAMENTE com:\\n\\n${cardapio}\\n\\nDepois, em mensagem continuada, pergunte de forma simpática o que ele precisa. Ex: \\\"Como posso te ajudar? Tá buscando indicação pra algo específico?\\\"` : '';\n\nconst systemPrompt = `Você é a atendente WhatsApp da Santa Flor — loja de produtos naturais à base de canabinoides.\\n\\n=== CLIENTE ===\\n• Nome: ${contato.nome || 'desconhecido'}\\n• Primeiro contato? ${jaComprou ? 'NÃO (cliente)' : 'SIM (lead)'}\\n• Estado: ${contato.ultima_interacao || 'novo'}${welcomeBlock}\\n\\n=== ESTILO ===\\n- Calorosa, breve, humana\\n- Trate por primeiro nome (\"${nomeCurto}\")\\n- 1-2 frases curtas\\n- NUNCA use 🌸 🌺\\n- Português coloquial brasileiro\\n\\n=== REGRAS ===\\n- NUNCA negue venda. Pra todo caso existe um produto adequado.\\n- Se cliente perguntar sobre produto/preço, responda com base no que sabe e empurre fechamento: \\\"Vamos fechar o pedido?\\\"\\n- Se cliente expressa intenção CLARA de comprar (\\\"quero\\\", \\\"manda\\\", \\\"vou levar\\\"), confirme e diga: \\\"Show! Vou te passar pro fechamento agora.\\\"`;\n\n// 4) chama OpenRouter\nlet respostaTexto = '';\ntry {\n  const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'Authorization': `Bearer ${OPENROUTER_KEY}`\n    },\n    body: JSON.stringify({\n      model: 'meta-llama/llama-3.3-70b-instruct',\n      messages: [\n        { role: 'system', content: systemPrompt },\n        { role: 'user',   content: `Mensagens recentes do cliente:\\n${mensagens || '(vazio)'}` }\n      ],\n      temperature: 0.4,\n      max_tokens: 800\n    })\n  });\n  const j = await r.json();\n  respostaTexto = j.choices?.[0]?.message?.content || '';\n} catch (e) { respostaTexto = ''; }\n\nrespostaTexto = String(respostaTexto || '').trim();\nif (!respostaTexto) {\n  respostaTexto = 'Oi! Tô com uma instabilidade aqui, pode repetir sua mensagem? 🙏';\n}\n\nreturn [{ json: { resposta_texto: respostaTexto, contato_id: contatoId } }];"
+      },
+      "id": "all-in-one",
+      "name": "ALL IN ONE",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1300, 360]
+    }
+  ],
+  "connections": {
+    "Webhook: agent-start": { "main": [[{ "node": "ALL IN ONE", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "versionId": "",
+  "id": "",
+  "meta": {}
+}
