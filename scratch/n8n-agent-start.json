@@ -12,7 +12,10 @@
       "name": "Webhook: agent-start",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-2000, 360],
+      "position": [
+        -2000,
+        360
+      ],
       "webhookId": "agent-start"
     },
     {
@@ -22,7 +25,14 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"p_contato_id\": \"{{ $('Webhook: agent-start').item.json.body.contato_id }}\"\n}",
@@ -32,7 +42,10 @@
       "name": "CTX últimos pedidos",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1780, 200]
+      "position": [
+        -1780,
+        200
+      ]
     },
     {
       "parameters": {
@@ -43,9 +56,18 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "id", "value": "=eq.{{ $('Webhook: agent-start').item.json.body.contato_id }}" },
-            { "name": "select", "value": "id,nome,telefone,canal_origem,canal_atual,ja_comprou,cidade,uf,instancia_id,representante_id,ultima_interacao" },
-            { "name": "limit", "value": "1" }
+            {
+              "name": "id",
+              "value": "=eq.{{ $('Webhook: agent-start').item.json.body.contato_id }}"
+            },
+            {
+              "name": "select",
+              "value": "id,nome,telefone,canal_origem,canal_atual,ja_comprou,cidade,uf,instancia_id,representante_id,ultima_interacao"
+            },
+            {
+              "name": "limit",
+              "value": "1"
+            }
           ]
         },
         "options": {}
@@ -54,7 +76,10 @@
       "name": "CTX contato",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1780, 500]
+      "position": [
+        -1780,
+        500
+      ]
     },
     {
       "parameters": {
@@ -63,7 +88,14 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"p_contato_id\": \"{{ $('Webhook: agent-start').item.json.body.contato_id }}\"\n}",
@@ -73,7 +105,10 @@
       "name": "CTX pendência",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1780, 700]
+      "position": [
+        -1780,
+        700
+      ]
     },
     {
       "parameters": {
@@ -83,7 +118,10 @@
       "name": "PREP CONTEXTO",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1540, 360]
+      "position": [
+        -1540,
+        360
+      ]
     },
     {
       "parameters": {
@@ -98,7 +136,10 @@
       "name": "AGENT_START",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.7,
-      "position": [-1280, 360]
+      "position": [
+        -1280,
+        360
+      ]
     },
     {
       "parameters": {
@@ -112,13 +153,10 @@
       "name": "OpenRouter (Llama 3.3 70B free)",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
-      "position": [-1340, 580],
-      "credentials": {
-        "openAiApi": {
-          "id": "REPLACE_WITH_OPENROUTER_CREDENTIAL_ID",
-          "name": "OpenRouter"
-        }
-      }
+      "position": [
+        -1340,
+        580
+      ]
     },
     {
       "parameters": {
@@ -129,8 +167,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            }
           ]
         },
         "sendBody": true,
@@ -141,7 +185,10 @@
       "name": "Tool: buscar_conhecimento",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-1140, 620]
+      "position": [
+        -1140,
+        620
+      ]
     },
     {
       "parameters": {
@@ -152,9 +199,18 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
-            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            }
           ]
         },
         "sendBody": true,
@@ -165,7 +221,10 @@
       "name": "Tool: consultar_pedido",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-960, 620]
+      "position": [
+        -960,
+        620
+      ]
     },
     {
       "parameters": {
@@ -176,9 +235,18 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
-            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            }
           ]
         },
         "sendBody": true,
@@ -189,7 +257,10 @@
       "name": "Tool: consultar_rastreio",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-780, 620]
+      "position": [
+        -780,
+        620
+      ]
     },
     {
       "parameters": {
@@ -200,8 +271,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type",  "value": "application/json" },
-            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            }
           ]
         },
         "sendBody": true,
@@ -212,7 +289,10 @@
       "name": "Tool: consultar_cep",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-600, 620]
+      "position": [
+        -600,
+        620
+      ]
     },
     {
       "parameters": {
@@ -223,9 +303,18 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
-            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            }
           ]
         },
         "sendBody": true,
@@ -236,7 +325,10 @@
       "name": "Tool: escalar_suporte",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-420, 620]
+      "position": [
+        -420,
+        620
+      ]
     },
     {
       "parameters": {
@@ -247,9 +339,18 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" },
-            { "name": "Authorization","value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"
+            }
           ]
         },
         "sendBody": true,
@@ -260,7 +361,10 @@
       "name": "Tool: iniciar_fechamento",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [-240, 620]
+      "position": [
+        -240,
+        620
+      ]
     },
     {
       "parameters": {
@@ -270,38 +374,174 @@
       "name": "FORMAT OUTPUT",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1040, 360]
+      "position": [
+        -1040,
+        360
+      ]
     }
   ],
   "connections": {
     "Webhook: agent-start": {
       "main": [
         [
-          { "node": "CTX últimos pedidos", "type": "main", "index": 0 },
-          { "node": "CTX contato",         "type": "main", "index": 0 },
-          { "node": "CTX pendência",       "type": "main", "index": 0 }
+          {
+            "node": "CTX últimos pedidos",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "CTX contato",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "CTX pendência",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "CTX últimos pedidos": { "main": [[ { "node": "PREP CONTEXTO", "type": "main", "index": 0 } ]] },
-    "CTX contato":         { "main": [[ { "node": "PREP CONTEXTO", "type": "main", "index": 0 } ]] },
-    "CTX pendência":       { "main": [[ { "node": "PREP CONTEXTO", "type": "main", "index": 0 } ]] },
-    "PREP CONTEXTO":       { "main": [[ { "node": "AGENT_START",   "type": "main", "index": 0 } ]] },
-    "AGENT_START":         { "main": [[ { "node": "FORMAT OUTPUT", "type": "main", "index": 0 } ]] },
-
-    "OpenRouter (Llama 3.3 70B free)": {
-      "ai_languageModel": [[ { "node": "AGENT_START", "type": "ai_languageModel", "index": 0 } ]]
+    "CTX últimos pedidos": {
+      "main": [
+        [
+          {
+            "node": "PREP CONTEXTO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Tool: buscar_conhecimento": { "ai_tool": [[ { "node": "AGENT_START", "type": "ai_tool", "index": 0 } ]] },
-    "Tool: consultar_pedido":    { "ai_tool": [[ { "node": "AGENT_START", "type": "ai_tool", "index": 0 } ]] },
-    "Tool: consultar_rastreio":  { "ai_tool": [[ { "node": "AGENT_START", "type": "ai_tool", "index": 0 } ]] },
-    "Tool: consultar_cep":       { "ai_tool": [[ { "node": "AGENT_START", "type": "ai_tool", "index": 0 } ]] },
-    "Tool: escalar_suporte":     { "ai_tool": [[ { "node": "AGENT_START", "type": "ai_tool", "index": 0 } ]] },
-    "Tool: iniciar_fechamento":  { "ai_tool": [[ { "node": "AGENT_START", "type": "ai_tool", "index": 0 } ]] }
+    "CTX contato": {
+      "main": [
+        [
+          {
+            "node": "PREP CONTEXTO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CTX pendência": {
+      "main": [
+        [
+          {
+            "node": "PREP CONTEXTO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREP CONTEXTO": {
+      "main": [
+        [
+          {
+            "node": "AGENT_START",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AGENT_START": {
+      "main": [
+        [
+          {
+            "node": "FORMAT OUTPUT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter (Llama 3.3 70B free)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AGENT_START",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: buscar_conhecimento": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_START",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: consultar_pedido": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_START",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: consultar_rastreio": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_START",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: consultar_cep": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_START",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: escalar_suporte": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_START",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: iniciar_fechamento": {
+      "ai_tool": [
+        [
+          {
+            "node": "AGENT_START",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "pinData": {},
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "staticData": null,
-  "meta": { "instanceId": "santa-flor-crm" },
+  "meta": {
+    "instanceId": "santa-flor-crm"
+  },
   "tags": []
 }

@@ -161,13 +161,7 @@
       "position": [
         -1340,
         580
-      ],
-      "credentials": {
-        "openAiApi": {
-          "id": "REPLACE_WITH_OPENROUTER_CREDENTIAL_ID",
-          "name": "OpenRouter"
-        }
-      }
+      ]
     },
     {
       "parameters": {
