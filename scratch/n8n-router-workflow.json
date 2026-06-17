@@ -489,7 +489,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"p_minha_recebida_em\": \"{{ $('SAVE Buffer (in)').item.json[0].recebida_em }}\"\n}",
+        "jsonBody": "={\n  \"p_contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"p_minha_recebida_em\": \"{{ $('SAVE Buffer (in)').item.json.recebida_em || $('SAVE Buffer (in)').item.json[0]?.recebida_em }}\"\n}",
         "options": {}
       },
       "id": "process-batch",
