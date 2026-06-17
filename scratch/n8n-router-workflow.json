@@ -679,7 +679,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={\"status\":\"processed\",\"contato\":\"{{ $('GET/CREATE Contato').item.json.id }}\"}"
+        "responseBody": "{\"status\":\"processed\",\"contato\":\"{{ $('GET/CREATE Contato').item.json.id }}\"}"
       },
       "id": "respond-done",
       "name": "Respond: processed",
