@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     // 3) resolve instância + checa bot global em paralelo
     const [instRes, botRes] = await Promise.all([
       supabase.from('instancias')
-        .select('id,evolution_url,evolution_apikey,evolution_instance,status,ativo')
+        .select('id,evolution_url,evolution_apikey,evolution_instance,status,ativo,pausado_ate,motivo_pausa')
         .eq('evolution_instance', instancia_nome)
         .eq('ativo', true).maybeSingle(),
       supabase.from('configuracoes')
@@ -78,6 +78,12 @@ Deno.serve(async (req) => {
 
     const inst = instRes.data
     if (!inst?.id) return j({ ok: true, deve_processar: false, motivo: 'instancia_nao_encontrada' })
+    if (inst.status !== 'ativo') return j({
+      ok: true, deve_processar: false,
+      motivo: `instancia_${inst.status}`,
+      motivo_pausa: inst.motivo_pausa,
+      pausado_ate: inst.pausado_ate,
+    })
 
     const evolution_url    = inst.evolution_url    || EVOLUTION_BASE_URL_DEFAULT
     const evolution_apikey = inst.evolution_apikey
