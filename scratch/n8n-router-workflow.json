@@ -562,7 +562,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"mensagens\": \"{{ ($('PROCESS BATCH').item.json.mensagens_concat || '').replace(/\\\\/g,'\\\\\\\\').replace(/\\\"/g,'\\\\\\\"').replace(/\\n/g,'\\\\n').replace(/\\r/g,'\\\\r').replace(/\\t/g,'\\\\t') }}\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\"\n}",
+        "jsonBody": "={{ $('BUILD AGENT BODY').item.json.body_str }}",
         "options": {
           "timeout": 60000,
           "response": {
@@ -701,6 +701,19 @@
       "position": [
         -1210,
         600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta body limpo (JSON.stringify garante escape de \\n, aspas, etc)\nconst body = {\n  contato_id: $('GET/CREATE Contato').item.json.id,\n  mensagens: $('PROCESS BATCH').item.json.mensagens_concat || '',\n  instancia_id: $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid\n};\nreturn [{ json: { body_str: JSON.stringify(body) } }];"
+      },
+      "id": "build-agent-body",
+      "name": "BUILD AGENT BODY",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -110,
+        480
       ]
     }
   ],
@@ -891,7 +904,7 @@
       "main": [
         [
           {
-            "node": "AGENT_START (call)",
+            "node": "BUILD AGENT BODY",
             "type": "main",
             "index": 0
           }
@@ -954,6 +967,17 @@
         [
           {
             "node": "SAVE Buffer (in)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUILD AGENT BODY": {
+      "main": [
+        [
+          {
+            "node": "AGENT_START (call)",
             "type": "main",
             "index": 0
           }
