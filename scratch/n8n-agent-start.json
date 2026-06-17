@@ -179,7 +179,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"pergunta\":  \"{{ $fromAI('pergunta', 'pergunta do cliente em linguagem natural', 'string') }}\",\n  \"categoria\": {{ $fromAI('categoria', 'opcional: tabela | sobre_produtos | bonus | argumentos_venda | faq', 'string') ? '\"' + $fromAI('categoria', '', 'string') + '\"' : 'null' }},\n  \"limit\": 5\n}"
+        "jsonBody": "={\n  \"pergunta\": \"{{ $fromAI('pergunta', 'pergunta do cliente em linguagem natural', 'string') }}\",\n  \"limit\": 5\n}"
       },
       "id": "tool-buscar",
       "name": "Tool: buscar_conhecimento",
@@ -283,7 +283,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"to_cep\": \"{{ $fromAI('to_cep', 'CEP de destino do cliente (8 dígitos)', 'string') }}\",\n  \"qtd_produtos\": {{ $fromAI('qtd_produtos', 'quantidade de produtos no carrinho', 'number') || 1 }}\n}"
+        "jsonBody": "={\n  \"to_cep\": \"{{ $fromAI('to_cep', 'CEP de destino do cliente (8 dígitos)', 'string') }}\",\n  \"qtd_produtos\": 1\n}"
       },
       "id": "tool-cep",
       "name": "Tool: consultar_cep",
@@ -355,7 +355,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_contato_id\":           \"{{ $('Webhook: agent-start').item.json.body.contato_id }}\",\n  \"p_produto_pretendido\":   \"{{ $fromAI('produto_pretendido', 'opcional: descrição curta do que cliente quer ex 2 amarelo', 'string') }}\"\n}"
+        "jsonBody": "={\n  \"p_contato_id\": \"{{ $('Webhook: agent-start').item.json.body.contato_id }}\",\n  \"p_produto_pretendido\": \"\"\n}"
       },
       "id": "tool-iniciar-fechamento",
       "name": "Tool: iniciar_fechamento",
