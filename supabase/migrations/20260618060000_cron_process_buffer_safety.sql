@@ -14,15 +14,22 @@ BEGIN
   PERFORM cron.unschedule('process-buffer-safety-1min');
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
+DO $$
+BEGIN
+  PERFORM cron.unschedule('process-buffer-safety-5min');
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
+-- Roda a cada 5 minutos e só pega mensagens órfãs há mais de 10 minutos.
+-- Evita disparar duplicado em cima do fluxo normal (n8n + Wait 12s).
 SELECT cron.schedule(
-  'process-buffer-safety-1min',
-  '* * * * *',
+  'process-buffer-safety-5min',
+  '*/5 * * * *',
   $$
   SELECT net.http_post(
     url := 'https://epreaawpvxrpqqthcczu.supabase.co/functions/v1/process-buffer?mode=cron',
     headers := '{"Content-Type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E"}'::jsonb,
-    body := '{"max_idade_seg": 180}'::jsonb
+    body := '{"max_idade_seg": 600}'::jsonb
   );
   $$
 );

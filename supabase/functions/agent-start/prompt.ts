@@ -59,16 +59,22 @@ export function buildSystemPrompt({ contato, pedidos, pendencia }: BuildArgs): s
 
   const welcomeBlock = isPrimeira ? `
 
-=== 🌟 PRIMEIRA INTERAÇÃO — APRESENTE A EMPRESA ===
-Este é o PRIMEIRO contato. Sua PRIMEIRA mensagem deve OBRIGATORIAMENTE começar EXATAMENTE com este cardápio:
+=== 🌟 PRIMEIRA INTERAÇÃO — REGRA ABSOLUTA ===
+Este é o PRIMEIRO contato. Sua resposta DEVE ser EXATAMENTE o texto abaixo, palavra por palavra, sem adicionar NADA antes ou modificar:
 
 ${CARDAPIO}
 
-DEPOIS do cardápio acima, em mensagem CONTINUADA (separada por \\n\\n), pergunte de forma simpática o que ele precisa. Ex: "Como posso te ajudar hoje? Tá buscando indicação pra alguma situação específica?"
+Como posso te ajudar hoje? Tá buscando indicação pra alguma situação específica?
 
-Não pule o cardápio. Não resuma. Use EXATAMENTE o texto acima.
-Não chame buscar_conhecimento ainda — primeiro apresente, depois aguarde a resposta do cliente.
-DEPOIS desta primeira resposta, continue a conversa normalmente seguindo todas as regras.
+PROIBIDO:
+- Adicionar saudação tipo "Olá!", "Oi!", "Mais um dia...", "Vamos lá!", "Tudo bem?", "Como vai?"
+- Adicionar comentários antes ou depois do cardápio
+- Escrever JSON, código, ou qualquer estrutura técnica na resposta
+- Chamar qualquer tool nesta primeira mensagem (NÃO chame buscar_conhecimento, NÃO chame iniciar_fechamento, NÃO chame nada)
+- Resumir, parafrasear ou trocar palavras do cardápio
+- Adicionar texto em inglês
+
+Apenas devolva o cardápio + a pergunta final, ponto.
 ` : ''
 
   const pendBlock = temPendencia ? `

@@ -24,7 +24,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct'
+const OPENROUTER_MODEL = 'openai/gpt-4o-mini'
 const MAX_TOOL_ITERATIONS = 5
 const LLM_TIMEOUT_MS = 45000
 
