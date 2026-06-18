@@ -9,10 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { timeAgo } from '@/lib/format';
-import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn, copyToClipboard } from '@/lib/utils';
+import { getChatwootConfig } from '@/lib/chatwootApi';
 
 // 5 colunas do Kanban derivadas de ultima_interacao
 // Mapping: column key (estado interno) → label visual
@@ -72,7 +73,7 @@ const formatTentativa = (atual: number | null | undefined, max = 3) => {
 
 const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
-  draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, copyPhone
+  draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, copyPhone, openChatwoot
 }: {
   contact: Contact;
   column: ColumnKey;
@@ -83,6 +84,7 @@ const KanbanCard = memo(({
   setDeleteTarget: (c: Contact) => void;
   setSuporteTarget: (c: Contact) => void;
   copyPhone: (p: string) => void;
+  openChatwoot: (telefone: string) => void;
 }) => {
   const activeTag = contact.tag_kanban &&
     (!contact.tag_kanban_ate || new Date(contact.tag_kanban_ate) > new Date())
@@ -175,7 +177,7 @@ const KanbanCard = memo(({
             {/* Telefone + instância */}
             <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
               <Phone className="w-3 h-3" />
-              <span>Linha: {contact.instancias?.numero_final || '—'}</span>
+              <span>{contact.instancias?.nome || 'sem instância'}</span>
             </div>
 
             {/* Tempo no estado + tentativa */}
@@ -216,7 +218,18 @@ const KanbanCard = memo(({
 
           {/* Ações */}
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyPhone(contact.telefone || '')}>
+            <Button
+              variant="ghost" size="icon" className="h-7 w-7"
+              title="Abrir conversa no Chatwoot"
+              onClick={() => openChatwoot(contact.telefone || '')}
+            >
+              <MessageSquare className="w-3 h-3" />
+            </Button>
+            <Button
+              variant="ghost" size="icon" className="h-7 w-7"
+              title="Copiar telefone"
+              onClick={() => copyPhone(contact.telefone || '')}
+            >
               <Copy className="w-3 h-3" />
             </Button>
           </div>
@@ -262,12 +275,25 @@ export default function KanbanPage() {
     staleTime: 10 * 60 * 1000,
   });
 
-  // Define filtro inicial
+  // Define filtro inicial — começa em "Todas" se houver >1 instância
   useEffect(() => {
     if (!filter && instancias.length > 0) {
-      setFilter(instancias[0].id);
+      setFilter(instancias.length > 1 ? 'all' : instancias[0].id);
     }
   }, [instancias, filter]);
+
+  // Abre conversa no Chatwoot pelo telefone (busca pelo painel)
+  const openChatwoot = async (telefone: string) => {
+    if (!telefone) { toast.error('Sem telefone'); return; }
+    const cfg = await getChatwootConfig();
+    if (!cfg.url || !cfg.accountId) {
+      toast.error('Chatwoot não configurado em Configurações');
+      return;
+    }
+    const tel = telefone.replace(/\D/g, '');
+    const url = `${cfg.url.replace(/\/$/, '')}/app/accounts/${cfg.accountId}/conversations?contact_phone=${encodeURIComponent('+' + tel)}`;
+    window.open(url, '_blank');
+  };
 
   // Visible states (mapeados nas 5 colunas)
   const VISIBLE_STATES = KANBAN_COLUMNS.map(c => c.key) as readonly string[];
@@ -295,7 +321,8 @@ export default function KanbanPage() {
       }
 
       const list = (data || []) as unknown as Contact[];
-      // Filtra por instância: pega contatos atribuídos OU sem dono
+      // 'all' → retorna tudo unificado. Caso contrário, filtra por instância.
+      if (filter === 'all') return list;
       return list.filter(c => c.instancia_id === filter || c.instancia_id === null);
     },
     staleTime: 5 * 60 * 1000,
@@ -431,6 +458,7 @@ export default function KanbanPage() {
         setDeleteTarget={setDeleteTarget}
         setSuporteTarget={setSuporteTarget}
         copyPhone={copyPhone}
+        openChatwoot={openChatwoot}
       />
     );
   };
@@ -443,8 +471,9 @@ export default function KanbanPage() {
           <Select value={filter} onValueChange={setFilter}>
             <SelectTrigger className="w-40"><SelectValue placeholder="Instância" /></SelectTrigger>
             <SelectContent>
+              {instancias.length > 1 && <SelectItem value="all">Todas</SelectItem>}
               {instancias.map(i => (
-                <SelectItem key={i.id} value={i.id}>Instância {i.nome}</SelectItem>
+                <SelectItem key={i.id} value={i.id}>{i.nome}</SelectItem>
               ))}
             </SelectContent>
           </Select>

@@ -57,38 +57,42 @@ Deno.serve(async (req) => {
     }
 
     // 2) carrega contexto em paralelo
-    const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes] = await Promise.all([
+    const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes, catalogoRes] = await Promise.all([
       supabase.from('contatos')
         .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,canal_atual')
         .eq('id', contato_id).maybeSingle(),
       supabase.rpc('consultar_pedidos_contato', { p_contato_id: contato_id }),
       supabase.rpc('consultar_pendencia_contato', { p_contato_id: contato_id }).maybeSingle(),
-      // conta msgs do bot já enviadas pra esse contato — define se é PRIMEIRA interação real
       supabase.from('mensagens_buffer')
         .select('id', { count: 'exact', head: true })
         .eq('contato_id', contato_id).eq('direcao', 'out'),
-      // últimas 20 mensagens em ordem cronológica (history pro LLM)
       supabase.from('mensagens_buffer')
         .select('direcao,mensagem,recebida_em,processada_em')
         .eq('contato_id', contato_id)
         .order('recebida_em', { ascending: false }).limit(20),
+      supabase.from('produtos')
+        .select('tag,nome_oficial,preco,emoji')
+        .eq('ativo', true)
+        .order('preco', { ascending: true }),
     ])
 
     const contato: Contato = (contatoRes.data ?? {}) as Contato
     const pedidos = Array.isArray(pedidosRes.data) ? pedidosRes.data : []
     const pendencia = pendenciaRes.data ?? {}
     const msgsOutCount = msgOutRes.count ?? 0
-    const history = (historyRes.data ?? []).slice().reverse() // do mais antigo pro mais novo
+    const history = (historyRes.data ?? []).slice().reverse()
+    const catalogo = (catalogoRes.data ?? []) as Array<{ tag?: string; nome_oficial?: string; preco?: number; emoji?: string }>
 
     debug.contato_carregado = !!contato.id
     debug.qtd_pedidos = pedidos.length
     debug.tem_pendencia = !!(pendencia as any)?.tem_pendencia
     debug.msgs_out_count = msgsOutCount
     debug.history_len = history.length
+    debug.catalogo_itens = catalogo.length
 
-    // 3) prompts (isPrimeira agora baseado em COUNT real de msgs out, não em estado)
+    // 3) prompts
     const isPrimeiraInteracao = msgsOutCount === 0
-    const systemPrompt = buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao })
+    const systemPrompt = buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao, catalogo })
     const userMessage = `Mensagem nova do cliente:\n${mensagens || '(vazio)'}`
 
     // Constrói messages com history real

@@ -28,11 +28,19 @@ interface Pendencia {
   qtd_pedidos_pendentes?: number
 }
 
+interface ProdutoCat {
+  tag?: string
+  nome_oficial?: string
+  preco?: number
+  emoji?: string
+}
+
 interface BuildArgs {
   contato: Contato
   pedidos: Pedido[]
   pendencia: Pendencia
   isPrimeiraInteracao: boolean
+  catalogo: ProdutoCat[]
 }
 
 const CARDAPIO = `Santa Flor possui óleos🥥 Base de TCM, um suplemento nutricional extraído da polpa do coco, extremamente nutritivo e de rápida absorção, o mais indicado pelos médicos.
@@ -43,7 +51,7 @@ Todos os produtos possuem:
 
 E são produzidos💯 sem solvente (100% natural e sabor real da cannabis)`
 
-export function buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao }: BuildArgs): string {
+export function buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao, catalogo }: BuildArgs): string {
   const nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)'
   const jaComprou = !!contato.ja_comprou
   const cidade   = [contato.cidade, contato.uf].filter(Boolean).join('/')
@@ -57,24 +65,34 @@ export function buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInter
     .map(p => `- #${p.order_number} (${p.data}) ${p.produto} x${p.quantidade} R$${p.valor} [${p.status_pedido}]`)
     .join('\n') || '(nenhum pedido anterior)'
 
+  // Lista de produtos formatada
+  const linhasCardapio = (catalogo || [])
+    .map(p => `${p.emoji || '•'} ${p.nome_oficial} — R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
+    .join('\n') || '(catálogo vazio)'
+
   const welcomeBlock = isPrimeira ? `
 
 === 🌟 PRIMEIRA INTERAÇÃO — REGRA ABSOLUTA ===
-Este é o PRIMEIRO contato. Sua resposta DEVE ser EXATAMENTE o texto abaixo, palavra por palavra, sem adicionar NADA antes ou modificar:
+Este é o PRIMEIRO contato. Sua resposta DEVE ser EXATAMENTE o texto abaixo, palavra por palavra. NÃO modifique, NÃO chame tools:
 
 ${CARDAPIO}
 
+📋 *Nosso cardápio:*
+${linhasCardapio}
+
+🎁 *Bônus:*
+🚚 2 produtos → frete SEDEX grátis
+🎁 4 produtos → ganha 1 brinde do catálogo
+🎁 8 produtos → ganha 2 brindes do catálogo
+
 Como posso te ajudar hoje? Tá buscando indicação pra alguma situação específica?
 
-PROIBIDO:
-- Adicionar saudação tipo "Olá!", "Oi!", "Mais um dia...", "Vamos lá!", "Tudo bem?", "Como vai?"
-- Adicionar comentários antes ou depois do cardápio
-- Escrever JSON, código, ou qualquer estrutura técnica na resposta
-- Chamar qualquer tool nesta primeira mensagem (NÃO chame buscar_conhecimento, NÃO chame iniciar_fechamento, NÃO chame nada)
-- Resumir, parafrasear ou trocar palavras do cardápio
-- Adicionar texto em inglês
-
-Apenas devolva o cardápio + a pergunta final, ponto.
+PROIBIDO nesta mensagem:
+- Adicionar saudação extra ("Olá!", "Mais um dia...", "Tudo bem?")
+- Mudar/parafrasear o texto acima
+- Adicionar emoji extra além dos que já estão no template
+- Chamar QUALQUER tool (NÃO chame buscar_conhecimento, iniciar_fechamento, nada)
+- Escrever JSON ou código
 ` : ''
 
   const pendBlock = temPendencia ? `
@@ -108,7 +126,15 @@ ${pedidosResumo}${pendBlock}
 - Calorosa, breve, humana — como atendente real
 - Trate por primeiro nome ("${nomeCurto}")
 - 1-2 frases curtas por mensagem
-- Sem emoji decorativo gratuito (NUNCA usar 🌸 🌺). Emojis funcionais (🟩🟨🟥🔰🧴🍬📦💳⏱) só quando o conteúdo pede
+- REGRA DE EMOJI ESTRITA:
+  • PROIBIDO emojis de rosto/expressão (😅 😊 😉 😄 🙂 😎 🥰 🤗 etc) — soa fake
+  • PROIBIDO 🌸 🌺 ✨ 💫 ⭐ — decorativos sem função
+  • PROIBIDO repetir o mesmo emoji 2x na mesma mensagem
+  • PROIBIDO emoji no fim de frase como "tique" (😅, 🙏, etc) — só se conteúdo pedir
+  • PERMITIDO: emojis funcionais que descrevem algo concreto:
+    📦 envio/frete   💳 pagamento   ⏱ tempo/prazo   🥥 produto   🌱 planta
+    🟩🟨🟥 cor de produto   💚 PIX/confirmação   🎁 brinde/bônus   🚚 sedex
+  • Máximo 2 emojis por mensagem (excluindo lista formatada de produtos)
 - Português coloquial brasileiro
 - SEMPRE referir produtos pelo NOME OFICIAL ("CBD Full Spectrum 4.000 mg"), nunca por tag/apelido interno
 
