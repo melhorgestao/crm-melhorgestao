@@ -55,8 +55,11 @@ Deno.serve(async (req) => {
     const ctwa_source_id  = msg.messageContextInfo?.ctwaContext?.sourceId  || null
     const ctwa_source_url = msg.messageContextInfo?.ctwaContext?.sourceUrl || null
 
-    // 2) filtros baratos antes de bater no banco
-    if (from_me)                              return j({ ok: true, deve_processar: false, motivo: 'from_me' })
+    // 2) filtros baratos antes de bater no banco.
+    // ATENÇÃO: comandos "/" são digitados PELO DONO no WhatsApp (fromMe=true).
+    // Deixa passar pra ser tratado no bloco de comando lá embaixo.
+    const isComando = msg_text.trim().startsWith('/')
+    if (from_me && !isComando)                return j({ ok: true, deve_processar: false, motivo: 'from_me' })
     if (!TIPOS_ACEITOS.has(message_type))     return j({ ok: true, deve_processar: false, motivo: 'tipo_ignorado', message_type })
     if (!telefone_clean)                      return j({ ok: true, deve_processar: false, motivo: 'sem_telefone' })
     if (!instancia_nome)                      return j({ ok: true, deve_processar: false, motivo: 'sem_instancia' })
@@ -96,23 +99,35 @@ Deno.serve(async (req) => {
       evolution_url, evolution_apikey,
     })
 
-    // 4) comando "/" — encaminhamento curto (executa e responde)
-    if (msg_text.trim().startsWith('/')) {
-      const comando = msg_text.trim().split(/\s+/)[0]
-      // ainda assim cria/recupera contato
+    // 4) comando "/" — digitado pelo dono no WhatsApp (fromMe=true).
+    //    Executa direto e SAI sem rodar o agente.
+    if (isComando) {
+      const comando = msg_text.trim().split(/\s+/)[0].toLowerCase()
       const { data: contatoCmd } = await supabase.rpc('get_or_create_contato', {
         p_telefone: telefone_clean, p_nome: push_name, p_instancia_id: instancia_uuid,
         p_canal_origem: ctwa_source_id ? 'ADS' : 'BASE',
         p_mensagem: msg_text.replace(/\n/g, ' '),
         p_metadata: { ctwa_source_id, ctwa_source_url },
       })
-      await supabase.rpc('executa_comando_dono', {
-        p_contato_id: (contatoCmd as any)?.id, p_comando: comando,
+      const cid = (contatoCmd as any)?.id
+      const { data: cmdResult, error: cmdErr } = await supabase.rpc('executa_comando_dono', {
+        p_contato_id: cid, p_comando: comando,
+      })
+      // Log evento pra auditoria
+      await supabase.from('eventos_contato').insert({
+        contato_id: cid,
+        tipo: 'comando_dono',
+        canal: instancia_nome,
+        instancia_id: instancia_uuid,
+        metadata: { comando, from_me, result: cmdResult, error: cmdErr?.message || null },
       }).catch(() => {})
       return j({
         ok: true, deve_processar: false, motivo: 'comando_executado',
-        contato_id: (contatoCmd as any)?.id, instancia_uuid, telefone_clean, instancia_nome,
+        comando, contato_id: cid,
+        instancia_uuid, telefone_clean, instancia_nome,
         evolution_url, evolution_apikey,
+        cmd_result: cmdResult,
+        cmd_error: cmdErr?.message || null,
       })
     }
 
