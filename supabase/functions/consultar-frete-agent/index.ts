@@ -1,12 +1,18 @@
 // ============================================================================
-// consultar-frete-agent
+// consultar-frete-agent — chamada DIRETA na Superfrete (sem hops intermediários)
 //
-// Recebe { to_cep, qtd_produtos?: number }
-// 1) Obtém from_cep e peso_unitario via RPC obter_config_frete
-// 2) Calcula peso total = peso_unitario * qtd_produtos
-// 3) Chama Superfrete 3x em paralelo (PAC=1, SEDEX=2, Mini=17)
-// 4) Retorna modalidades com valor + prazo
+// INPUT (POST): { to_cep: string, qtd_produtos?: number }
+//
+// FLUXO:
+//   1) Lê from_cep (remetentes_uf) + peso (configuracoes) + api_key Superfrete
+//   2) 2 fetches paralelos /api/v0/rates: PAC (service 1) e SEDEX (service 2)
+//      (Mini Envios REMOVIDO da resposta ao lead)
+//   3) Normaliza preço + prazo e retorna
+//
+// Resposta sempre 200 (mesmo com erro) com modalidades[] e debug{} pra agent
+// poder decidir o que fazer.
 // ============================================================================
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -14,25 +20,31 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Apenas PAC e SEDEX (Mini Envios removido por regra do negócio)
 const SERVICOS = [
-  { id: 1,  nome: 'PAC',         prazo_dias: 7 },
-  { id: 2,  nome: 'SEDEX',       prazo_dias: 3 },
-  { id: 17, nome: 'Mini Envios', prazo_dias: 10 },
+  { id: 1, nome: 'PAC',   prazo_default: 7 },
+  { id: 2, nome: 'SEDEX', prazo_default: 3 },
 ]
+
+// Caixa P padrão (peso até 1kg)
+const DIM_DEFAULT = { width: 11, height: 2, length: 16 }
+const TIMEOUT_MS  = 12000
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+
+  const debug: Record<string, any> = {}
 
   try {
     const { to_cep, qtd_produtos = 1 } = await req.json()
 
     if (!to_cep || typeof to_cep !== 'string') {
-      return json({ error: 'to_cep (string) é obrigatório' }, 400)
+      return j({ ok: false, error: 'to_cep (string) é obrigatório' }, 400)
     }
 
     const cepClean = String(to_cep).replace(/\D/g, '')
     if (cepClean.length !== 8) {
-      return json({ error: 'to_cep deve ter 8 dígitos' }, 400)
+      return j({ ok: false, error: 'to_cep deve ter 8 dígitos', recebido: to_cep }, 400)
     }
 
     const supabase = createClient(
@@ -40,82 +52,146 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Config de origem
-    const { data: cfg, error: cfgErr } = await supabase.rpc('obter_config_frete', { p_to_cep: cepClean })
-    if (cfgErr) return json({ error: 'obter_config_frete: ' + cfgErr.message }, 500)
+    // ---- config em paralelo ----
+    const [cfgRes, apiCfgRes] = await Promise.all([
+      supabase.rpc('obter_config_frete', { p_to_cep: cepClean }),
+      supabase.from('configuracoes').select('valor').eq('chave', 'chave_api_superfrete').maybeSingle(),
+    ])
 
-    const fromCep        = cfg?.from_cep ?? '05010000'
-    const pesoUnitario   = cfg?.peso_unitario_g ?? 300
-    const qtd            = Math.max(1, Math.min(50, Number(qtd_produtos) || 1))
-    const pesoTotal      = pesoUnitario * qtd
+    if (cfgRes.error) return j({ ok: false, error: 'obter_config_frete: ' + cfgRes.error.message }, 500)
 
-    // Chave Superfrete
-    const { data: apiCfg } = await supabase
-      .from('configuracoes')
-      .select('valor')
-      .eq('chave', 'chave_api_superfrete')
-      .maybeSingle()
+    const cfg = cfgRes.data as any
+    const fromCep      = cfg?.from_cep ?? '05010000'
+    const pesoUnitario = cfg?.peso_unitario_g ?? 300
+    const qtd          = Math.max(1, Math.min(50, Number(qtd_produtos) || 1))
+    const pesoTotalG   = pesoUnitario * qtd
+    const faixaKg      = faixaPesoKg(pesoTotalG)
 
-    const apiKey = apiCfg?.valor as string | undefined
-    if (!apiKey || apiKey.trim() === '') {
-      return json({ error: 'chave_api_superfrete não configurada' }, 400)
-    }
+    const apiKey = (apiCfgRes.data?.valor as string | undefined)?.trim()
+    if (!apiKey) return j({
+      ok: false, error: 'chave_api_superfrete não configurada em configuracoes',
+    }, 400)
 
-    // Chama a edge cotar-frete existente para cada modalidade (em paralelo)
-    const baseUrl = Deno.env.get('SUPABASE_URL')!
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+    debug.from_cep = fromCep
+    debug.to_cep = cepClean
+    debug.peso_unitario_g = pesoUnitario
+    debug.qtd_produtos = qtd
+    debug.peso_total_g = pesoTotalG
+    debug.faixa_kg = faixaKg
 
-    const results = await Promise.allSettled(SERVICOS.map(async (svc) => {
-      const r = await fetch(`${baseUrl}/functions/v1/cotar-frete`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${anonKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from_cep: fromCep,
-          to_cep:   cepClean,
-          peso:     pesoTotal,
-          width: 11, height: 2, length: 16, quantity: 1,
-          service: svc.id,
-          api_key: apiKey,
-        }),
-      })
-
-      const data = await r.json().catch(() => ({}))
-      return {
-        nome:        svc.nome,
-        valor_reais: typeof data?.price === 'number' ? Number(data.price.toFixed(2)) : null,
-        prazo_dias:  svc.prazo_dias,
-        erro:        !r.ok || data?.error ? (data?.error || `HTTP ${r.status}`) : null,
-      }
-    }))
+    // ---- chama Superfrete: PAC + SEDEX em paralelo ----
+    const results = await Promise.allSettled(
+      SERVICOS.map(svc => chamarSuperfrete({
+        from_cep: fromCep, to_cep: cepClean,
+        faixa_kg: faixaKg, service: svc.id, api_key: apiKey,
+      }))
+    )
 
     const modalidades = results.map((r, i) => {
-      if (r.status === 'fulfilled') return r.value
+      const svc = SERVICOS[i]
+      if (r.status === 'fulfilled' && r.value.ok) {
+        return {
+          nome:        svc.nome,
+          valor_reais: r.value.price,
+          prazo_dias:  r.value.delivery_time ?? svc.prazo_default,
+          erro:        null,
+        }
+      }
+      const err = r.status === 'fulfilled' ? r.value.error : (r as any).reason?.message || 'rejected'
       return {
-        nome:        SERVICOS[i].nome,
-        valor_reais: null,
-        prazo_dias:  SERVICOS[i].prazo_dias,
-        erro:        'falha rede',
+        nome: svc.nome, valor_reais: null, prazo_dias: svc.prazo_default, erro: err,
       }
     })
 
-    return json({
-      from_cep:    fromCep,
-      to_cep:      cepClean,
+    const algumOk = modalidades.some(m => m.valor_reais !== null)
+
+    return j({
+      ok: algumOk,
+      from_cep: fromCep,
+      to_cep: cepClean,
       qtd_produtos: qtd,
-      peso_total_g: pesoTotal,
+      peso_total_g: pesoTotalG,
       modalidades,
+      debug,
     })
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'erro desconhecido'
-    return json({ error: msg }, 500)
+    return j({ ok: false, error: msg, debug }, 500)
   }
 })
 
-function json(body: any, status = 200) {
+interface SuperfreteRes {
+  ok: boolean
+  price?: number
+  delivery_time?: number
+  error?: string
+}
+
+async function chamarSuperfrete(args: {
+  from_cep: string; to_cep: string; faixa_kg: number;
+  service: number; api_key: string;
+}): Promise<SuperfreteRes> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  try {
+    const payload = {
+      from: { postal_code: args.from_cep },
+      to:   { postal_code: args.to_cep },
+      volumes: [{
+        weight: args.faixa_kg,
+        width:  DIM_DEFAULT.width,
+        height: DIM_DEFAULT.height,
+        length: DIM_DEFAULT.length,
+        quantity: 1,
+      }],
+      service: args.service,
+    }
+    const r = await fetch('https://api.superfrete.com/api/v0/rates', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${args.api_key}`,
+        'Content-Type':  'application/json',
+        'Accept':        'application/json',
+        'User-Agent':    'MelhorGestaoCRM/1.0 (contato@melhorgestao.online)',
+      },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    })
+    const txt = await r.text()
+    let data: any = null
+    try { data = JSON.parse(txt) } catch { return { ok: false, error: `parse: ${txt.slice(0,200)}` } }
+    if (!r.ok) return { ok: false, error: `HTTP ${r.status}: ${(data?.error || txt).toString().slice(0, 200)}` }
+
+    const item = Array.isArray(data) ? data[0] : data
+    if (!item) return { ok: false, error: 'resposta vazia' }
+    const priceRaw    = typeof item.price === 'string'    ? parseFloat(item.price)    : item.price
+    const discountRaw = typeof item.discount === 'string' ? parseFloat(item.discount) : (item.discount || 0)
+    const price = (priceRaw || 0) + (discountRaw || 0)
+    if (!price || price <= 0) {
+      return { ok: false, error: item?.error || 'preço não retornado' }
+    }
+    const delivery_time = item?.delivery_time != null ? Number(item.delivery_time) : undefined
+    return { ok: true, price: Number(price.toFixed(2)), delivery_time }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  } finally { clearTimeout(timer) }
+}
+
+function faixaPesoKg(pesoG: number): number {
+  const kg = pesoG / 1000
+  if (kg <= 0.3) return 0.3
+  if (kg <= 0.5) return 0.5
+  if (kg <= 1)   return 1
+  if (kg <= 2)   return 2
+  if (kg <= 5)   return 5
+  if (kg <= 10)  return 10
+  if (kg <= 15)  return 15
+  if (kg <= 20)  return 20
+  return 30
+}
+
+function j(body: any, status = 200) {
   return new Response(JSON.stringify(body), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     status,
