@@ -81,62 +81,38 @@ export async function findInboxByName(config: ChatwootConfig, name: string): Pro
 }
 
 /**
- * Acha conversa+inbox de um contato pelo telefone Chatwoot.
+ * Acha URL da conversa Chatwoot via Edge Function (chatwoot-find-conversation).
+ * Browser não pode chamar Chatwoot direto (CORS) — Edge Function faz no servidor.
  *
- * Estratégia (tenta na ordem, retorna na 1ª que achar):
- *   A) /contacts/search com várias variantes do telefone (+55..., 55..., 11..., últimos 10)
- *   B) Pra cada contato candidato: /contacts/{id}/conversations → 1ª (mais recente)
- *
- * Tudo logado em console.log com prefixo [chatwoot] pra facilitar debug.
- * Retorna null se nenhuma combinação achar conversa.
+ * Retorna { url, conversation_id, inbox_id, contact_id } ou null.
+ * Em caso de fallback, retorna { url } com URL de busca no dashboard.
  */
 export async function findConversationByPhone(
-  config: ChatwootConfig,
+  _config: ChatwootConfig,  // mantido pra retrocompat — Edge lê do banco
   telefone: string
-): Promise<{ conversation_id: number; inbox_id: number; contact_id: number } | null> {
-  const tel = (telefone || '').replace(/\D/g, '');
-  if (!tel) return null;
+): Promise<{ url: string; conversation_id?: number; inbox_id?: number; contact_id?: number; fallback?: boolean } | null> {
+  if (!telefone) return null;
 
-  // Variantes pra cobrir como o Chatwoot pode ter indexado:
-  //  - com + (E.164 oficial)
-  //  - só dígitos com 55 na frente
-  //  - sem código do país
-  //  - últimos 10 (DDD+8 sem 9)
-  const variants = Array.from(new Set([
-    `+${tel}`,
-    tel,
-    tel.startsWith('55') ? tel.slice(2) : null,                // sem código do país
-    tel.length >= 10 ? tel.slice(-11) : null,                  // últimos 11
-    tel.length >= 10 ? tel.slice(-10) : null,                  // últimos 10
-  ].filter(Boolean) as string[]));
-
-  console.log('[chatwoot] tentando variantes:', variants);
-
-  for (const q of variants) {
-    const r = await chatwootFetch<{ payload: Array<{ id: number; phone_number?: string; name?: string }> }>(
-      config,
-      `/contacts/search?q=${encodeURIComponent(q)}&include=contact_inboxes`,
-    );
-    const payload = r.data?.payload || [];
-    console.log(`[chatwoot] /contacts/search q="${q}" status=${r.status} matches=${payload.length}`);
-
-    for (const c of payload) {
-      console.log(`[chatwoot]   candidato id=${c.id} phone=${c.phone_number} name=${c.name}`);
-      const conv = await chatwootFetch<{ payload: Array<{ id: number; inbox_id: number; status?: string }> }>(
-        config,
-        `/contacts/${c.id}/conversations`,
-      );
-      const convs = conv.data?.payload || [];
-      console.log(`[chatwoot]   /contacts/${c.id}/conversations → ${convs.length} conv(s)`);
-      if (convs.length > 0) {
-        // prioriza conversa ABERTA; senão pega 1ª
-        const open = convs.find(x => x.status === 'open') || convs[0];
-        return { conversation_id: open.id, inbox_id: open.inbox_id, contact_id: c.id };
-      }
-    }
+  const { data, error } = await supabase.functions.invoke('chatwoot-find-conversation', {
+    body: { telefone },
+  });
+  if (error) {
+    console.error('[chatwoot] Edge Function error:', error);
+    return null;
   }
+  console.log('[chatwoot] resultado:', data);
 
-  console.warn('[chatwoot] nenhuma conversa encontrada para', telefone);
+  const r = data as any;
+  if (r?.ok && r.url) {
+    return {
+      url: r.url,
+      conversation_id: r.conversation_id,
+      inbox_id: r.inbox_id,
+      contact_id: r.contact_id,
+    };
+  }
+  // Não achou — devolve URL de fallback (dashboard com filtro)
+  if (r?.url) return { url: r.url, fallback: true };
   return null;
 }
 

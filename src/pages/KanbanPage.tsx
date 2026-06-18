@@ -13,7 +13,7 @@ import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, Mes
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn, copyToClipboard } from '@/lib/utils';
-import { getChatwootConfig, findConversationByPhone, chatwootConversationUrl } from '@/lib/chatwootApi';
+import { findConversationByPhone } from '@/lib/chatwootApi';
 
 // 5 colunas do Kanban derivadas de ultima_interacao
 // Mapping: column key (estado interno) → label visual
@@ -282,26 +282,16 @@ export default function KanbanPage() {
     }
   }, [instancias, filter]);
 
-  // Abre conversa no Chatwoot. Tenta direto na conversa específica;
-  // se não achar, cai pro dashboard com filtro.
+  // Abre conversa no Chatwoot via Edge Function (evita CORS).
   const openChatwoot = async (telefone: string) => {
     if (!telefone) { toast.error('Sem telefone'); return; }
-    const cfg = await getChatwootConfig();
-    if (!cfg.url || !cfg.accountId) {
-      toast.error('Chatwoot não configurado em Configurações');
+    const found = await findConversationByPhone({ url: '', accountId: '', apiToken: '' }, telefone);
+    if (!found?.url) {
+      toast.error('Chatwoot indisponível — veja console (F12)');
       return;
     }
-    const base = cfg.url.replace(/\/$/, '');
-    const found = await findConversationByPhone(cfg, telefone);
-    let url: string;
-    if (found?.conversation_id) {
-      url = chatwootConversationUrl(cfg, found.conversation_id, found.inbox_id);
-    } else {
-      const tel = telefone.replace(/\D/g, '');
-      url = `${base}/app/accounts/${cfg.accountId}/conversations?contact_phone=${encodeURIComponent('+' + tel)}`;
-      toast.info('Conversa não encontrada — abrindo busca. Veja console (F12) pra debug.');
-    }
-    window.open(url, '_blank');
+    if (found.fallback) toast.info('Conversa não encontrada — abrindo busca');
+    window.open(found.url, '_blank');
   };
 
   // Visible states (mapeados nas 5 colunas)
