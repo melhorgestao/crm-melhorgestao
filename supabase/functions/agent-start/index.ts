@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
     debug.took_ms = Date.now() - t0
 
     const SUPABASE_PUBLIC = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '')
-    const TABELA_URL = `${SUPABASE_PUBLIC}/storage/v1/object/public/Start/TabelaOficial.jpg`
+    const TABELA_URL = `${SUPABASE_PUBLIC}/storage/v1/object/public/Start/TabelaOficial.png`
 
     // Se é PRIMEIRA INTERAÇÃO: quebra em 3 mensagens com foto TabelaOficial
     // como bloco 2 (caption = cardápio+bônus).
@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
           out.push({
             tipo: 'image', url: TABELA_URL,
             caption: blocos[1].texto,
-            fileName: 'tabela-oferta.jpg',
+            fileName: 'tabela-oficial.png',
             delay_ms: 2000,
           })
           out.push({ tipo: 'text', texto: blocos[2].texto, delay_ms: 2000 })

@@ -43,6 +43,7 @@ BEGIN
     ultima_interacao             = NULL,
     ja_comprou                   = false,
     canal_atual                  = NULL,
+    fotos_enviadas               = '{}',  -- libera reenvio de fotos (TabelaOficial, etc)
     is_novo                      = true,
     novo_ate                     = NULL,
     representante_id             = NULL,

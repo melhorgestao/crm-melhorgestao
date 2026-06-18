@@ -92,11 +92,19 @@ Deno.serve(async (req) => {
     const resposta_texto = (agentJson?.resposta_texto || '').toString().trim()
     const respostas: Array<{ texto: string; delay_ms?: number }> = Array.isArray(agentJson?.respostas) ? agentJson.respostas : []
 
+    // Se agent retornou VAZIO, NÃO deixa o bot mudo — manda fallback
     if (!resposta_texto && respostas.length === 0) {
+      const fallbackTxt = targetAgent === 'agent-closing'
+        ? 'Tô com uma instabilidade aqui no fechamento. Pode repetir sua última mensagem?'
+        : 'Tô com uma instabilidade aqui. Pode repetir sua mensagem?'
+      // ainda tenta enviar pelo n8n
       return j({
-        ok: false, deve_enviar: false, motivo: 'agent_sem_resposta',
+        ok: true, deve_enviar: true, motivo: 'fallback_agent_vazio',
+        resposta_texto: fallbackTxt,
+        contato_id, telefone_clean, instancia_nome,
+        evolution_url, evolution_apikey,
         agent_called: targetAgent, agent_debug: agentJson?.debug,
-        contato_id, took_ms: Date.now() - t0,
+        took_ms: Date.now() - t0,
       })
     }
 
