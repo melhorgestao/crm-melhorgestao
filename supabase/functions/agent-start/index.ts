@@ -177,13 +177,27 @@ Deno.serve(async (req) => {
     }
 
     if (!resposta) {
-      resposta = 'Oi! Tô com uma instabilidade aqui, pode repetir sua mensagem? 🙏'
+      resposta = 'Oi! Tô com uma instabilidade aqui, pode repetir sua mensagem?'
       debug.fallback_used = true
     }
 
     debug.iterations = iter
     debug.tools_used = toolsUsed
     debug.took_ms = Date.now() - t0
+
+    // Se é PRIMEIRA INTERAÇÃO, quebra o cardápio em 3 mensagens com delay
+    // pra parecer humano (digitando→envia, espera, envia próxima).
+    if (isPrimeiraInteracao && !chainToClosing) {
+      const blocos = splitWelcomeIntoBlocks(resposta)
+      if (blocos.length >= 2) {
+        debug.split_in_blocks = blocos.length
+        return j({
+          resposta_texto: blocos[0].texto, // compat: 1ª como string
+          respostas: blocos,               // array que o router-process processa
+          contato_id, debug,
+        })
+      }
+    }
 
     return j({ resposta_texto: resposta, contato_id, debug })
 
@@ -232,4 +246,37 @@ function j(body: any, status = 200) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     status,
   })
+}
+
+// Quebra o welcome em 3 blocos. Marcadores no prompt: "📋 *Nosso cardápio:*"
+// inicia o bloco 2; "Como posso te ajudar" inicia o bloco 3.
+function splitWelcomeIntoBlocks(texto: string): Array<{ texto: string; delay_ms: number }> {
+  const t = String(texto || '').trim()
+  if (!t) return []
+
+  const idxCardapio = t.search(/📋\s*\*?Nosso\s*card[áa]pio/i)
+  const idxAjuda    = t.search(/Como\s+posso\s+te?\s*ajudar/i)
+
+  const blocos: Array<{ texto: string; delay_ms: number }> = []
+
+  // Bloco 1: do início até o cardápio
+  const fimBloco1 = idxCardapio > 0 ? idxCardapio : (idxAjuda > 0 ? idxAjuda : t.length)
+  const bloco1 = t.slice(0, fimBloco1).trim()
+  if (bloco1) blocos.push({ texto: bloco1, delay_ms: 0 })
+
+  // Bloco 2: cardápio até pergunta
+  if (idxCardapio > 0) {
+    const fimBloco2 = idxAjuda > idxCardapio ? idxAjuda : t.length
+    const bloco2 = t.slice(idxCardapio, fimBloco2).trim()
+    if (bloco2) blocos.push({ texto: bloco2, delay_ms: 2000 })
+  }
+
+  // Bloco 3: pergunta final
+  if (idxAjuda > 0) {
+    const bloco3 = t.slice(idxAjuda).trim()
+    if (bloco3) blocos.push({ texto: bloco3, delay_ms: 2000 })
+  }
+
+  // Se só achou 1 bloco, devolve vazio (deixa fluxo single-msg)
+  return blocos.length >= 2 ? blocos : []
 }

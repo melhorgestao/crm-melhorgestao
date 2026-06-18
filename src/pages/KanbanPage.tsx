@@ -13,7 +13,7 @@ import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, Mes
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn, copyToClipboard } from '@/lib/utils';
-import { getChatwootConfig } from '@/lib/chatwootApi';
+import { getChatwootConfig, findConversationByPhone } from '@/lib/chatwootApi';
 
 // 5 colunas do Kanban derivadas de ultima_interacao
 // Mapping: column key (estado interno) → label visual
@@ -282,7 +282,8 @@ export default function KanbanPage() {
     }
   }, [instancias, filter]);
 
-  // Abre conversa no Chatwoot pelo telefone (busca pelo painel)
+  // Abre conversa no Chatwoot. Tenta direto na conversa específica;
+  // se não achar, cai pro dashboard com filtro.
   const openChatwoot = async (telefone: string) => {
     if (!telefone) { toast.error('Sem telefone'); return; }
     const cfg = await getChatwootConfig();
@@ -290,8 +291,16 @@ export default function KanbanPage() {
       toast.error('Chatwoot não configurado em Configurações');
       return;
     }
-    const tel = telefone.replace(/\D/g, '');
-    const url = `${cfg.url.replace(/\/$/, '')}/app/accounts/${cfg.accountId}/conversations?contact_phone=${encodeURIComponent('+' + tel)}`;
+    const base = cfg.url.replace(/\/$/, '');
+    const found = await findConversationByPhone(cfg, telefone);
+    let url: string;
+    if (found?.conversation_id) {
+      url = `${base}/app/accounts/${cfg.accountId}/conversations/${found.conversation_id}`;
+    } else {
+      const tel = telefone.replace(/\D/g, '');
+      url = `${base}/app/accounts/${cfg.accountId}/conversations?contact_phone=${encodeURIComponent('+' + tel)}`;
+      toast.info('Conversa não encontrada — abrindo busca');
+    }
     window.open(url, '_blank');
   };
 

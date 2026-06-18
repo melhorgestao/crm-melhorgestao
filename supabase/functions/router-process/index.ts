@@ -90,8 +90,9 @@ Deno.serve(async (req) => {
     })
     const agentJson = await agentRes.json().catch(() => ({}))
     const resposta_texto = (agentJson?.resposta_texto || '').toString().trim()
+    const respostas: Array<{ texto: string; delay_ms?: number }> = Array.isArray(agentJson?.respostas) ? agentJson.respostas : []
 
-    if (!resposta_texto) {
+    if (!resposta_texto && respostas.length === 0) {
       return j({
         ok: false, deve_enviar: false, motivo: 'agent_sem_resposta',
         agent_called: targetAgent, agent_debug: agentJson?.debug,
@@ -99,7 +100,54 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 4) Salva resposta no buffer (out) + 5) evento (em paralelo)
+    // 4) Envia múltiplas mensagens (com delay) DENTRO da Edge, depois
+    // devolve deve_enviar=false pra n8n não duplicar.
+    if (respostas.length >= 2) {
+      const enviados: any[] = []
+      for (const r of respostas) {
+        const txt = String(r.texto || '').trim()
+        if (!txt) continue
+        if (r.delay_ms && r.delay_ms > 0) {
+          await new Promise(res => setTimeout(res, Math.min(r.delay_ms, 5000)))
+        }
+        try {
+          const sendRes = await fetch(`${evolution_url.replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(instancia_nome)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': evolution_apikey },
+            body: JSON.stringify({ number: telefone_clean, text: txt }),
+          })
+          enviados.push({ ok: sendRes.ok, status: sendRes.status, len: txt.length })
+        } catch (e) {
+          enviados.push({ ok: false, error: e instanceof Error ? e.message : String(e), len: txt.length })
+        }
+        // Salva cada uma no buffer (out)
+        await supabase.from('mensagens_buffer').insert({
+          contato_id, telefone: telefone_clean, mensagem: txt,
+          tipo: 'text', direcao: 'out',
+          instancia_id: instancia_uuid,
+          processada_em: new Date().toISOString(),
+        })
+      }
+      await supabase.from('eventos_contato').insert({
+        contato_id, tipo: 'router_turn', canal: instancia_nome,
+        instancia_id: instancia_uuid,
+        metadata: {
+          msg_in: mensagens_concat.slice(0, 500),
+          msg_in_count: count_msgs,
+          agent_called: targetAgent,
+          multi_msg: enviados,
+        },
+      })
+      return j({
+        ok: true, deve_enviar: false, motivo: 'enviado_multi',
+        contato_id, telefone_clean, instancia_nome,
+        agent_called: targetAgent,
+        enviados,
+        took_ms: Date.now() - t0,
+      })
+    }
+
+    // 5) Caminho single-message (legado): salva buffer + evento, n8n manda
     await Promise.all([
       supabase.from('mensagens_buffer').insert({
         contato_id,

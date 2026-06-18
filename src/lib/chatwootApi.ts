@@ -79,3 +79,41 @@ export async function findInboxByName(config: ChatwootConfig, name: string): Pro
   const all = await listInboxes(config);
   return all.find(i => i.name === name) || null;
 }
+
+/**
+ * Acha conversa+inbox de um contato pelo telefone.
+ * Retorna { conversation_id, inbox_id } ou null se não encontrar.
+ * 1) Busca contato via /contacts/search
+ * 2) Pega conversas via /contacts/{id}/conversations
+ * 3) Pega a primeira (mais recente)
+ */
+export async function findConversationByPhone(
+  config: ChatwootConfig,
+  telefone: string
+): Promise<{ conversation_id: number; inbox_id: number } | null> {
+  const tel = (telefone || '').replace(/\D/g, '');
+  if (!tel) return null;
+
+  // 1) Tenta com o prefixo + (formato E.164)
+  const candidates = [`+${tel}`, tel];
+  let contactId: number | null = null;
+
+  for (const q of candidates) {
+    const r = await chatwootFetch<{ payload: Array<{ id: number; phone_number?: string }> }>(
+      config,
+      `/contacts/search?q=${encodeURIComponent(q)}&include=contact_inboxes`,
+    );
+    const found = r.data?.payload?.[0];
+    if (found?.id) { contactId = found.id; break; }
+  }
+  if (!contactId) return null;
+
+  // 2) Pega conversas
+  const conv = await chatwootFetch<{ payload: Array<{ id: number; inbox_id: number }> }>(
+    config,
+    `/contacts/${contactId}/conversations`,
+  );
+  const first = conv.data?.payload?.[0];
+  if (!first?.id) return null;
+  return { conversation_id: first.id, inbox_id: first.inbox_id };
+}
