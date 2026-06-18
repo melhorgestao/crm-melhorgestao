@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     // 2) carrega contexto em paralelo
     const [contatoRes, pendenciaRes, catalogoRes, historyRes] = await Promise.all([
       supabase.from('contatos')
-        .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,instancia_id,cep,rua,numero,complemento,bairro')
+        .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,instancia_id,cep,rua,numero,complemento,bairro,cpf')
         .eq('id', contato_id).maybeSingle(),
       supabase.rpc('consultar_pendencia_contato', { p_contato_id: contato_id }).maybeSingle(),
       supabase.from('produtos')

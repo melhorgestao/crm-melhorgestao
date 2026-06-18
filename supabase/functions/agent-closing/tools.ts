@@ -56,7 +56,7 @@ export const CLOSING_TOOL_SCHEMAS = [
     type: 'function',
     function: {
       name: 'salvar_endereco',
-      description: 'Persiste o endereço completo no banco. Chame APÓS cliente confirmar todos os campos.',
+      description: 'Persiste endereço completo + CPF no banco. Chame APÓS cliente confirmar todos os campos. CPF é obrigatório pra etiqueta de envio.',
       parameters: {
         type: 'object',
         properties: {
@@ -67,8 +67,9 @@ export const CLOSING_TOOL_SCHEMAS = [
           bairro:      { type: 'string', description: 'Bairro.' },
           cidade:      { type: 'string', description: 'Cidade.' },
           uf:          { type: 'string', description: 'UF 2 letras.' },
+          cpf:         { type: 'string', description: 'CPF do cliente (11 dígitos, com ou sem máscara). Obrigatório pra etiqueta.' },
         },
-        required: ['cep', 'rua', 'numero', 'bairro', 'cidade', 'uf'],
+        required: ['cep', 'rua', 'numero', 'bairro', 'cidade', 'uf', 'cpf'],
       },
     },
   },
@@ -161,6 +162,10 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
       }
 
       case 'salvar_endereco': {
+        const cpfLimpo = String(args.cpf || '').replace(/\D/g, '')
+        if (cpfLimpo && cpfLimpo.length !== 11) {
+          return { error: 'CPF inválido (precisa ter 11 dígitos)' }
+        }
         const { error } = await supabase.rpc('upsert_endereco_contato', {
           p_contato_id:  contato_id,
           p_cep:         String(args.cep || '').replace(/\D/g, ''),
@@ -170,6 +175,7 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
           p_bairro:      args.bairro || '',
           p_cidade:      args.cidade || '',
           p_uf:          (args.uf || '').toUpperCase(),
+          p_cpf:         cpfLimpo || null,
         })
         if (error) return { error: error.message }
         return { ok: true }

@@ -16,6 +16,7 @@ export interface ContatoClosing {
   numero?: string
   complemento?: string
   bairro?: string
+  cpf?: string
 }
 
 export interface ProdutoCat {
@@ -45,8 +46,12 @@ export function buildClosingPrompt({ contato, pendencia, catalogo, contato_id, i
     .join('\n')
 
   const temEndereco = !!(contato.cep && contato.rua && contato.numero && contato.uf)
+  const temCpf = !!(contato.cpf && contato.cpf.replace(/\D/g, '').length === 11)
+  const cpfFormat = temCpf
+    ? (contato.cpf || '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+    : '(não cadastrado)'
   const endFormat = temEndereco
-    ? `📮 CEP: ${contato.cep}\n🏠 ${contato.rua}, ${contato.numero}${contato.complemento ? ' — ' + contato.complemento : ''}\n🏘 ${contato.bairro || ''} — ${contato.cidade}/${contato.uf}`
+    ? `📮 CEP: ${contato.cep}\n🏠 ${contato.rua}, ${contato.numero}${contato.complemento ? ' — ' + contato.complemento : ''}\n🏘 ${contato.bairro || ''} — ${contato.cidade}/${contato.uf}\n📄 CPF: ${cpfFormat}`
     : '(endereço NÃO cadastrado — precisa coletar)'
 
   const pendBlock = temPendencia ? `
@@ -110,11 +115,15 @@ ESTADO 2 — FRETE (mostrar opções)
   Se cliente só responder modalidade sem citar produto, vai pro ESTADO 3 sem itens; pergunte o pedido.
   Se cliente só citar produto sem modalidade, lembre dele de escolher modalidade.
 
-ESTADO 3 — COMPLETAR ENDEREÇO + CRIAR PEDIDO
-  Condição: tem CEP, modalidade escolhida, itens definidos. Falta NÚMERO+complemento.
-  Ação: peça em UMA mensagem só: "Pra fechar: me passa o número da casa/apto (e complemento se tiver)?"
-  Quando cliente responder: chame salvar_endereco(cep, rua, numero, complemento, bairro, cidade, uf)
+ESTADO 3 — COMPLETAR ENDEREÇO + CPF + CRIAR PEDIDO
+  Condição: tem CEP, modalidade escolhida, itens definidos. Falta NÚMERO+complemento e CPF.
+  Ação: peça em UMA mensagem só os 3 itens:
+    "Pra fechar e gerar a etiqueta de envio, me passa:
+    🏠 Número (e complemento se tiver)
+    📄 CPF do destinatário"
+  Quando cliente responder com tudo: chame salvar_endereco(cep, rua, numero, complemento, bairro, cidade, uf, CPF)
   + chame calcular_pedido(itens, modalidade_frete_escolhida) pra criar pedido_em_aberto.
+  Se cliente esquecer um, peça SÓ o que falta (não repita o que já tem).
   Se calcular_pedido retornar pendencias:
     - 'endereco' → erro, peça dados que faltam
     - 'escolher_brinde' → "Você ganha {N} brinde(s)! Escolha do catálogo." Depois calcular_pedido com brindes_tags.
