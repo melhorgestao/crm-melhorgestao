@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Image as ImageIcon, Loader2 } from 'lucide-react';
 import type { CampanhaRow } from './CampanhaCard';
 import { TemplateModal, type TemplateRow } from './TemplateModal';
+import { AnexosManager } from './AnexosManager';
 
 interface Props {
   open: boolean;
@@ -457,6 +458,11 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
               <p className="text-[10px] text-muted-foreground">
                 Pausar instância em <code className="font-mono">/instancias</code> sobrepõe esses toggles — workflows nem tentam usar instância pausada.
               </p>
+            </section>
+
+            {/* Anexos da campanha (rotação independente dos templates) */}
+            <section className="space-y-2 border-t pt-4">
+              <AnexosManager campanhaId={campanha.id} />
             </section>
 
             {/* Templates */}

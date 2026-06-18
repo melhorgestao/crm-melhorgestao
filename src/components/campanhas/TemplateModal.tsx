@@ -8,13 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Loader2, Eye } from 'lucide-react';
-import { AnexoUpload } from './AnexoUpload';
-import { Switch } from '@/components/ui/switch';
 import type { AnexoTipo } from '@/lib/storageUpload';
-
-// URL pública do TabelaOferta padrão (bucket TabelaOferta deve estar PUBLIC)
-const TABELA_OFERTA_DEFAULT_URL =
-  `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/TabelaOferta/TabelaOferta.png`;
 
 export interface TemplateRow {
   id: string;
@@ -177,54 +171,9 @@ export function TemplateModal({ open, onClose, campanhaId, campanhaTipo, campanh
             </div>
           </div>
 
-          {/* Toggle Anexo (com preset TabelaOferta pra ativação) */}
-          <div className="space-y-2 border rounded-lg p-3 bg-muted/20">
-            <label className="flex items-center justify-between cursor-pointer">
-              <div>
-                <p className="text-xs font-medium">Anexo</p>
-                <p className="text-[10px] text-muted-foreground">
-                  {campanhaTipo === 'ativacao'
-                    ? 'Liga pra mandar imagem com a mensagem (default: TabelaOferta)'
-                    : 'Liga pra mandar imagem/vídeo/áudio com a mensagem'}
-                </p>
-              </div>
-              <Switch
-                checked={!!anexoUrl}
-                onCheckedChange={(on) => {
-                  if (on) {
-                    // Liga: se ativação e sem anexo, popula com TabelaOferta default
-                    if (!anexoUrl) {
-                      if (campanhaTipo === 'ativacao') {
-                        setAnexoUrl(TABELA_OFERTA_DEFAULT_URL);
-                        setAnexoTipo('image');
-                      } else {
-                        // outras: deixa o usuário fazer upload
-                        setAnexoTipo('image');
-                      }
-                    }
-                  } else {
-                    // Desliga: limpa
-                    setAnexoUrl(null);
-                    setAnexoTipo(null);
-                  }
-                }}
-              />
-            </label>
-            {!!anexoUrl && (
-              <AnexoUpload
-                url={anexoUrl}
-                tipo={anexoTipo}
-                onChange={(u, t) => { setAnexoUrl(u); setAnexoTipo(t); }}
-              />
-            )}
-            {!anexoUrl && anexoTipo === 'image' && (
-              <AnexoUpload
-                url={null}
-                tipo={null}
-                onChange={(u, t) => { setAnexoUrl(u); setAnexoTipo(t); }}
-              />
-            )}
-          </div>
+          <p className="text-[11px] text-muted-foreground italic">
+            Anexos agora são gerenciados no nível da campanha (seção "Anexos" abaixo). Cada envio combina UM template + UM anexo (rotação independente).
+          </p>
 
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={ativo} onChange={e => setAtivo(e.target.checked)} />
