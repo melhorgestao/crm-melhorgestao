@@ -159,7 +159,7 @@
         "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_instancia_id\": \"{{ $json.id }}\",\n  \"p_campanha\": null,\n  \"p_dias_gap\": 30\n}",
+        "jsonBody": "={\n  \"p_instancia_id\": \"{{ $('Split por Instância').item.json.id }}\",\n  \"p_campanha\": {{ $('Pode disparar?').item.json.campanha_id ? '\"' + $('Pode disparar?').item.json.campanha_id + '\"' : 'null' }},\n  \"p_dias_gap\": 30\n}",
         "options": {}
       },
       "id": "claim-lead",
@@ -259,7 +259,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('CLAIM lead ativação').item.json[0].telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"mediatype\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.anexo_tipo }}\",\n  \"media\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.anexo_url }}\",\n  \"caption\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.texto.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"delay\": 2000\n}",
+        "jsonBody": "={{ JSON.stringify({\n  number: ('55' + String($('CLAIM lead ativação').item.json[0].telefone).replace(/\\D/g, '')).replace(/^5555/, '55'),\n  mediatype: $('ESCOLHE TEMPLATE v2').item.json.anexo_tipo,\n  media: $('ESCOLHE TEMPLATE v2').item.json.anexo_url,\n  caption: $('ESCOLHE TEMPLATE v2').item.json.texto || '',\n  delay: 2000\n}) }}",
         "options": { "response": { "response": { "neverError": true } } }
       },
       "id": "send-media",
@@ -282,7 +282,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('CLAIM lead ativação').item.json[0].telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.texto.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"delay\": 2000\n}",
+        "jsonBody": "={{ JSON.stringify({\n  number: ('55' + String($('CLAIM lead ativação').item.json[0].telefone).replace(/\\D/g, '')).replace(/^5555/, '55'),\n  text: $('ESCOLHE TEMPLATE v2').item.json.texto || '',\n  delay: 2000\n}) }}",
         "options": { "response": { "response": { "neverError": true } } }
       },
       "id": "send-text",
