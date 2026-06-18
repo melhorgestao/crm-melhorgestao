@@ -13,7 +13,7 @@ import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, Mes
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn, copyToClipboard } from '@/lib/utils';
-import { getChatwootConfig, findConversationByPhone } from '@/lib/chatwootApi';
+import { getChatwootConfig, findConversationByPhone, chatwootConversationUrl } from '@/lib/chatwootApi';
 
 // 5 colunas do Kanban derivadas de ultima_interacao
 // Mapping: column key (estado interno) → label visual
@@ -295,11 +295,11 @@ export default function KanbanPage() {
     const found = await findConversationByPhone(cfg, telefone);
     let url: string;
     if (found?.conversation_id) {
-      url = `${base}/app/accounts/${cfg.accountId}/conversations/${found.conversation_id}`;
+      url = chatwootConversationUrl(cfg, found.conversation_id, found.inbox_id);
     } else {
       const tel = telefone.replace(/\D/g, '');
       url = `${base}/app/accounts/${cfg.accountId}/conversations?contact_phone=${encodeURIComponent('+' + tel)}`;
-      toast.info('Conversa não encontrada — abrindo busca');
+      toast.info('Conversa não encontrada — abrindo busca. Veja console (F12) pra debug.');
     }
     window.open(url, '_blank');
   };
