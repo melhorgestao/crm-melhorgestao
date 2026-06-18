@@ -32,8 +32,65 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const TIPOS_ACEITOS = new Set(['conversation', 'extendedTextMessage', 'audioMessage'])
+const TIPOS_ACEITOS = new Set([
+  'conversation', 'extendedTextMessage', 'audioMessage',
+  'deviceSentMessage', 'ephemeralMessage', 'viewOnceMessage',
+])
 const EVOLUTION_BASE_URL_DEFAULT = 'https://evo.melhorgestao.online'
+
+function unwrapMessage(msg: Record<string, unknown>): Record<string, unknown> {
+  const nested = (msg.deviceSentMessage as any)?.message
+    || (msg.ephemeralMessage as any)?.message
+    || (msg.viewOnceMessage as any)?.message
+  return (nested && typeof nested === 'object') ? nested as Record<string, unknown> : msg
+}
+
+function extractMsgText(msg: Record<string, unknown>): string {
+  const inner = unwrapMessage(msg)
+  return String(
+    inner.conversation
+    || (inner.extendedTextMessage as any)?.text
+    || (inner.imageMessage as any)?.caption
+    || ''
+  )
+}
+
+function detectMessageType(msg: Record<string, unknown>): string {
+  const inner = unwrapMessage(msg)
+  const keys = Object.keys(inner).filter((k) => k !== 'messageContextInfo')
+  return keys[0] || 'unknown'
+}
+
+function extractContatoId(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null
+  if (Array.isArray(data)) return (data[0] as { id?: string })?.id ?? null
+  return (data as { id?: string }).id ?? null
+}
+
+function isBotPausado(botPausadoAte: string | null | undefined): boolean {
+  if (!botPausadoAte) return false
+  const t = Date.parse(botPausadoAte)
+  return !Number.isNaN(t) && t > Date.now()
+}
+
+/** Dígitos locais BR (DDD + número), sem código país 55. */
+function normalizeTelefoneBr(raw: string): string {
+  let d = String(raw || '').replace(/\D/g, '')
+  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2)
+  return d
+}
+
+function extractTelefoneFromEvolution(key: Record<string, unknown> | undefined): string {
+  const jid = String(
+    key?.remoteJidAlt
+    || key?.remoteJid
+    || key?.participant
+    || ''
+  )
+  // Ignora LID puro (@lid) quando não há alternativa com telefone real
+  if (jid.includes('@lid') && !key?.remoteJidAlt) return ''
+  return normalizeTelefoneBr(jid)
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -44,12 +101,11 @@ Deno.serve(async (req) => {
 
     // 1) extrai campos
     const instancia_nome = ev.instance || ev.body?.instance || ''
-    const remoteJid = ev.data?.key?.remoteJid || ''
-    const telefone_clean = remoteJid.replace(/\D/g, '')
+    const telefone_clean = extractTelefoneFromEvolution(ev.data?.key)
     const from_me = !!ev.data?.key?.fromMe
     const msg = ev.data?.message || {}
-    const msg_text = msg.conversation || msg.extendedTextMessage?.text || ''
-    const message_type = Object.keys(msg)[0] || 'unknown'
+    const msg_text = extractMsgText(msg)
+    const message_type = detectMessageType(msg)
     const push_name = ev.data?.pushName || ''
     const msg_id = ev.data?.key?.id || ''
     const ctwa_source_id  = msg.messageContextInfo?.ctwaContext?.sourceId  || null
@@ -60,8 +116,10 @@ Deno.serve(async (req) => {
     // Deixa passar pra ser tratado no bloco de comando lá embaixo.
     const isComando = msg_text.trim().startsWith('/')
     if (from_me && !isComando)                return j({ ok: true, deve_processar: false, motivo: 'from_me' })
-    if (!TIPOS_ACEITOS.has(message_type))     return j({ ok: true, deve_processar: false, motivo: 'tipo_ignorado', message_type })
-    if (!telefone_clean)                      return j({ ok: true, deve_processar: false, motivo: 'sem_telefone' })
+    if (!isComando && !TIPOS_ACEITOS.has(message_type)) {
+      return j({ ok: true, deve_processar: false, motivo: 'tipo_ignorado', message_type })
+    }
+    if (!telefone_clean || telefone_clean.length < 10) return j({ ok: true, deve_processar: false, motivo: 'sem_telefone' })
     if (!instancia_nome)                      return j({ ok: true, deve_processar: false, motivo: 'sem_instancia' })
 
     const supabase = createClient(
@@ -103,13 +161,20 @@ Deno.serve(async (req) => {
     //    Executa direto e SAI sem rodar o agente.
     if (isComando) {
       const comando = msg_text.trim().split(/\s+/)[0].toLowerCase()
-      const { data: contatoCmd } = await supabase.rpc('get_or_create_contato', {
+      const { data: contatoCmd, error: contatoCmdErr } = await supabase.rpc('get_or_create_contato', {
         p_telefone: telefone_clean, p_nome: push_name, p_instancia_id: instancia_uuid,
         p_canal_origem: ctwa_source_id ? 'ADS' : 'BASE',
         p_mensagem: msg_text.replace(/\n/g, ' '),
         p_metadata: { ctwa_source_id, ctwa_source_url },
       })
-      const cid = (contatoCmd as any)?.id
+      const cid = extractContatoId(contatoCmd)
+      if (!cid) {
+        return j({
+          ok: false, deve_processar: false, motivo: 'comando_sem_contato',
+          comando, cmd_error: contatoCmdErr?.message || 'contato_id ausente',
+          instancia_uuid, telefone_clean, instancia_nome, evolution_url, evolution_apikey,
+        }, 500)
+      }
       const { data: cmdResult, error: cmdErr } = await supabase.rpc('executa_comando_dono', {
         p_contato_id: cid, p_comando: comando,
       })
@@ -139,8 +204,9 @@ Deno.serve(async (req) => {
       p_metadata: { ctwa_source_id, ctwa_source_url },
     })
     if (cErr || !contato) return j({ ok: false, error: cErr?.message || 'get_or_create_contato falhou' }, 500)
-    const contato_id = (contato as any).id || (Array.isArray(contato) && (contato as any)[0]?.id)
+    const contato_id = extractContatoId(contato)
     if (!contato_id) return j({ ok: false, error: 'contato sem id' }, 500)
+    const bot_pausado_ate = (contato as { bot_pausado_ate?: string | null }).bot_pausado_ate ?? null
 
     // 6) transcrever áudio se for o caso
     let texto_final = msg_text
@@ -172,6 +238,22 @@ Deno.serve(async (req) => {
       recebida_em,
     })
     if (bufErr) return j({ ok: false, error: bufErr.message }, 500)
+
+    if (isBotPausado(bot_pausado_ate)) {
+      return j({
+        ok: true,
+        deve_processar: false,
+        motivo: 'bot_pausado_contato',
+        contato_id,
+        instancia_uuid,
+        telefone_clean,
+        instancia_nome,
+        evolution_url,
+        evolution_apikey,
+        recebida_em,
+        bot_pausado_ate,
+      })
+    }
 
     return j({
       ok: true,

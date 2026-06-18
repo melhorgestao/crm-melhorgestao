@@ -37,7 +37,7 @@
             {
               "id": "3",
               "name": "telefone_clean",
-              "value": "={{ ($json.body?.data?.key?.remoteJid || $json.data?.key?.remoteJid || '').replace(/\\D/g, '').replace(/^55(\\d{10,11})$/, '55$1') }}",
+              "value": "={{ (() => { const key = $json.body?.data?.key || $json.data?.key || {}; const jid = key.remoteJidAlt || key.remoteJid || key.participant || ''; if (jid.includes('@lid') && !key.remoteJidAlt) return ''; let d = String(jid).replace(/\\D/g, ''); if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2); return d; })() }}",
               "type": "string"
             },
             {
@@ -49,13 +49,13 @@
             {
               "id": "5",
               "name": "msg_text",
-              "value": "={{ $json.body?.data?.message?.conversation || $json.body?.data?.message?.extendedTextMessage?.text || $json.data?.message?.conversation || $json.data?.message?.extendedTextMessage?.text || '' }}",
+              "value": "={{ (() => { const m = $json.body?.data?.message || $json.data?.message || {}; const inner = m.deviceSentMessage?.message || m.ephemeralMessage?.message || m.viewOnceMessage?.message || m; return inner.conversation || inner.extendedTextMessage?.text || ''; })() }}",
               "type": "string"
             },
             {
               "id": "6",
               "name": "message_type",
-              "value": "={{ Object.keys($json.body?.data?.message || $json.data?.message || {})[0] || 'unknown' }}",
+              "value": "={{ (() => { const m = $json.body?.data?.message || $json.data?.message || {}; const inner = m.deviceSentMessage?.message || m.ephemeralMessage?.message || m.viewOnceMessage?.message || m; const keys = Object.keys(inner).filter(k => k !== 'messageContextInfo'); return keys[0] || 'unknown'; })() }}",
               "type": "string"
             },
             {
@@ -163,7 +163,7 @@
           "conditions": [
             {
               "id": "valid-type",
-              "leftValue": "conversation,extendedTextMessage,audioMessage,imageMessage,videoMessage,documentMessage",
+              "leftValue": "conversation,extendedTextMessage,audioMessage,imageMessage,videoMessage,documentMessage,deviceSentMessage,ephemeralMessage,viewOnceMessage",
               "rightValue": "={{ $json.message_type }}",
               "operator": {
                 "type": "string",
@@ -323,7 +323,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_contato_id\": \"{{ $json.id }}\",\n  \"p_comando\": \"{{ $('EXTRAI CAMPOS').item.json.msg_text.split(' ')[0] }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ p_contato_id: ($json.id ?? $json[0]?.id), p_comando: ($('EXTRAI CAMPOS').item.json.msg_text.trim().split(/\\s+/)[0] || '').toLowerCase() }) }}",
         "options": {}
       },
       "id": "exec-command",
@@ -422,11 +422,12 @@
           "conditions": [
             {
               "id": "bot-active",
-              "leftValue": "={{ $('GET/CREATE Contato').item.json.bot_pausado_ate }}",
-              "rightValue": "",
+              "leftValue": "={{ !$('GET/CREATE Contato').item.json.bot_pausado_ate || new Date($('GET/CREATE Contato').item.json.bot_pausado_ate).getTime() <= Date.now() }}",
+              "rightValue": true,
               "operator": {
-                "type": "string",
-                "operation": "empty"
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
               }
             }
           ],

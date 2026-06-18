@@ -33,6 +33,12 @@ const ESTADOS_FECHAMENTO = new Set([
   'em_fechamento', 'aguardando_pagamento', 'cliente_pendente',
 ])
 
+function isBotPausado(botPausadoAte: string | null | undefined): boolean {
+  if (!botPausadoAte) return false
+  const t = Date.parse(botPausadoAte)
+  return !Number.isNaN(t) && t > Date.now()
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -69,9 +75,17 @@ Deno.serve(async (req) => {
     const mensagens_concat = batch.mensagens_concat || ''
     const count_msgs       = batch.count_msgs || 0
 
-    // 2) Decide qual agent chamar (estado atual do contato)
+    // 2) Pausa por contato (/humano, /parar) — não chama agente
     const { data: contatoInfo } = await supabase.from('contatos')
-      .select('ultima_interacao').eq('id', contato_id).maybeSingle()
+      .select('ultima_interacao,bot_pausado_ate').eq('id', contato_id).maybeSingle()
+    if (isBotPausado(contatoInfo?.bot_pausado_ate)) {
+      return j({
+        ok: true, deve_enviar: false, motivo: 'bot_pausado_contato',
+        contato_id, took_ms: Date.now() - t0,
+        bot_pausado_ate: contatoInfo?.bot_pausado_ate,
+      })
+    }
+
     const estado = contatoInfo?.ultima_interacao || ''
     const targetAgent = ESTADOS_FECHAMENTO.has(estado) ? 'agent-closing' : 'agent-start'
 
