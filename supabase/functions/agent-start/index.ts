@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     // 2) carrega contexto em paralelo
     const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes, catalogoRes] = await Promise.all([
       supabase.from('contatos')
-        .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,canal_atual,fotos_enviadas')
+        .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,canal_atual,fotos_enviadas,apresentacao_enviada_em')
         .eq('id', contato_id).maybeSingle(),
       supabase.rpc('consultar_pedidos_contato', { p_contato_id: contato_id }),
       supabase.rpc('consultar_pendencia_contato', { p_contato_id: contato_id }).maybeSingle(),
@@ -92,7 +92,13 @@ Deno.serve(async (req) => {
     debug.catalogo_itens = catalogo.length
 
     // 3) prompts
-    const isPrimeiraInteracao = msgsOutCount === 0
+    // Regra: SÓ é primeira interação se NÃO é cliente E apresentacao_enviada_em IS NULL.
+    // Clientes (ja_comprou=true) ou já apresentados NUNCA recebem cardápio inicial,
+    // mesmo se não há msgs out (caso de cliente cadastrado manualmente).
+    const apresentacaoJaEnviada = !!(contato as any).apresentacao_enviada_em
+    const isPrimeiraInteracao = !contato.ja_comprou && !apresentacaoJaEnviada
+    debug.apresentacao_ja_enviada = apresentacaoJaEnviada
+    debug.ja_comprou = !!contato.ja_comprou
     const systemPrompt = buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao, catalogo })
     const userMessage = `Mensagem nova do cliente:\n${mensagens || '(vazio)'}`
 
@@ -217,13 +223,15 @@ Deno.serve(async (req) => {
         } else {
           out.push({ tipo: 'text', texto: blocos[1].texto, delay_ms: 2000 })
         }
-        // Marca TabelaOficial como já enviada
-        if (!fotosEnviadas.includes('tabela_oficial')) {
-          fotosEnviadas.push('tabela_oficial')
-          await supabase.from('contatos').update({ fotos_enviadas: fotosEnviadas }).eq('id', contato_id)
-        }
+        // Marca TabelaOficial + apresentacao_enviada_em
+        if (!fotosEnviadas.includes('tabela_oficial')) fotosEnviadas.push('tabela_oficial')
+        await supabase.from('contatos').update({
+          fotos_enviadas: fotosEnviadas,
+          apresentacao_enviada_em: new Date().toISOString(),
+        }).eq('id', contato_id)
         debug.split_in_blocks = out.length
         debug.tabela_oficial_enviada = true
+        debug.apresentacao_marcada = true
         return j({ resposta_texto: out[0].texto, respostas: out, contato_id, debug })
       }
     }

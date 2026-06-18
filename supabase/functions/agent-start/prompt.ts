@@ -70,6 +70,19 @@ export function buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInter
     .map(p => `${p.emoji || '•'} ${p.nome_oficial} — R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
     .join('\n') || '(catálogo vazio)'
 
+  const clienteBlock = jaComprou ? `
+
+=== ⚠️ CLIENTE EXISTENTE — NÃO É LEAD NOVO ===
+Este contato JÁ É CLIENTE (já comprou antes). PROIBIDO:
+- Mandar cardápio inicial / apresentação da empresa
+- Mandar lista de produtos+preços de forma genérica
+- Mandar mensagem de boas-vindas "Santa Flor possui..."
+
+Trate como cliente conhecido: cumprimento direto pelo primeiro nome,
+direto ao que ele perguntou. Use buscar_conhecimento normalmente se ele
+perguntar de produto específico.
+` : ''
+
   const welcomeBlock = isPrimeira ? `
 
 === 🌟 PRIMEIRA INTERAÇÃO — REGRA ABSOLUTA ===
@@ -118,7 +131,7 @@ COMPORTAMENTO ESPECIAL:
 • Cidade: ${cidade || 'não informada'}
 • contato_id: ${contato.id || '(novo)'}
 • Estado atual: ${contato.ultima_interacao || 'novo'}
-${welcomeBlock}
+${clienteBlock}${welcomeBlock}
 === HISTÓRICO DE PEDIDOS ===
 ${pedidosResumo}${pendBlock}
 
