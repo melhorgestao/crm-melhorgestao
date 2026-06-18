@@ -1,5 +1,5 @@
 /**
- * Helper pra upload no Supabase Storage do bucket 'TabelaOferta'.
+ * Helper pra upload no Supabase Storage do bucket 'Ativacao'.
  * Detecta tipo MIME, gera filename único, retorna URL pública.
  */
 import { supabase } from '@/integrations/supabase/client';
@@ -26,19 +26,19 @@ export async function uploadAnexo(file: File): Promise<{
   const path = `${tipo}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
 
   const { error } = await supabase.storage
-    .from('TabelaOferta')
+    .from('Ativacao')
     .upload(path, file, { cacheControl: '3600', upsert: false });
 
   if (error) return { ok: false, error: error.message };
 
-  const { data: pub } = supabase.storage.from('TabelaOferta').getPublicUrl(path);
+  const { data: pub } = supabase.storage.from('Ativacao').getPublicUrl(path);
   return { ok: true, url: pub.publicUrl, tipo, path };
 }
 
 export async function removeAnexo(url: string): Promise<boolean> {
-  // Extrai path da URL pública: .../TabelaOferta/image/123.png → image/123.png
-  const m = url.match(/TabelaOferta\/(.+)$/);
+  // Extrai path da URL pública: .../Ativacao/image/123.png → image/123.png
+  const m = url.match(/Ativacao\/(.+)$/);
   if (!m) return false;
-  const { error } = await supabase.storage.from('TabelaOferta').remove([m[1]]);
+  const { error } = await supabase.storage.from('Ativacao').remove([m[1]]);
   return !error;
 }
