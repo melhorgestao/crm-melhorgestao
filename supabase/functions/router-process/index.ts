@@ -104,29 +104,50 @@ Deno.serve(async (req) => {
     // devolve deve_enviar=false pra n8n não duplicar.
     if (respostas.length >= 2) {
       const enviados: any[] = []
-      for (const r of respostas) {
-        const txt = String(r.texto || '').trim()
-        if (!txt) continue
+      const evoBase = evolution_url.replace(/\/+$/, '')
+      for (const r of respostas as Array<any>) {
+        const tipo = r.tipo === 'image' ? 'image' : 'text'
         if (r.delay_ms && r.delay_ms > 0) {
           await new Promise(res => setTimeout(res, Math.min(r.delay_ms, 5000)))
         }
         try {
-          const sendRes = await fetch(`${evolution_url.replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(instancia_nome)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'apikey': evolution_apikey },
-            body: JSON.stringify({ number: telefone_clean, text: txt }),
+          let sendRes: Response
+          let bufMsg = ''
+          if (tipo === 'image' && r.url) {
+            // Evolution sendMedia
+            sendRes = await fetch(`${evoBase}/message/sendMedia/${encodeURIComponent(instancia_nome)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'apikey': evolution_apikey },
+              body: JSON.stringify({
+                number: telefone_clean,
+                mediatype: 'image',
+                media: r.url,
+                caption: r.caption || '',
+                fileName: r.fileName || 'foto.jpg',
+              }),
+            })
+            bufMsg = `[image:${r.url}] ${r.caption || ''}`.trim()
+          } else {
+            const txt = String(r.texto || '').trim()
+            if (!txt) continue
+            sendRes = await fetch(`${evoBase}/message/sendText/${encodeURIComponent(instancia_nome)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'apikey': evolution_apikey },
+              body: JSON.stringify({ number: telefone_clean, text: txt }),
+            })
+            bufMsg = txt
+          }
+          enviados.push({ tipo, ok: sendRes.ok, status: sendRes.status, len: bufMsg.length })
+          // Salva no buffer (out)
+          await supabase.from('mensagens_buffer').insert({
+            contato_id, telefone: telefone_clean, mensagem: bufMsg,
+            tipo, direcao: 'out',
+            instancia_id: instancia_uuid,
+            processada_em: new Date().toISOString(),
           })
-          enviados.push({ ok: sendRes.ok, status: sendRes.status, len: txt.length })
         } catch (e) {
-          enviados.push({ ok: false, error: e instanceof Error ? e.message : String(e), len: txt.length })
+          enviados.push({ tipo, ok: false, error: e instanceof Error ? e.message : String(e) })
         }
-        // Salva cada uma no buffer (out)
-        await supabase.from('mensagens_buffer').insert({
-          contato_id, telefone: telefone_clean, mensagem: txt,
-          tipo: 'text', direcao: 'out',
-          instancia_id: instancia_uuid,
-          processada_em: new Date().toISOString(),
-        })
       }
       await supabase.from('eventos_contato').insert({
         contato_id, tipo: 'router_turn', canal: instancia_nome,

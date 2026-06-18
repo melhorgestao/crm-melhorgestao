@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     // 2) carrega contexto em paralelo
     const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes, catalogoRes] = await Promise.all([
       supabase.from('contatos')
-        .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,canal_atual')
+        .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,canal_atual,fotos_enviadas')
         .eq('id', contato_id).maybeSingle(),
       supabase.rpc('consultar_pedidos_contato', { p_contato_id: contato_id }),
       supabase.rpc('consultar_pendencia_contato', { p_contato_id: contato_id }).maybeSingle(),
@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
     ])
 
     const contato: Contato = (contatoRes.data ?? {}) as Contato
+    const fotosEnviadas: string[] = Array.isArray((contato as any).fotos_enviadas) ? (contato as any).fotos_enviadas : []
     const pedidos = Array.isArray(pedidosRes.data) ? pedidosRes.data : []
     const pendencia = pendenciaRes.data ?? {}
     const msgsOutCount = msgOutRes.count ?? 0
@@ -109,6 +110,7 @@ Deno.serve(async (req) => {
     let iter = 0
     let chainToClosing = false
     const toolsUsed: string[] = []
+    const fotosNovas: Array<{ url: string; caption?: string; tag: string }> = []
 
     while (iter < MAX_TOOL_ITERATIONS) {
       iter++
@@ -132,9 +134,18 @@ Deno.serve(async (req) => {
           try { args = JSON.parse(tc.function?.arguments || '{}') } catch {}
           toolsUsed.push(name)
           const toolResult = await executeTool({
-            name, args, contato_id, instancia_id, supabase, openrouterKey
+            name, args, contato_id, instancia_id, supabase, openrouterKey,
+            fotosEnviadas,
           })
           if (name === 'iniciar_fechamento' && (toolResult as any)?.ok) chainToClosing = true
+          if (name === 'enviar_foto_produto' && (toolResult as any)?.send) {
+            fotosNovas.push({
+              url:     (toolResult as any).url,
+              caption: (toolResult as any).caption,
+              tag:     (toolResult as any).foto_tag,
+            })
+            fotosEnviadas.push((toolResult as any).foto_tag)
+          }
           messages.push({
             role: 'tool',
             tool_call_id: tc.id,
@@ -185,18 +196,50 @@ Deno.serve(async (req) => {
     debug.tools_used = toolsUsed
     debug.took_ms = Date.now() - t0
 
-    // Se é PRIMEIRA INTERAÇÃO, quebra o cardápio em 3 mensagens com delay
-    // pra parecer humano (digitando→envia, espera, envia próxima).
+    const SUPABASE_PUBLIC = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '')
+    const TABELA_URL = `${SUPABASE_PUBLIC}/storage/v1/object/public/Start/TabelaOficial.jpg`
+
+    // Se é PRIMEIRA INTERAÇÃO: quebra em 3 mensagens com foto TabelaOficial
+    // como bloco 2 (caption = cardápio+bônus).
     if (isPrimeiraInteracao && !chainToClosing) {
       const blocos = splitWelcomeIntoBlocks(resposta)
       if (blocos.length >= 2) {
-        debug.split_in_blocks = blocos.length
-        return j({
-          resposta_texto: blocos[0].texto, // compat: 1ª como string
-          respostas: blocos,               // array que o router-process processa
-          contato_id, debug,
+        const out: any[] = [{ tipo: 'text', texto: blocos[0].texto, delay_ms: 0 }]
+        if (blocos.length >= 3) {
+          // bloco do meio vira foto da tabela com o cardápio como caption
+          out.push({
+            tipo: 'image', url: TABELA_URL,
+            caption: blocos[1].texto,
+            fileName: 'tabela-oferta.jpg',
+            delay_ms: 2000,
+          })
+          out.push({ tipo: 'text', texto: blocos[2].texto, delay_ms: 2000 })
+        } else {
+          out.push({ tipo: 'text', texto: blocos[1].texto, delay_ms: 2000 })
+        }
+        // Marca TabelaOficial como já enviada
+        if (!fotosEnviadas.includes('tabela_oficial')) {
+          fotosEnviadas.push('tabela_oficial')
+          await supabase.from('contatos').update({ fotos_enviadas: fotosEnviadas }).eq('id', contato_id)
+        }
+        debug.split_in_blocks = out.length
+        debug.tabela_oficial_enviada = true
+        return j({ resposta_texto: out[0].texto, respostas: out, contato_id, debug })
+      }
+    }
+
+    // Caminho com fotos NOVAS solicitadas via tool enviar_foto_produto
+    if (fotosNovas.length > 0) {
+      const out: any[] = [{ tipo: 'text', texto: resposta, delay_ms: 0 }]
+      for (const f of fotosNovas) {
+        out.push({
+          tipo: 'image', url: f.url, caption: f.caption || '',
+          fileName: `${f.tag}.jpg`, delay_ms: 1500,
         })
       }
+      await supabase.from('contatos').update({ fotos_enviadas: fotosEnviadas }).eq('id', contato_id)
+      debug.fotos_enviadas_novas = fotosNovas.map(f => f.tag)
+      return j({ resposta_texto: resposta, respostas: out, contato_id, debug })
     }
 
     return j({ resposta_texto: resposta, contato_id, debug })

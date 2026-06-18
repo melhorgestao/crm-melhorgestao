@@ -16,6 +16,27 @@ interface ToolCtx {
   instancia_id?: string | null
   supabase: SupabaseClient
   openrouterKey: string
+  fotosEnviadas?: string[]
+}
+
+// Mapa produto → arquivo no bucket "Start"
+const FOTO_MAP: Record<string, { tag: string; arquivo: string }> = {
+  cbd:        { tag: 'cbd',        arquivo: 'Cbd.jpg' },
+  verde:      { tag: 'cbd',        arquivo: 'Cbd.jpg' },
+  'cbd 4000': { tag: 'cbd',        arquivo: 'Cbd.jpg' },
+  amarelo:    { tag: 'full6k',     arquivo: 'Full6k.jpg' },
+  full6k:     { tag: 'full6k',     arquivo: 'Full6k.jpg' },
+  '6000':     { tag: 'full6k',     arquivo: 'Full6k.jpg' },
+  vermelho:   { tag: 'full10k',    arquivo: 'Full10k.jpg' },
+  full10k:    { tag: 'full10k',    arquivo: 'Full10k.jpg' },
+  '10000':    { tag: 'full10k',    arquivo: 'Full10k.jpg' },
+  gummy:      { tag: 'gummy',      arquivo: 'Gummy.jpg' },
+  bear:       { tag: 'gummy',      arquivo: 'Gummy.jpg' },
+  pomada:     { tag: 'cannaderm',  arquivo: 'Cannaderm.jpg' },
+  cannaderm:  { tag: 'cannaderm',  arquivo: 'Cannaderm.jpg' },
+  lub:        { tag: 'lub',        arquivo: 'Lub.jpg' },
+  lubrificante: { tag: 'lub',      arquivo: 'Lub.jpg' },
+  intimo:     { tag: 'lub',        arquivo: 'Lub.jpg' },
 }
 
 // ---- SCHEMAS pro OpenRouter (formato OpenAI tools v1) ----------------------
@@ -82,6 +103,20 @@ export const TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'enviar_foto_produto',
+      description: 'Envia foto do produto. Use UMA ÚNICA VEZ por conversa quando cliente perguntar/demonstrar interesse específico em um produto. Não use pra produtos já mencionados de passagem; só quando há foco explícito. Aceita keyword: cbd | verde | amarelo | full6k | vermelho | full10k | gummy | pomada | cannaderm | lub. Se já foi enviada antes, retorna already_sent=true e nada acontece — não tente outra vez.',
+      parameters: {
+        type: 'object',
+        properties: {
+          produto: { type: 'string', description: 'Keyword do produto.' },
+        },
+        required: ['produto'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'iniciar_fechamento',
       description: 'Marca contato como em_fechamento. Router encaminha a PRÓXIMA msg do cliente pro AGENT_CLOSING. Use quando cliente expressa intenção CLARA de comprar ("quero", "manda", "vou levar").',
       parameters: {
@@ -97,7 +132,7 @@ export const TOOL_SCHEMAS = [
 
 // ---- EXECUTOR --------------------------------------------------------------
 export async function executeTool(ctx: ToolCtx): Promise<any> {
-  const { name, args, contato_id, supabase, openrouterKey } = ctx
+  const { name, args, contato_id, supabase, openrouterKey, fotosEnviadas = [] } = ctx
 
   try {
     switch (name) {
@@ -143,6 +178,15 @@ export async function executeTool(ctx: ToolCtx): Promise<any> {
         })
         if (error) return { error: error.message }
         return { ok: true, data }
+      }
+
+      case 'enviar_foto_produto': {
+        const key = String(args.produto || '').toLowerCase().trim()
+        const match = FOTO_MAP[key]
+        if (!match) return { send: false, error: `produto desconhecido: ${args.produto}` }
+        if (fotosEnviadas.includes(match.tag)) return { send: false, already_sent: true, foto_tag: match.tag }
+        const url = `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/Start/${match.arquivo}`
+        return { send: true, url, foto_tag: match.tag, caption: '' }
       }
 
       case 'iniciar_fechamento': {

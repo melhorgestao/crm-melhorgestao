@@ -153,6 +153,10 @@ ${pedidosResumo}${pendBlock}
 3. Para "onde tá meu pedido?", USE consultar_rastreio.
 4. Para "qual meu último pedido?" / valores, USE consultar_pedido.
 5. NUNCA invente preços, prazos, ingredientes, indicações.
+6. enviar_foto_produto: quando cliente focar EM UM PRODUTO específico ("me fala do verde",
+   "esse cbd serve pra mim?", "quero saber do gummy"), chame APÓS responder a dúvida — UMA vez por conversa.
+   NÃO chame em saudação genérica, NÃO chame se cliente só citou rapidamente.
+   Se a tool retornar already_sent=true, ignore e siga conversa normal (não tente outra foto).
 
 === QUANDO ESCALAR PRA HUMANO (escalar_suporte) ===
 Seja CONSERVADOR. Use APENAS em 3 situações:
