@@ -48,6 +48,9 @@ interface BuildArgs {
   isPrimeiraInteracao: boolean
   catalogo: ProdutoCat[]
   cupom?: Cupom | null
+  config?: Record<string, any>
+  ehSaudacaoPura?: boolean
+  saudacaoResolvida?: string
 }
 
 const CARDAPIO = `Santa Flor possui óleos🥥 Base de TCM, um suplemento nutricional extraído da polpa do coco, extremamente nutritivo e de rápida absorção, o mais indicado pelos médicos.
@@ -58,7 +61,10 @@ Todos os produtos possuem:
 
 E são produzidos💯 sem solvente (100% natural e sabor real da cannabis)`
 
-export function buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao, catalogo, cupom }: BuildArgs): string {
+export function buildSystemPrompt({
+  contato, pedidos, pendencia, isPrimeiraInteracao, catalogo, cupom,
+  config = {}, ehSaudacaoPura = true, saudacaoResolvida = '',
+}: BuildArgs): string {
   const nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)'
   const jaComprou = !!contato.ja_comprou
   const cidade   = [contato.cidade, contato.uf].filter(Boolean).join('/')
@@ -90,29 +96,41 @@ direto ao que ele perguntou. Use buscar_conhecimento normalmente se ele
 perguntar de produto específico.
 ` : ''
 
+  // Textos editáveis via UI (com fallback hardcoded)
+  const textoApresentacao = String(config.texto_apresentacao || CARDAPIO)
+  const cardapioHeader    = String(config.cardapio_header   || '📋 *Nosso cardápio:*')
+  const cardapioBonus     = String(config.cardapio_bonus_texto ||
+    '🎁 *Bônus:*\n🚚 2 produtos → frete SEDEX grátis\n🎁 4 produtos → ganha 1 brinde do catálogo\n🎁 8 produtos → ganha 2 brindes do catálogo')
+
+  // Bloco final muda conforme primeira mensagem do cliente:
+  //  • SAUDAÇÃO genérica  → manda saudação configurada (template por canal)
+  //  • PERGUNTA DIRETA   → responde a pergunta dele direto (chama buscar_conhecimento se precisar)
+  const blocoFinal = ehSaudacaoPura
+    ? saudacaoResolvida
+    : `[RESPONDA AQUI DIRETAMENTE À PERGUNTA DO CLIENTE — em 2-4 frases. Use buscar_conhecimento se for sobre produto/preço/indicação/FAQ. NÃO repita "Como posso te ajudar?" — o cliente JÁ disse o que precisa.]`
+
   const welcomeBlock = isPrimeira ? `
 
 === 🌟 PRIMEIRA INTERAÇÃO — REGRA ABSOLUTA ===
-Este é o PRIMEIRO contato. Sua resposta DEVE ser EXATAMENTE o texto abaixo, palavra por palavra. NÃO modifique, NÃO chame tools:
+Este é o PRIMEIRO contato. Sua resposta DEVE seguir EXATAMENTE esta estrutura:
 
-${CARDAPIO}
+${textoApresentacao}
 
-📋 *Nosso cardápio:*
+${cardapioHeader}
 ${linhasCardapio}
 
-🎁 *Bônus:*
-🚚 2 produtos → frete SEDEX grátis
-🎁 4 produtos → ganha 1 brinde do catálogo
-🎁 8 produtos → ganha 2 brindes do catálogo
+${cardapioBonus}
 
-Como posso te ajudar hoje? Tá buscando indicação pra alguma situação específica?
+${blocoFinal}
 
-PROIBIDO nesta mensagem:
-- Adicionar saudação extra ("Olá!", "Mais um dia...", "Tudo bem?")
-- Mudar/parafrasear o texto acima
-- Adicionar emoji extra além dos que já estão no template
-- Chamar QUALQUER tool (NÃO chame buscar_conhecimento, iniciar_fechamento, nada)
-- Escrever JSON ou código
+REGRAS:
+- ${ehSaudacaoPura
+    ? 'Cliente mandou SAUDAÇÃO genérica ("oi", "boa noite", "tudo bem"). NÃO chame tools. Use a saudação acima literalmente.'
+    : 'Cliente mandou PERGUNTA DIRETA (já sabe o que quer). CHAME buscar_conhecimento se for sobre produto/preço/FAQ e responda DIRETO. NÃO faça pergunta final tipo "Como posso ajudar?" — ele já disse.'}
+- NÃO adicione saudação extra antes ("Olá!", "Mais um dia...")
+- NÃO mude o texto da apresentação ou cardápio acima
+- NÃO escreva JSON ou código
+- NÃO chame iniciar_fechamento nesta mensagem
 ` : ''
 
   const pendBlock = temPendencia ? `

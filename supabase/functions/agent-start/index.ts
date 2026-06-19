@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     }
 
     // 2) carrega contexto em paralelo
-    const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes, catalogoRes, cupomRes] = await Promise.all([
+    const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes, catalogoRes, cupomRes, configRes] = await Promise.all([
       supabase.from('contatos')
         .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,canal_atual,fotos_enviadas,apresentacao_enviada_em')
         .eq('id', contato_id).maybeSingle(),
@@ -75,6 +75,7 @@ Deno.serve(async (req) => {
         .eq('ativo', true)
         .order('preco', { ascending: true }),
       supabase.rpc('cupom_para_contato', { p_contato_id: contato_id }),
+      supabase.rpc('get_agent_config', { p_agent: 'start' }),
     ])
 
     const contato: Contato = (contatoRes.data ?? {}) as Contato
@@ -85,6 +86,7 @@ Deno.serve(async (req) => {
     const history = (historyRes.data ?? []).slice().reverse()
     const catalogo = (catalogoRes.data ?? []) as Array<{ tag?: string; nome_oficial?: string; preco?: number; emoji?: string }>
     const cupom = cupomRes.data as { nome: string; desconto_pct: number; expira_em?: string | null } | null
+    const config = (configRes.data ?? {}) as Record<string, any>
 
     debug.contato_carregado = !!contato.id
     debug.qtd_pedidos = pedidos.length
@@ -94,15 +96,65 @@ Deno.serve(async (req) => {
     debug.catalogo_itens = catalogo.length
     debug.cupom_disponivel = cupom ? { nome: cupom.nome, pct: cupom.desconto_pct } : null
 
+    // Detecta se 1ª mensagem é SAUDAÇÃO PURA ou PERGUNTA DIRETA.
+    // Saudação pura → usa template configurado.
+    // Pergunta direta → agent responde a pergunta no bloco 3 (sem saudação).
+    const msgLower = String(mensagens || '').toLowerCase().trim()
+    const ehSaudacaoPura = (() => {
+      if (!msgLower) return true
+      // tem ? → pergunta, exceto se for "tudo bem?" / "esta aberto?" etc
+      if (msgLower.includes('?')) {
+        return /(tudo bem|tudo certo|tem alguem|tem alguém|esta aberto|está aberto|esta ai|tá ai|ta ai)/i.test(msgLower)
+      }
+      // sem ? → saudação se curta (≤ 6 palavras)
+      return msgLower.split(/\s+/).length <= 6
+    })()
+
+    // Resolve saudação pelo canal (com fallback BASE)
+    function resolverSaudacao(): string {
+      const canal = (contato.canal_atual || contato.canal_origem || 'BASE').toUpperCase()
+      const saldo = Number((pendencia as any)?.saldo_devedor_total || 0)
+      const nome = (contato.nome || '').split(' ')[0] || 'amigo(a)'
+      let tpl: string
+      if (contato.ja_comprou) {
+        tpl = config.saudacao_cliente || 'Oi, {nome}! Em que posso te ajudar?'
+      } else if (canal === 'ADS') {
+        tpl = config.saudacao_ads  || config.saudacao_base || 'Como posso ajudar, {nome}?'
+      } else if (canal === 'REP') {
+        tpl = config.saudacao_rep  || config.saudacao_base || 'Salve, {nome}!'
+      } else {
+        tpl = config.saudacao_base || 'Como posso ajudar, {nome}?'
+      }
+      return String(tpl)
+        .replace(/\{nome\}/g,  nome)
+        .replace(/\{saldo\}/g, saldo.toFixed(2).replace('.', ','))
+    }
+    const saudacaoResolvida = resolverSaudacao()
+    debug.eh_saudacao_pura = ehSaudacaoPura
+    debug.saudacao_canal = (contato.canal_atual || contato.canal_origem || 'BASE')
+
     // 3) prompts
-    // Regra: SÓ é primeira interação se NÃO é cliente E apresentacao_enviada_em IS NULL.
-    // Clientes (ja_comprou=true) ou já apresentados NUNCA recebem cardápio inicial,
-    // mesmo se não há msgs out (caso de cliente cadastrado manualmente).
-    const apresentacaoJaEnviada = !!(contato as any).apresentacao_enviada_em
-    const isPrimeiraInteracao = !contato.ja_comprou && !apresentacaoJaEnviada
-    debug.apresentacao_ja_enviada = apresentacaoJaEnviada
+    // Regra: SÓ é primeira interação se NÃO é cliente.
+    // Reapresentação opcional: se reapresentar_meses != null E apresentação foi
+    // enviada há mais que X meses E contato NÃO é cliente → considera primeira de novo.
+    const apresentadoEm = (contato as any).apresentacao_enviada_em
+      ? new Date((contato as any).apresentacao_enviada_em)
+      : null
+    const reapresentarMeses: number | null = typeof config.reapresentar_meses === 'number'
+      ? config.reapresentar_meses : null
+    const passouTempoReapresentar = !!(apresentadoEm && reapresentarMeses && reapresentarMeses > 0
+      && (Date.now() - apresentadoEm.getTime()) > (reapresentarMeses * 30 * 24 * 3600 * 1000))
+    const isPrimeiraInteracao = !contato.ja_comprou && (
+      !apresentadoEm || passouTempoReapresentar
+    )
+    debug.apresentado_em = apresentadoEm?.toISOString()
+    debug.reapresentar_meses = reapresentarMeses
+    debug.reapresentou_por_tempo = passouTempoReapresentar
     debug.ja_comprou = !!contato.ja_comprou
-    const systemPrompt = buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao, catalogo, cupom })
+    const systemPrompt = buildSystemPrompt({
+      contato, pedidos, pendencia, isPrimeiraInteracao, catalogo, cupom,
+      config, ehSaudacaoPura, saudacaoResolvida,
+    })
     const userMessage = `Mensagem nova do cliente:\n${mensagens || '(vazio)'}`
 
     // Constrói messages com history real
@@ -123,7 +175,8 @@ Deno.serve(async (req) => {
 
     while (iter < MAX_TOOL_ITERATIONS) {
       iter++
-      const llmRes = await callOpenRouter(openrouterKey, messages, TOOL_SCHEMAS)
+      const llmRes = await callOpenRouter(openrouterKey, messages, TOOL_SCHEMAS,
+        typeof config.llm_temperature === 'number' ? config.llm_temperature : undefined)
       const choice = llmRes?.choices?.[0]
       const msg = choice?.message
 
@@ -206,7 +259,10 @@ Deno.serve(async (req) => {
     debug.took_ms = Date.now() - t0
 
     const SUPABASE_PUBLIC = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '')
-    const TABELA_URL = `${SUPABASE_PUBLIC}/storage/v1/object/public/Start/TabelaOficial.png`
+    const TABELA_URL = String(
+      config.foto_apresentacao_url
+      || `${SUPABASE_PUBLIC}/storage/v1/object/public/Start/TabelaOficial.png`
+    )
 
     // Se é PRIMEIRA INTERAÇÃO: quebra em 3 mensagens com foto TabelaOficial
     // como bloco 2 (caption = cardápio+bônus).
@@ -267,7 +323,7 @@ Deno.serve(async (req) => {
   }
 })
 
-async function callOpenRouter(key: string, messages: any[], tools: any[]) {
+async function callOpenRouter(key: string, messages: any[], tools: any[], tempOverride?: number) {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), LLM_TIMEOUT_MS)
   try {
@@ -284,7 +340,7 @@ async function callOpenRouter(key: string, messages: any[], tools: any[]) {
         messages,
         tools,
         tool_choice: 'auto',
-        temperature: 0.4,
+        temperature: typeof tempOverride === 'number' ? tempOverride : 0.4,
         max_tokens: 800,
       }),
       signal: ctrl.signal,

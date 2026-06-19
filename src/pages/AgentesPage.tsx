@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DadosAgentsPage from './DadosAgentsPage';
 import { CuponsManager } from '@/components/agentes/CuponsManager';
+import { AgentStartConfig } from '@/components/agentes/AgentStartConfig';
 
 export default function AgentesPage() {
   const [tab, setTab] = useState<'start' | 'closing' | 'dados'>('closing');
@@ -30,13 +31,7 @@ export default function AgentesPage() {
         </TabsList>
 
         <TabsContent value="start" className="mt-4">
-          <div className="border rounded-xl p-6 bg-muted/20 text-center text-sm text-muted-foreground">
-            <p className="font-medium mb-1">Configurações do Agent Start em breve</p>
-            <p className="text-xs">
-              Próxima rodada: foto da apresentação (bucket Start), reenvio após X meses,
-              regras de cardápio, etc.
-            </p>
-          </div>
+          <AgentStartConfig />
         </TabsContent>
 
         <TabsContent value="closing" className="mt-4">
