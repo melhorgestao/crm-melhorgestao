@@ -28,10 +28,11 @@ const CAMPOS_APRESENTACAO = [
 ];
 
 const CAMPOS_SAUDACAO = [
-  { chave: 'saudacao_base',     label: 'BASE (lead orgânico)' },
-  { chave: 'saudacao_ads',      label: 'ADS (tráfego pago)' },
-  { chave: 'saudacao_rep',      label: 'REP (representante)' },
-  { chave: 'saudacao_cliente',  label: 'CLIENTE (já comprou — inclui cliente_pendente)' },
+  { chave: 'saudacao_base',              label: 'BASE (lead orgânico)' },
+  { chave: 'saudacao_ads',               label: 'ADS (tráfego pago)' },
+  { chave: 'saudacao_rep',               label: 'REP (representante)' },
+  { chave: 'saudacao_cliente',           label: 'CLIENTE (já comprou, sem pendência)' },
+  { chave: 'saudacao_cliente_pendente',  label: 'CLIENTE PENDENTE (com saldo devedor) · placeholders {nome} {saldo}' },
 ];
 
 export function AgentStartConfig() {

@@ -116,7 +116,10 @@ Deno.serve(async (req) => {
       const saldo = Number((pendencia as any)?.saldo_devedor_total || 0)
       const nome = (contato.nome || '').split(' ')[0] || 'amigo(a)'
       let tpl: string
-      if (contato.ja_comprou) {
+      const temPendencia = !!(pendencia as any)?.tem_pendencia
+      if (contato.ja_comprou && temPendencia) {
+        tpl = config.saudacao_cliente_pendente || config.saudacao_cliente || 'Oi, {nome}! Vi um saldinho pendente — quer acertar?'
+      } else if (contato.ja_comprou) {
         tpl = config.saudacao_cliente || 'Oi, {nome}! Em que posso te ajudar?'
       } else if (canal === 'ADS') {
         tpl = config.saudacao_ads  || config.saudacao_base || 'Como posso ajudar, {nome}?'

@@ -68,7 +68,11 @@ INSERT INTO public.agent_config (agent, chave, valor, descricao) VALUES
 
   ('start', 'saudacao_cliente',
    '"Oi, {nome}! Tudo bem por aí? Em que posso te ajudar hoje?"'::jsonb,
-   'Saudação CLIENTE (já comprou — inclui cliente_pendente). Placeholders: {nome}, {saldo} (se cliente_pendente)'),
+   'Saudação CLIENTE (já comprou, sem pendência). Placeholder: {nome}'),
+
+  ('start', 'saudacao_cliente_pendente',
+   '"Oi, {nome}! Vi aqui que ficou um saldinho pendente de R$ {saldo} do seu pedido anterior. Quer acertar primeiro ou precisa de algo mais?"'::jsonb,
+   'Saudação CLIENTE PENDENTE (com saldo devedor). Placeholders: {nome}, {saldo}'),
 
   ('start', 'llm_temperature', '0.4'::jsonb,
    'Temperature do LLM (0=determinístico, 1=criativo). Default 0.4')

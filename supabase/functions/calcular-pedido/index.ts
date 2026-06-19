@@ -183,9 +183,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 5.5) Cupom (aplicação automática sobre o subtotal de produtos, NUNCA sobre frete)
+    // 5.5) Cupom — aplica sobre subtotal de PRODUTOS (nunca sobre frete).
+    // REGRA: cupom NÃO vale em pedido PARCELADO. Cliente que quer parcelar paga preço cheio.
     const { data: cupomData } = await supabase.rpc('cupom_para_contato', { p_contato_id: contato_id })
-    const cupom = (cupomData && typeof cupomData === 'object' ? cupomData : null) as any
+    const cupom = (cupomData && typeof cupomData === 'object' && !is_parcelado ? cupomData : null) as any
     const descontoPct = cupom ? Number(cupom.desconto_pct) : 0
     const descontoValor = subtotal * (descontoPct / 100)
     const subtotalComDesconto = subtotal - descontoValor
