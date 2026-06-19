@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     }
 
     // 2) carrega contexto em paralelo
-    const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes, catalogoRes] = await Promise.all([
+    const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes, catalogoRes, cupomRes] = await Promise.all([
       supabase.from('contatos')
         .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,canal_atual,fotos_enviadas,apresentacao_enviada_em')
         .eq('id', contato_id).maybeSingle(),
@@ -74,6 +74,7 @@ Deno.serve(async (req) => {
         .select('tag,nome_oficial,preco,emoji')
         .eq('ativo', true)
         .order('preco', { ascending: true }),
+      supabase.rpc('cupom_para_contato', { p_contato_id: contato_id }),
     ])
 
     const contato: Contato = (contatoRes.data ?? {}) as Contato
@@ -83,6 +84,7 @@ Deno.serve(async (req) => {
     const msgsOutCount = msgOutRes.count ?? 0
     const history = (historyRes.data ?? []).slice().reverse()
     const catalogo = (catalogoRes.data ?? []) as Array<{ tag?: string; nome_oficial?: string; preco?: number; emoji?: string }>
+    const cupom = cupomRes.data as { nome: string; desconto_pct: number; expira_em?: string | null } | null
 
     debug.contato_carregado = !!contato.id
     debug.qtd_pedidos = pedidos.length
@@ -90,6 +92,7 @@ Deno.serve(async (req) => {
     debug.msgs_out_count = msgsOutCount
     debug.history_len = history.length
     debug.catalogo_itens = catalogo.length
+    debug.cupom_disponivel = cupom ? { nome: cupom.nome, pct: cupom.desconto_pct } : null
 
     // 3) prompts
     // Regra: SÓ é primeira interação se NÃO é cliente E apresentacao_enviada_em IS NULL.
@@ -99,7 +102,7 @@ Deno.serve(async (req) => {
     const isPrimeiraInteracao = !contato.ja_comprou && !apresentacaoJaEnviada
     debug.apresentacao_ja_enviada = apresentacaoJaEnviada
     debug.ja_comprou = !!contato.ja_comprou
-    const systemPrompt = buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao, catalogo })
+    const systemPrompt = buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao, catalogo, cupom })
     const userMessage = `Mensagem nova do cliente:\n${mensagens || '(vazio)'}`
 
     // Constrói messages com history real

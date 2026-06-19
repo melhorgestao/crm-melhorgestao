@@ -35,12 +35,19 @@ interface ProdutoCat {
   emoji?: string
 }
 
+interface Cupom {
+  nome: string
+  desconto_pct: number
+  expira_em?: string | null
+}
+
 interface BuildArgs {
   contato: Contato
   pedidos: Pedido[]
   pendencia: Pendencia
   isPrimeiraInteracao: boolean
   catalogo: ProdutoCat[]
+  cupom?: Cupom | null
 }
 
 const CARDAPIO = `Santa Flor possui óleos🥥 Base de TCM, um suplemento nutricional extraído da polpa do coco, extremamente nutritivo e de rápida absorção, o mais indicado pelos médicos.
@@ -51,7 +58,7 @@ Todos os produtos possuem:
 
 E são produzidos💯 sem solvente (100% natural e sabor real da cannabis)`
 
-export function buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao, catalogo }: BuildArgs): string {
+export function buildSystemPrompt({ contato, pedidos, pendencia, isPrimeiraInteracao, catalogo, cupom }: BuildArgs): string {
   const nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)'
   const jaComprou = !!contato.ja_comprou
   const cidade   = [contato.cidade, contato.uf].filter(Boolean).join('/')
@@ -221,6 +228,14 @@ Dose pediátrica: 1 gota sublingual 2x ao dia. <5 anos: meia gota.
 Cão/gato → SEMPRE CBD Full Spectrum 4.000 mg (NUNCA THC pra pet).
 Cão: 1 gota por 5 kg, 1-2x ao dia. Gato: 1 gota 1x ao dia.
 
+${cupom ? `=== 🎟 CUPOM DISPONÍVEL PRO CLIENTE ===
+Este contato tem cupom ATIVO: ${cupom.desconto_pct}% de desconto (${cupom.nome})${cupom.expira_em ? ` (expira ${cupom.expira_em.slice(0,10)})` : ''}.
+QUANDO empurrar o fechamento (após recomendar produto), MENCIONE o desconto pra puxar a venda:
+  • "Pra fechar agora, tem ${cupom.desconto_pct}% off pra você"
+  • "Vamos fechar? Aproveita que tem ${cupom.desconto_pct}% de desconto liberado"
+O desconto é aplicado AUTOMATICAMENTE pelo agente de fechamento — você só MENCIONA pra criar urgência. Não promete valor exato (deixa o closing calcular).
+NÃO mencione o cupom em saudação genérica nem em dúvida sobre produto — só no gancho de venda.
+` : ''}
 === EMPURRA O FECHAMENTO (sem mencionar pix!) ===
 Depois de recomendar produto + dose, faça convite curto pra fechar:
 - "Vamos fechar o pedido?"

@@ -20,7 +20,7 @@ const adminTabs = [
   { to: '/integracoes', label: 'Integrações', icon: Settings, key: 'integracoes' },
   { to: '/instancias', label: 'Instâncias', icon: Smartphone, key: 'instancias' },
   { to: '/campanhas', label: 'Campanhas', icon: Send, key: 'campanhas' },
-  { to: '/dados-agents', label: 'Dados dos Agents', icon: Bot, key: 'dados-agents' },
+  { to: '/agentes', label: 'Agentes', icon: Bot, key: 'agentes' },
   { to: '/admin', label: 'Administração', icon: Shield, key: 'admin' },
 ];
 

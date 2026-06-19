@@ -183,7 +183,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    const total = subtotal + fretePreco
+    // 5.5) Cupom (aplicação automática sobre o subtotal de produtos, NUNCA sobre frete)
+    const { data: cupomData } = await supabase.rpc('cupom_para_contato', { p_contato_id: contato_id })
+    const cupom = (cupomData && typeof cupomData === 'object' ? cupomData : null) as any
+    const descontoPct = cupom ? Number(cupom.desconto_pct) : 0
+    const descontoValor = subtotal * (descontoPct / 100)
+    const subtotalComDesconto = subtotal - descontoValor
+
+    const total = subtotalComDesconto + fretePreco
 
     // 6) Resumo formatado
     const linhasProdutos = itensEnriquecidos.map(x => {
@@ -201,11 +208,16 @@ Deno.serve(async (req) => {
         ? `📦 ${modalidade} — R$ ${brl(fretePreco)}${prazoMin ? `\n⏱ ${prazoMin} a ${prazoMax} dias` : ''}`
         : `📦 Frete: *aguardando escolha de modalidade*`
 
+    const linhaDesconto = cupom
+      ? `\n🎟 Cupom ${cupom.nome}: -${descontoPct}% (-R$ ${brl(descontoValor)})`
+      : ''
+
     const resumo = [
       '📋 *Resumo do pedido:*',
       '',
       linhasProdutos,
       linhaBrindes,
+      linhaDesconto.trim(),
       '',
       linhaFrete,
       '',
@@ -261,6 +273,7 @@ Deno.serve(async (req) => {
       frete: { gratis: freteGratis, modalidade, preco: fretePreco,
                prazo_min: prazoMin, prazo_max: prazoMax },
       brindes_aplicados: brindesAplicados,
+      cupom: cupom ? { nome: cupom.nome, pct: descontoPct, desconto_valor: descontoValor } : null,
       pendencias: [],
     })
 
