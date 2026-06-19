@@ -65,10 +65,13 @@ export function ApresentacaoConfig() {
     const { error: upErr } = await supabase.storage.from('Start').upload(path, file, { upsert: true });
     if (upErr) { setUploading(false); return toast.error('Upload: ' + upErr.message) }
     const { data: pub } = supabase.storage.from('Start').getPublicUrl(path);
-    setV({ ...v, bloco2_foto_url: pub.publicUrl });
-    await salvar('bloco2_foto_url', pub.publicUrl);
+    setV({ ...v, bloco4_foto_url: pub.publicUrl });
+    await salvar('bloco4_foto_url', pub.publicUrl);
     setUploading(false);
   };
+
+  // Compat com seed antigo (bloco2_foto_url → bloco4_foto_url)
+  const fotoAtual = v.bloco4_foto_url || v.bloco2_foto_url || '';
 
   if (isLoading) return <Loader2 className="w-5 h-5 animate-spin" />;
 
@@ -78,9 +81,9 @@ export function ApresentacaoConfig() {
         <p className="font-medium">📤 Como a 1ª Apresentação é enviada</p>
         <p className="text-muted-foreground leading-relaxed">
           Toda vez que um contato manda a 1ª mensagem (não-cliente, ou via reapresentação periódica),
-          o bot envia <strong>4 mensagens em sequência</strong> com delay de 2s entre cada uma:
-          <br />[1] Bloco texto institucional · [2] Foto + cardápio · [3] Bônus ·
-          [4] Saudação ou resposta (vem do Agent Start)
+          o bot envia <strong>5 mensagens em sequência</strong> com delay de 2s entre cada uma:
+          <br />[1] Texto institucional · [2] Cardápio (header + lista + footer) · [3] Bônus ·
+          [4] Foto (mídia separada) · [5] Saudação ou resposta (Agent Start)
         </p>
       </div>
 
@@ -94,20 +97,54 @@ export function ApresentacaoConfig() {
           saving={savingKey === 'bloco1_texto'} />
       </Section>
 
-      {/* BLOCO 2 */}
-      <Section title="BLOCO 2 — FOTO + CARDÁPIO"
-        hint="Foto enviada com caption. Lista de produtos é gerada automaticamente a partir da tabela 'produtos' ativos.">
+      {/* BLOCO 2 — CARDÁPIO TEXTO */}
+      <Section title="BLOCO 2 — CARDÁPIO (texto)"
+        hint="Mensagem de texto. Lista de produtos é gerada automaticamente entre header e footer.">
+        <CampoTextarea label="Header (acima da lista de produtos)" rows={2}
+          value={v.bloco2_header || ''}
+          onChange={x => setV({ ...v, bloco2_header: x })}
+          onSave={() => salvar('bloco2_header', v.bloco2_header)}
+          saving={savingKey === 'bloco2_header'} />
+
+        <div className="border-l-2 border-emerald-500 pl-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 text-[11px]">
+          <p className="font-medium text-emerald-800 dark:text-emerald-300">📋 Lista de produtos (auto)</p>
+          <p className="text-muted-foreground mt-0.5">
+            Inserida automaticamente. Cada linha: <code>{'{emoji}'} {'{nome_oficial}'} — R$ {'{preco}'}</code>.
+            Pra alterar, edite em <strong>Estoque</strong>.
+          </p>
+        </div>
+
+        <CampoTextarea label="Footer (opcional, abaixo da lista)" rows={2}
+          value={v.bloco2_footer || ''}
+          onChange={x => setV({ ...v, bloco2_footer: x })}
+          onSave={() => salvar('bloco2_footer', v.bloco2_footer)}
+          saving={savingKey === 'bloco2_footer'} />
+      </Section>
+
+      {/* BLOCO 3 — BÔNUS */}
+      <Section title="BLOCO 3 — BÔNUS"
+        hint="Mensagem separada com regras de bônus por quantidade.">
+        <CampoTextarea label="Texto dos bônus" rows={6}
+          value={v.bloco3_bonus || ''}
+          onChange={x => setV({ ...v, bloco3_bonus: x })}
+          onSave={() => salvar('bloco3_bonus', v.bloco3_bonus)}
+          saving={savingKey === 'bloco3_bonus'} />
+      </Section>
+
+      {/* BLOCO 4 — FOTO */}
+      <Section title="BLOCO 4 — FOTO"
+        hint="Foto enviada SEM caption (mensagem separada — melhor leitura no WhatsApp).">
         <div className="space-y-1">
           <Label className="text-xs font-medium">Foto (bucket Start)</Label>
           <div className="border rounded-lg p-3 bg-muted/20 flex items-center gap-3">
-            {v.bloco2_foto_url ? (
-              <img src={v.bloco2_foto_url} alt="foto" className="w-20 h-20 object-cover rounded" />
+            {fotoAtual ? (
+              <img src={fotoAtual} alt="foto" className="w-20 h-20 object-cover rounded" />
             ) : (
               <div className="w-20 h-20 rounded bg-background border flex items-center justify-center text-xs text-muted-foreground">—</div>
             )}
             <div className="flex-1 min-w-0">
               <p className="text-[11px] text-muted-foreground truncate">
-                {v.bloco2_foto_url || 'Nenhuma foto definida — usa default'}
+                {fotoAtual || 'Nenhuma foto definida — usa default'}
               </p>
               <Button size="sm" variant="outline" className="mt-1" disabled={uploading}
                       onClick={() => fotoInputRef.current?.click()}>
@@ -119,36 +156,6 @@ export function ApresentacaoConfig() {
             </div>
           </div>
         </div>
-
-        <CampoTextarea label="Header (acima da lista de produtos)" rows={2}
-          value={v.bloco2_header || ''}
-          onChange={x => setV({ ...v, bloco2_header: x })}
-          onSave={() => salvar('bloco2_header', v.bloco2_header)}
-          saving={savingKey === 'bloco2_header'} />
-
-        <div className="border-l-2 border-emerald-500 pl-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 text-[11px]">
-          <p className="font-medium text-emerald-800 dark:text-emerald-300">📋 Lista de produtos (auto)</p>
-          <p className="text-muted-foreground mt-0.5">
-            Inserida aqui automaticamente. Cada linha: <code>{'{emoji}'} {'{nome_oficial}'} — R$ {'{preco}'}</code>.
-            Pra alterar, edite a tabela em <strong>Estoque</strong>.
-          </p>
-        </div>
-
-        <CampoTextarea label="Footer (opcional, abaixo da lista)" rows={2}
-          value={v.bloco2_footer || ''}
-          onChange={x => setV({ ...v, bloco2_footer: x })}
-          onSave={() => salvar('bloco2_footer', v.bloco2_footer)}
-          saving={savingKey === 'bloco2_footer'} />
-      </Section>
-
-      {/* BLOCO 3 */}
-      <Section title="BLOCO 3 — BÔNUS"
-        hint="Mensagem separada com regras de bônus por quantidade.">
-        <CampoTextarea label="Texto dos bônus" rows={6}
-          value={v.bloco3_bonus || ''}
-          onChange={x => setV({ ...v, bloco3_bonus: x })}
-          onSave={() => salvar('bloco3_bonus', v.bloco3_bonus)}
-          saving={savingKey === 'bloco3_bonus'} />
       </Section>
 
       {/* REAPRESENTAÇÃO */}

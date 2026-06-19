@@ -186,23 +186,27 @@ Deno.serve(async (req) => {
       const bloco1 = String(apresentacaoCfg.bloco1_texto
         || `Santa Flor possui óleos🥥 Base de TCM, um suplemento nutricional extraído da polpa do coco, extremamente nutritivo e de rápida absorção, o mais indicado pelos médicos.\n\nTodos os produtos possuem:\n\n🌱 Flores de cannabis de genética CBD e THC plantada em estufa livre de pesticidas.\n\nE são produzidos💯 sem solvente (100% natural e sabor real da cannabis)`)
 
-      const TABELA_URL = String(apresentacaoCfg.bloco2_foto_url
-        || `${SUPABASE_PUBLIC}/storage/v1/object/public/Start/TabelaOficial.png`)
+      // BLOCO 2 = TEXTO (header + lista produtos auto + footer opcional)
       const bloco2Header = String(apresentacaoCfg.bloco2_header || '📋 *Nosso cardápio:*')
       const bloco2Footer = String(apresentacaoCfg.bloco2_footer || '')
       const linhasCardapio = (catalogo || [])
         .map(p => `${p.emoji || '•'} ${p.nome_oficial} — R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
         .join('\n') || '(catálogo vazio)'
-      const bloco2Caption = [bloco2Header, '', linhasCardapio, bloco2Footer ? '\n' + bloco2Footer : ''].join('\n').trim()
+      const bloco2 = [bloco2Header, '', linhasCardapio, bloco2Footer ? '\n' + bloco2Footer : ''].join('\n').trim()
 
       const bloco3 = String(apresentacaoCfg.bloco3_bonus
         || `🎁 *Bônus por quantidade:*\n\n🚚 2 produtos → frete SEDEX grátis\n🎁 4 produtos → ganha 1 brinde do catálogo\n🎁 8 produtos → ganha 2 brindes do catálogo`)
 
-      // Bloco 4 — Agent Start decide
-      let bloco4 = ''
+      // BLOCO 4 = FOTO separada (sem caption — melhor leitura)
+      const FOTO_URL = String(apresentacaoCfg.bloco4_foto_url
+        || apresentacaoCfg.bloco2_foto_url  // compat com seed antigo
+        || `${SUPABASE_PUBLIC}/storage/v1/object/public/Start/TabelaOficial.png`)
+
+      // Bloco 5 — Agent Start decide (saudação ou resposta direta)
+      let bloco5 = ''
       if (ehSaudacaoPura) {
-        bloco4 = saudacaoResolvida || 'Como posso te ajudar hoje?'
-        debug.bloco4_origem = 'saudacao_template'
+        bloco5 = saudacaoResolvida || 'Como posso te ajudar hoje?'
+        debug.bloco5_origem = 'saudacao_template'
       } else {
         // LLM curto APENAS pra responder a pergunta direta. Sem cardápio,
         // sem repetir saudação. Tools ativas (buscar_conhecimento).
@@ -245,15 +249,17 @@ Pergunta: ${mensagens || '(vazio)'}`
           respTexto = (m.content || '').toString().trim()
           break
         }
-        bloco4 = respTexto || 'Me conta um pouco mais o que você precisa?'
-        debug.bloco4_origem = 'llm_pergunta_direta'
+        bloco5 = respTexto || 'Me conta um pouco mais o que você precisa?'
+        debug.bloco5_origem = 'llm_pergunta_direta'
       }
 
+      // 5 mensagens em sequência (foto SEPARADA como bloco 4, sem caption — melhor leitura)
       const out = [
         { tipo: 'text',  texto: bloco1, delay_ms: 0 },
-        { tipo: 'image', url: TABELA_URL, caption: bloco2Caption, fileName: 'tabela-oficial.png', delay_ms: 2000 },
+        { tipo: 'text',  texto: bloco2, delay_ms: 2000 },
         { tipo: 'text',  texto: bloco3, delay_ms: 2000 },
-        { tipo: 'text',  texto: bloco4, delay_ms: 2000 },
+        { tipo: 'image', url: FOTO_URL, caption: '', fileName: 'tabela-oficial.png', delay_ms: 2000 },
+        { tipo: 'text',  texto: bloco5, delay_ms: 2000 },
       ]
 
       if (!fotosEnviadas.includes('tabela_oficial')) fotosEnviadas.push('tabela_oficial')
