@@ -21,11 +21,9 @@ import { toast } from 'sonner';
 
 interface ConfigRow { agent: string; chave: string; valor: any; descricao: string | null }
 
-const CAMPOS_APRESENTACAO = [
-  { chave: 'texto_apresentacao', label: 'Texto institucional (1ª linha da apresentação)', rows: 6 },
-  { chave: 'cardapio_header',    label: 'Header do cardápio (linha acima dos produtos)', rows: 1 },
-  // Regras de bônus vivem nos chunks (RAG). Cliente pergunta → buscar_conhecimento.
-];
+// Apresentação inicial migrou pra aba "1ª Apresentação" (3 blocos rígidos).
+// Aqui ficam só as saudações e configs de LLM.
+const CAMPOS_APRESENTACAO: Array<{ chave: string; label: string; rows: number; warn?: string }> = [];
 
 const CAMPOS_SAUDACAO = [
   { chave: 'saudacao_base',              label: 'BASE (lead orgânico)' },
@@ -93,45 +91,11 @@ export function AgentStartConfig() {
 
   return (
     <div className="space-y-6">
-      {/* ===== APRESENTAÇÃO INICIAL ===== */}
-      <Section title="APRESENTAÇÃO INICIAL" hint="Bloco enviado na 1ª interação. Estrutura: texto → foto+cardápio+bônus → saudação (se for saudação genérica) ou resposta direta (se for pergunta).">
-        {CAMPOS_APRESENTACAO.map(c => (
-          <CampoTextarea
-            key={c.chave}
-            label={c.label}
-            rows={c.rows}
-            value={valores[c.chave] || ''}
-            warn={c.warn}
-            onChange={v => setValores({ ...valores, [c.chave]: v })}
-            onSave={() => salvar(c.chave, valores[c.chave])}
-            saving={savingKey === c.chave}
-          />
-        ))}
-
-        {/* Foto */}
-        <div className="space-y-1">
-          <Label className="text-xs font-medium">Foto da apresentação (bucket Start)</Label>
-          <div className="border rounded-lg p-3 bg-muted/20 flex items-center gap-3">
-            {valores.foto_apresentacao_url ? (
-              <img src={valores.foto_apresentacao_url} alt="foto" className="w-20 h-20 object-cover rounded" />
-            ) : (
-              <div className="w-20 h-20 rounded bg-background border flex items-center justify-center text-xs text-muted-foreground">—</div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] text-muted-foreground truncate">
-                {valores.foto_apresentacao_url || 'Nenhuma foto definida — usa default'}
-              </p>
-              <Button size="sm" variant="outline" className="mt-1" disabled={uploading}
-                      onClick={() => fotoInputRef.current?.click()}>
-                {uploading ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />}
-                {uploading ? 'Enviando…' : 'Trocar foto'}
-              </Button>
-              <input ref={fotoInputRef} type="file" accept="image/*" className="hidden"
-                     onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFoto(f); e.target.value = '' }} />
-            </div>
-          </div>
-        </div>
-      </Section>
+      <div className="border rounded-xl p-3 bg-muted/20 text-[11px] text-muted-foreground">
+        📌 Os 3 blocos da apresentação inicial (texto, foto+cardápio, bônus) agora vivem
+        na aba <strong>1ª Apresentação</strong>. Aqui ficam: saudações por canal (bloco 4)
+        + temperature do LLM.
+      </div>
 
       {/* ===== SAUDAÇÃO ===== */}
       <Section title="SAUDAÇÃO" hint="Só é usada quando o lead manda saudação genérica ('oi', 'boa noite'). Se ele chegar com pergunta direta, o agent responde diretamente em vez de saudar. Placeholders: {nome}, {saldo}.">
@@ -148,37 +112,8 @@ export function AgentStartConfig() {
         ))}
       </Section>
 
-      {/* ===== REAPRESENTAÇÃO + LLM ===== */}
-      <Section title="REAPRESENTAÇÃO & LLM" hint="Configs avançadas.">
-        <div className="space-y-2 border rounded-lg p-3 bg-muted/20">
-          <label className="flex items-center justify-between cursor-pointer">
-            <div>
-              <p className="text-xs font-medium">Reapresentar periodicamente</p>
-              <p className="text-[10px] text-muted-foreground">
-                Reenvia cardápio se cliente passou X meses sem interagir.
-              </p>
-            </div>
-            <Switch checked={reapresentarOn} onCheckedChange={setReapresentarOn} />
-          </label>
-          {reapresentarOn && (
-            <div className="flex items-end gap-2 pt-2">
-              <div className="flex-1">
-                <Label className="text-xs">Meses</Label>
-                <Input type="number" min={1} max={36} value={reapresentarMeses}
-                       onChange={e => setReapresentarMeses(parseInt(e.target.value) || 6)} />
-              </div>
-              <Button size="sm" onClick={() => salvar('reapresentar_meses', reapresentarMeses)}>
-                <Save className="w-3.5 h-3.5 mr-1" /> Salvar
-              </Button>
-            </div>
-          )}
-          {!reapresentarOn && valores.reapresentar_meses != null && (
-            <Button size="sm" variant="outline" onClick={() => salvar('reapresentar_meses', null)}>
-              Desativar
-            </Button>
-          )}
-        </div>
-
+      {/* ===== LLM ===== */}
+      <Section title="LLM" hint="Configs do modelo. Reapresentação periódica vive na aba 1ª Apresentação.">
         <div className="space-y-1">
           <Label className="text-xs">LLM Temperature (0 = determinístico, 1 = criativo)</Label>
           <div className="flex items-center gap-3">

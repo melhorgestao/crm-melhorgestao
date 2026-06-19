@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     }
 
     // 2) carrega contexto em paralelo
-    const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes, catalogoRes, cupomRes, configRes] = await Promise.all([
+    const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes, catalogoRes, cupomRes, configRes, apresentacaoCfgRes] = await Promise.all([
       supabase.from('contatos')
         .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,canal_atual,fotos_enviadas,apresentacao_enviada_em')
         .eq('id', contato_id).maybeSingle(),
@@ -76,6 +76,7 @@ Deno.serve(async (req) => {
         .order('preco', { ascending: true }),
       supabase.rpc('cupom_para_contato', { p_contato_id: contato_id }),
       supabase.rpc('get_agent_config', { p_agent: 'start' }),
+      supabase.rpc('get_agent_config', { p_agent: 'apresentacao' }),
     ])
 
     const contato: Contato = (contatoRes.data ?? {}) as Contato
@@ -87,6 +88,7 @@ Deno.serve(async (req) => {
     const catalogo = (catalogoRes.data ?? []) as Array<{ tag?: string; nome_oficial?: string; preco?: number; emoji?: string }>
     const cupom = cupomRes.data as { nome: string; desconto_pct: number; expira_em?: string | null } | null
     const config = (configRes.data ?? {}) as Record<string, any>
+    const apresentacaoCfg = (apresentacaoCfgRes.data ?? {}) as Record<string, any>
 
     debug.contato_carregado = !!contato.id
     debug.qtd_pedidos = pedidos.length
@@ -143,8 +145,9 @@ Deno.serve(async (req) => {
     const apresentadoEm = (contato as any).apresentacao_enviada_em
       ? new Date((contato as any).apresentacao_enviada_em)
       : null
-    const reapresentarMeses: number | null = typeof config.reapresentar_meses === 'number'
-      ? config.reapresentar_meses : null
+    const reapresentarMeses: number | null = typeof apresentacaoCfg.reapresentar_meses === 'number'
+      ? apresentacaoCfg.reapresentar_meses
+      : (typeof config.reapresentar_meses === 'number' ? config.reapresentar_meses : null)
     const passouTempoReapresentar = !!(apresentadoEm && reapresentarMeses && reapresentarMeses > 0
       && (Date.now() - apresentadoEm.getTime()) > (reapresentarMeses * 30 * 24 * 3600 * 1000))
     const isPrimeiraInteracao = !contato.ja_comprou && (
@@ -169,7 +172,104 @@ Deno.serve(async (req) => {
     }
     messages.push({ role: 'user', content: userMessage })
 
-    // 4) loop de tool calling
+    // ════════════════════════════════════════════════════════════════════
+    // 1ª APRESENTAÇÃO — caminho RÍGIDO. Lê config 'apresentacao'.
+    // SEMPRE 4 mensagens em sequência (com delays):
+    //   [1] Texto institucional (hardcoded do config — SEM LLM)
+    //   [2] Foto + caption (header + lista produtos auto + footer opcional) — SEM LLM
+    //   [3] Bônus (hardcoded do config — SEM LLM)
+    //   [4] Saudação OU resposta à pergunta (Agent Start: template ou LLM curto)
+    // ════════════════════════════════════════════════════════════════════
+    if (isPrimeiraInteracao && !contato.ja_comprou) {
+      const SUPABASE_PUBLIC = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '')
+
+      const bloco1 = String(apresentacaoCfg.bloco1_texto
+        || `Santa Flor possui óleos🥥 Base de TCM, um suplemento nutricional extraído da polpa do coco, extremamente nutritivo e de rápida absorção, o mais indicado pelos médicos.\n\nTodos os produtos possuem:\n\n🌱 Flores de cannabis de genética CBD e THC plantada em estufa livre de pesticidas.\n\nE são produzidos💯 sem solvente (100% natural e sabor real da cannabis)`)
+
+      const TABELA_URL = String(apresentacaoCfg.bloco2_foto_url
+        || `${SUPABASE_PUBLIC}/storage/v1/object/public/Start/TabelaOficial.png`)
+      const bloco2Header = String(apresentacaoCfg.bloco2_header || '📋 *Nosso cardápio:*')
+      const bloco2Footer = String(apresentacaoCfg.bloco2_footer || '')
+      const linhasCardapio = (catalogo || [])
+        .map(p => `${p.emoji || '•'} ${p.nome_oficial} — R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
+        .join('\n') || '(catálogo vazio)'
+      const bloco2Caption = [bloco2Header, '', linhasCardapio, bloco2Footer ? '\n' + bloco2Footer : ''].join('\n').trim()
+
+      const bloco3 = String(apresentacaoCfg.bloco3_bonus
+        || `🎁 *Bônus por quantidade:*\n\n🚚 2 produtos → frete SEDEX grátis\n🎁 4 produtos → ganha 1 brinde do catálogo\n🎁 8 produtos → ganha 2 brindes do catálogo`)
+
+      // Bloco 4 — Agent Start decide
+      let bloco4 = ''
+      if (ehSaudacaoPura) {
+        bloco4 = saudacaoResolvida || 'Como posso te ajudar hoje?'
+        debug.bloco4_origem = 'saudacao_template'
+      } else {
+        // LLM curto APENAS pra responder a pergunta direta. Sem cardápio,
+        // sem repetir saudação. Tools ativas (buscar_conhecimento).
+        const respPrompt = `Você é a atendente WhatsApp da Santa Flor. O cliente acabou de receber apresentação+cardápio+bônus e fez uma pergunta DIRETA. Responda em 2-4 frases, calorosa, breve.
+
+REGRAS:
+- USE buscar_conhecimento se for sobre produto/preço/indicação/FAQ.
+- NÃO repita cardápio, apresentação, saudação, nem mencione bônus.
+- NÃO chame iniciar_fechamento.
+- Responda DIRETO à pergunta. Use no máximo 1 emoji funcional.
+
+Cliente: ${(contato.nome || '').split(' ')[0] || 'amigo(a)'}
+Pergunta: ${mensagens || '(vazio)'}`
+
+        const respMessages: any[] = [
+          { role: 'system', content: respPrompt },
+          { role: 'user',   content: mensagens || '' },
+        ]
+        let respTexto = ''
+        for (let it = 0; it < 4; it++) {
+          const r = await callOpenRouter(openrouterKey, respMessages, TOOL_SCHEMAS,
+            typeof config.llm_temperature === 'number' ? config.llm_temperature : 0.4)
+          const m = r?.choices?.[0]?.message
+          if (!m) break
+          if (m.tool_calls?.length) {
+            respMessages.push(m)
+            for (const tc of m.tool_calls) {
+              let args: any = {}
+              try { args = JSON.parse(tc.function?.arguments || '{}') } catch {}
+              const tr = await executeTool({
+                name: tc.function?.name, args, contato_id, instancia_id, supabase, openrouterKey, fotosEnviadas,
+              })
+              respMessages.push({
+                role: 'tool', tool_call_id: tc.id, name: tc.function?.name,
+                content: typeof tr === 'string' ? tr : JSON.stringify(tr),
+              })
+            }
+            continue
+          }
+          respTexto = (m.content || '').toString().trim()
+          break
+        }
+        bloco4 = respTexto || 'Me conta um pouco mais o que você precisa?'
+        debug.bloco4_origem = 'llm_pergunta_direta'
+      }
+
+      const out = [
+        { tipo: 'text',  texto: bloco1, delay_ms: 0 },
+        { tipo: 'image', url: TABELA_URL, caption: bloco2Caption, fileName: 'tabela-oficial.png', delay_ms: 2000 },
+        { tipo: 'text',  texto: bloco3, delay_ms: 2000 },
+        { tipo: 'text',  texto: bloco4, delay_ms: 2000 },
+      ]
+
+      if (!fotosEnviadas.includes('tabela_oficial')) fotosEnviadas.push('tabela_oficial')
+      await supabase.from('contatos').update({
+        fotos_enviadas: fotosEnviadas,
+        apresentacao_enviada_em: new Date().toISOString(),
+      }).eq('id', contato_id)
+
+      debug.primeira_interacao_rigida = true
+      debug.eh_saudacao = ehSaudacaoPura
+      debug.blocos_count = out.length
+      debug.took_ms = Date.now() - t0
+      return j({ resposta_texto: bloco1, respostas: out, contato_id, debug })
+    }
+
+    // 4) loop de tool calling (fluxo NÃO-primeira-interação)
     let resposta = ''
     let iter = 0
     let chainToClosing = false
