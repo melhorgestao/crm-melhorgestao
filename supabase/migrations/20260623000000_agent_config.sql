@@ -49,9 +49,8 @@ INSERT INTO public.agent_config (agent, chave, valor, descricao) VALUES
   ('start', 'cardapio_header', '"📋 *Nosso cardápio:*"'::jsonb,
    'Linha acima da lista de produtos'),
 
-  ('start', 'cardapio_bonus_texto',
-   $$"🎁 *Bônus:*\n🚚 2 produtos → frete SEDEX grátis\n🎁 4 produtos → ganha 1 brinde do catálogo\n🎁 8 produtos → ganha 2 brindes do catálogo"$$::jsonb,
-   'Regras de bônus exibidas após a lista de produtos. ATENÇÃO: também precisa estar nos chunks (RAG) — sincronize manualmente'),
+  -- Regras de bônus NÃO ficam aqui — vivem nos chunks RAG (FAQ/bonus).
+  -- Quando cliente perguntar, agent chama buscar_conhecimento.
 
   -- SAUDAÇÕES por canal (usadas só quando 1ª msg é genérica: "oi", "boa noite", etc).
   -- Quando lead já chega com pergunta direta, NÃO usa saudação — agent responde direto.

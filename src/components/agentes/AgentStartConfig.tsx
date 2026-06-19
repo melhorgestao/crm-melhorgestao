@@ -22,10 +22,9 @@ import { toast } from 'sonner';
 interface ConfigRow { agent: string; chave: string; valor: any; descricao: string | null }
 
 const CAMPOS_APRESENTACAO = [
-  { chave: 'texto_apresentacao', label: 'Texto principal', rows: 6 },
-  { chave: 'cardapio_header',    label: 'Header do cardápio', rows: 1 },
-  { chave: 'cardapio_bonus_texto', label: 'Regras de bônus', rows: 4,
-    warn: 'Atenção: este texto também precisa estar nos chunks (RAG). Se mudar aqui, sincronize com a aba Dados → FAQ/Bonus.' },
+  { chave: 'texto_apresentacao', label: 'Texto institucional (1ª linha da apresentação)', rows: 6 },
+  { chave: 'cardapio_header',    label: 'Header do cardápio (linha acima dos produtos)', rows: 1 },
+  // Regras de bônus vivem nos chunks (RAG). Cliente pergunta → buscar_conhecimento.
 ];
 
 const CAMPOS_SAUDACAO = [

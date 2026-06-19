@@ -99,8 +99,7 @@ perguntar de produto específico.
   // Textos editáveis via UI (com fallback hardcoded)
   const textoApresentacao = String(config.texto_apresentacao || CARDAPIO)
   const cardapioHeader    = String(config.cardapio_header   || '📋 *Nosso cardápio:*')
-  const cardapioBonus     = String(config.cardapio_bonus_texto ||
-    '🎁 *Bônus:*\n🚚 2 produtos → frete SEDEX grátis\n🎁 4 produtos → ganha 1 brinde do catálogo\n🎁 8 produtos → ganha 2 brindes do catálogo')
+  // Regras de bônus vêm dos chunks RAG quando cliente perguntar — não enviamos hardcoded aqui.
 
   // Bloco final muda conforme primeira mensagem do cliente:
   //  • SAUDAÇÃO genérica  → manda saudação configurada (template por canal)
@@ -118,8 +117,6 @@ ${textoApresentacao}
 
 ${cardapioHeader}
 ${linhasCardapio}
-
-${cardapioBonus}
 
 ${blocoFinal}
 
