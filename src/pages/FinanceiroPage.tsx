@@ -150,7 +150,7 @@ export default function FinanceiroPage() {
       supabase.from('lancamentos_socios')
         .select('socio, tipo, valor'),
       supabase.from('produtos').select('*, produtos_grupos(nome)').eq('ativo', true),
-      supabase.from('contatos').select('id, nome').eq('canal_origem', 'REP').order('nome'),
+      supabase.from('contatos').select('id, nome').eq('canal_atual', 'REP').order('nome'),
       supabase.from('perfis_usuario').select('user_id, nome, socio_key').not('socio_key', 'is', null),
       supabase.from('perfis_usuario').select('user_id, nome, socio_key').not('socio_key', 'is', null).order('nome'),
       supabase.from('estoque_ufs' as any).select('uf').order('uf'),
@@ -385,8 +385,8 @@ export default function FinanceiroPage() {
     const currentCanal = formCanal;
     const timeout = setTimeout(async () => {
       const { data } = await supabase.from('contatos')
-        .select('id, nome, telefone, representante_id, cpf, cidade, uf, cep, endereco, complemento, bairro, canal_origem, instancia_id')
-        .eq('canal_origem', currentCanal)
+        .select('id, nome, telefone, representante_id, cpf, cidade, uf, cep, endereco, complemento, bairro, canal_origem, canal_atual, instancia_id')
+        .eq('canal_atual', currentCanal)
         .or(`nome.ilike.%${val}%,telefone.ilike.%${val}%,cpf.ilike.%${val}%`)
         .limit(10);
       setFormContacts(data || []);

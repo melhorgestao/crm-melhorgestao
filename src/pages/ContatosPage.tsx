@@ -135,7 +135,7 @@ export default function ContatosPage() {
           query = query.eq('ja_comprou', true);
         }
         if (filterCanais.size > 0) {
-          query = query.in('canal_origem', Array.from(filterCanais));
+          query = query.in('canal_atual', Array.from(filterCanais));
         }
 
         if (debouncedSearch) {
@@ -177,7 +177,7 @@ export default function ContatosPage() {
         query = query.eq('ja_comprou', true);
       }
       if (filterCanais.size > 0) {
-        query = query.in('canal_origem', Array.from(filterCanais));
+        query = query.in('canal_atual', Array.from(filterCanais));
       }
       if (debouncedSearch) {
         const s = `%${debouncedSearch}%`;
@@ -191,7 +191,7 @@ export default function ContatosPage() {
 
   useEffect(() => {
     const fetchREPs = async () => {
-      const { data } = await supabase.from('contatos').select('id, nome').eq('canal_origem', 'REP').order('nome');
+      const { data } = await supabase.from('contatos').select('id, nome').eq('canal_atual', 'REP').order('nome');
       setAllREPs(data || []);
     };
     fetchREPs();
