@@ -48,17 +48,17 @@ Deno.serve(async (req) => {
     const payload = {
       from: { postal_code: from_cep },
       to: { postal_code: to_cep },
-      volumes: [{
+      services: String(finalService),
+      products: [{
         weight: faixaPeso,
         width: width || 11,
         height: height || 2,
         length: length || 16,
         quantity: quantity || 1,
       }],
-      service: finalService,
     }
 
-    const res = await fetch('https://api.superfrete.com/api/v0/rates', {
+    const res = await fetch('https://api.superfrete.com/api/v0/calculator', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${api_key}`,
