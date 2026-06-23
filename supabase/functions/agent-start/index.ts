@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     // 2) carrega contexto em paralelo
     const [contatoRes, pedidosRes, pendenciaRes, msgOutRes, historyRes, catalogoRes, cupomRes, configRes, apresentacaoCfgRes] = await Promise.all([
       supabase.from('contatos')
-        .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,canal_atual,fotos_enviadas,apresentacao_enviada_em')
+        .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,canal_atual,fotos_enviadas,data_start')
         .eq('id', contato_id).maybeSingle(),
       supabase.rpc('consultar_pedidos_contato', { p_contato_id: contato_id }),
       supabase.rpc('consultar_pendencia_contato', { p_contato_id: contato_id }).maybeSingle(),
@@ -142,8 +142,8 @@ Deno.serve(async (req) => {
     // Regra: SÓ é primeira interação se NÃO é cliente.
     // Reapresentação opcional: se reapresentar_meses != null E apresentação foi
     // enviada há mais que X meses E contato NÃO é cliente → considera primeira de novo.
-    const apresentadoEm = (contato as any).apresentacao_enviada_em
-      ? new Date((contato as any).apresentacao_enviada_em)
+    const apresentadoEm = (contato as any).data_start
+      ? new Date((contato as any).data_start)
       : null
     const reapresentarMeses: number | null = typeof apresentacaoCfg.reapresentar_meses === 'number'
       ? apresentacaoCfg.reapresentar_meses
@@ -263,9 +263,12 @@ Pergunta: ${mensagens || '(vazio)'}`
       ]
 
       if (!fotosEnviadas.includes('tabela_oficial')) fotosEnviadas.push('tabela_oficial')
+      // Marca apresentação enviada: ultima_interacao='start' + data_start=NOW().
+      // Cron de 24h vai mover pra wait_follow_up se não houver interação.
       await supabase.from('contatos').update({
-        fotos_enviadas: fotosEnviadas,
-        apresentacao_enviada_em: new Date().toISOString(),
+        fotos_enviadas:    fotosEnviadas,
+        ultima_interacao:  'start',
+        data_start:        new Date().toISOString(),
       }).eq('id', contato_id)
 
       debug.primeira_interacao_rigida = true
@@ -391,11 +394,12 @@ Pergunta: ${mensagens || '(vazio)'}`
         } else {
           out.push({ tipo: 'text', texto: blocos[1].texto, delay_ms: 2000 })
         }
-        // Marca TabelaOficial + apresentacao_enviada_em
+        // Marca TabelaOficial + start (data_start = NOW)
         if (!fotosEnviadas.includes('tabela_oficial')) fotosEnviadas.push('tabela_oficial')
         await supabase.from('contatos').update({
-          fotos_enviadas: fotosEnviadas,
-          apresentacao_enviada_em: new Date().toISOString(),
+          fotos_enviadas:   fotosEnviadas,
+          ultima_interacao: 'start',
+          data_start:       new Date().toISOString(),
         }).eq('id', contato_id)
         debug.split_in_blocks = out.length
         debug.tabela_oficial_enviada = true
