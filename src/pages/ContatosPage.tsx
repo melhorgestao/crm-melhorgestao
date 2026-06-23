@@ -120,7 +120,7 @@ export default function ContatosPage() {
     queryFn: async ({ pageParam = 0 }) => {
       try {
         let query = supabase.from('contatos')
-          .select('id, nome, telefone, canal_origem, canal_atual, tag_kanban, created_at, cidade_uf, cidade, uf, endereco, complemento, bairro, cep, ja_comprou, instancia_id, instancias(nome)')
+          .select('id, nome, telefone, canal_origem, canal_atual, tag_kanban, created_at, cidade_uf, cidade, uf, endereco, rua, numero, complemento, bairro, cep, ja_comprou, instancia_id, instancias(nome)')
           .order(sortColumn, { ascending: sortAsc })
           .range(pageParam * PER_PAGE_FETCH, (pageParam + 1) * PER_PAGE_FETCH - 1);
 
@@ -228,9 +228,16 @@ export default function ContatosPage() {
     setEditCanalAtual(contact.canal_atual || contact.canal_origem || 'BASE');
     setEditRepresentanteId(contact.representante_id || null);
     setEditPhoneDuplicate(null);
-    const { endereco: enderecoRua, numero: enderecoNumero } = parseEnderecoNumero(contact.endereco);
-    setEditEndereco(enderecoRua);
-    setEditNumero(enderecoNumero);
+    // Prioriza colunas separadas (fonte de verdade nova).
+    // Fallback ao split de 'endereco' pra contatos legacy ainda não migrados.
+    if ((contact as any).rua || (contact as any).numero) {
+      setEditEndereco((contact as any).rua || '');
+      setEditNumero((contact as any).numero || '');
+    } else {
+      const { endereco: enderecoRua, numero: enderecoNumero } = parseEnderecoNumero(contact.endereco);
+      setEditEndereco(enderecoRua);
+      setEditNumero(enderecoNumero);
+    }
     setEditComplemento(contact.complemento || '');
     setEditBairro(contact.bairro || '');
     if (contact.cidade) {
@@ -350,8 +357,8 @@ export default function ContatosPage() {
       return;
     }
 
-    // Junta endereço + número no mesmo formato do cadastro novo
-    const enderecoFull = [editEndereco, editNumero].filter(Boolean).join(', ');
+    // Fonte de verdade: rua + numero SEPARADOS. Trigger no DB regenera
+    // 'endereco' e 'rua_numero' automaticamente pra compat com RPCs antigas.
     const cidadeUfString = [editCidade, editUf].filter(Boolean).join('/');
 
     const changes: any = {};
@@ -365,7 +372,8 @@ export default function ContatosPage() {
     if (editRepresentanteId !== (selected.representante_id || null)) {
       changes.representante_id = editCanalAtual === 'C-REP' ? editRepresentanteId : null;
     }
-    if (enderecoFull !== (selected.endereco || '')) changes.endereco = enderecoFull || null;
+    if (editEndereco !== ((selected as any).rua || '')) changes.rua = editEndereco || null;
+    if (editNumero !== ((selected as any).numero || '')) changes.numero = editNumero || null;
     if (editComplemento !== (selected.complemento || '')) changes.complemento = editComplemento || null;
     if (editBairro !== (selected.bairro || '')) changes.bairro = editBairro || null;
     changes.cidade_uf = cidadeUfString || null;
