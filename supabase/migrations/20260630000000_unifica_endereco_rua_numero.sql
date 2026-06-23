@@ -1,4 +1,7 @@
 -- ============================================================================
+-- v2: removida referência a 'rua_numero' (coluna já dropada em prod).
+-- Mantém apenas endereco como espelho de rua+numero.
+-- ============================================================================
 -- Unifica endereço de contatos: fonte de verdade vira rua+numero (separados).
 --
 -- CONTEXTO: 3 colunas conviviam (endereco, rua, numero) em estados parciais:
@@ -96,7 +99,6 @@ BEGIN
         THEN TRIM(NEW.rua) || ', ' || TRIM(NEW.numero)
       ELSE TRIM(NEW.rua)
     END;
-    NEW.rua_numero := NEW.endereco;
   END IF;
 
   RETURN NEW;
@@ -108,12 +110,11 @@ CREATE TRIGGER trg_sync_endereco_rua_numero
   FOR EACH ROW EXECUTE FUNCTION public.trigger_sync_endereco_rua_numero();
 
 -- ----------------------------------------------------------------------------
--- 3) Atualiza endereco/rua_numero pra reflectir rua+numero existentes
---    (re-sincronização imediata, sem precisar de novo UPDATE)
+-- 3) Atualiza endereco pra refletir rua+numero existentes
+--    (re-sincronização imediata)
 -- ----------------------------------------------------------------------------
 UPDATE public.contatos
-   SET endereco   = TRIM(rua) || ', ' || TRIM(numero),
-       rua_numero = TRIM(rua) || ', ' || TRIM(numero)
+   SET endereco = TRIM(rua) || ', ' || TRIM(numero)
  WHERE rua IS NOT NULL AND TRIM(rua) != ''
    AND numero IS NOT NULL AND TRIM(numero) != ''
    AND (endereco IS NULL OR endereco != TRIM(rua) || ', ' || TRIM(numero));
