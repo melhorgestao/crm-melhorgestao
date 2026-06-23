@@ -90,16 +90,23 @@ Deno.serve(async (req) => {
     const modalidades = results.map((r, i) => {
       const svc = SERVICOS[i]
       if (r.status === 'fulfilled' && r.value.ok) {
+        const pMin = r.value.prazo_min ?? r.value.delivery_time ?? svc.prazo_default
+        const pMax = r.value.prazo_max ?? r.value.delivery_time ?? svc.prazo_default
         return {
           nome:        svc.nome,
           valor_reais: r.value.price,
-          prazo_dias:  r.value.delivery_time ?? svc.prazo_default,
+          preco:       r.value.price,          // alias p/ calcular-pedido
+          prazo_dias:  r.value.delivery_time ?? pMax,
+          prazo_min:   pMin,
+          prazo_max:   pMax,
           erro:        null,
         }
       }
       const err = r.status === 'fulfilled' ? r.value.error : (r as any).reason?.message || 'rejected'
       return {
-        nome: svc.nome, valor_reais: null, prazo_dias: svc.prazo_default, erro: err,
+        nome: svc.nome, valor_reais: null, preco: null,
+        prazo_dias: svc.prazo_default, prazo_min: svc.prazo_default, prazo_max: svc.prazo_default,
+        erro: err,
       }
     })
 
@@ -125,6 +132,8 @@ interface SuperfreteRes {
   ok: boolean
   price?: number
   delivery_time?: number
+  prazo_min?: number
+  prazo_max?: number
   error?: string
 }
 
@@ -163,16 +172,26 @@ async function chamarSuperfrete(args: {
     try { data = JSON.parse(txt) } catch { return { ok: false, error: `parse: ${txt.slice(0,200)}` } }
     if (!r.ok) return { ok: false, error: `HTTP ${r.status}: ${(data?.error || txt).toString().slice(0, 200)}` }
 
-    const item = Array.isArray(data) ? data[0] : data
-    if (!item) return { ok: false, error: 'resposta vazia' }
-    const priceRaw    = typeof item.price === 'string'    ? parseFloat(item.price)    : item.price
-    const discountRaw = typeof item.discount === 'string' ? parseFloat(item.discount) : (item.discount || 0)
-    const price = (priceRaw || 0) + (discountRaw || 0)
+    // SuperFrete retorna ARRAY. Acha o serviço pedido por id (1=PAC, 2=SEDEX),
+    // fallback pro 1º que tiver preço válido.
+    const arr = Array.isArray(data) ? data : [data]
+    let item = arr.find((x: any) => Number(x?.id) === Number(args.service) && !x?.error)
+    if (!item) item = arr.find((x: any) => !x?.error && x?.price != null)
+    if (!item) return { ok: false, error: arr[0]?.error || 'resposta vazia' }
+
+    // Preço cheio (Correios) = price + discount. Mesma convenção do fluxo de
+    // etiqueta (cotar-frete): cobra-se o cheio, desconto SuperFrete é margem.
+    const priceWithDiscount = typeof item.price === 'string' ? parseFloat(item.price) : Number(item.price)
+    const discount = typeof item.discount === 'string' ? parseFloat(item.discount) : Number(item.discount || 0)
+    const price = (priceWithDiscount || 0) + (discount || 0)
     if (!price || price <= 0) {
       return { ok: false, error: item?.error || 'preço não retornado' }
     }
+
     const delivery_time = item?.delivery_time != null ? Number(item.delivery_time) : undefined
-    return { ok: true, price: Number(price.toFixed(2)), delivery_time }
+    const prazo_min = item?.delivery_range?.min != null ? Number(item.delivery_range.min) : delivery_time
+    const prazo_max = item?.delivery_range?.max != null ? Number(item.delivery_range.max) : delivery_time
+    return { ok: true, price: Number(price.toFixed(2)), delivery_time, prazo_min, prazo_max }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   } finally { clearTimeout(timer) }

@@ -160,8 +160,8 @@ Deno.serve(async (req) => {
       try {
         const fr = await chamarConsultarFrete(supabase, contato.cep, qtdTotal, pesoTotal_g)
         const sedex = fr.modalidades?.find((m: any) => /sedex/i.test(m.nome))
-        prazoMin = sedex?.prazo_min ?? null
-        prazoMax = sedex?.prazo_max ?? null
+        prazoMin = sedex?.prazo_min ?? sedex?.prazo_dias ?? null
+        prazoMax = sedex?.prazo_max ?? sedex?.prazo_dias ?? null
       } catch { /* prazo opcional */ }
     } else {
       // cliente paga frete → precisa modalidade escolhida
@@ -172,13 +172,15 @@ Deno.serve(async (req) => {
       } else {
         const mod = modalidadesDisponiveis.find((m: any) =>
           new RegExp(modalidade_frete_escolhida, 'i').test(m.nome))
-        if (!mod) {
+        // Só aceita modalidade COM preço válido (valor_reais ou preco não-nulo)
+        const precoMod = mod ? Number(mod.valor_reais ?? mod.preco) : NaN
+        if (!mod || !Number.isFinite(precoMod) || precoMod <= 0) {
           pendencias.push('escolher_modalidade_frete')
         } else {
           modalidade = modalidade_frete_escolhida
-          fretePreco = Number(mod.preco)
-          prazoMin   = mod.prazo_min ?? null
-          prazoMax   = mod.prazo_max ?? null
+          fretePreco = precoMod
+          prazoMin   = mod.prazo_min ?? mod.prazo_dias ?? null
+          prazoMax   = mod.prazo_max ?? mod.prazo_dias ?? null
         }
       }
     }
