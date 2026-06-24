@@ -49,6 +49,7 @@ export default function PedidosPage() {
   const [marcarPagoSocio, setMarcarPagoSocio] = useState<string | null>(null);
   const [markingPago, setMarkingPago] = useState(false);
   const [socios, setSocios] = useState<{ key: string; nome: string }[]>([]);
+  const [caixas, setCaixas] = useState<{ codigo: string; apelido: string }[]>([]);
 
   // Parcela / Desconto
   const [parcelaTarget, setParcelaTarget] = useState<any>(null);
@@ -116,13 +117,14 @@ export default function PedidosPage() {
     let cancelled = false;
 
     const loadSocios = async () => {
-      const [rpcResult, adminContactsResult] = await Promise.all([
+      const [rpcResult, adminContactsResult, caixasResult] = await Promise.all([
         supabase.rpc('listar_socios'),
         supabase
           .from('contatos')
           .select('nome')
           .eq('canal_origem', 'ADMIN')
           .order('created_at', { ascending: true }),
+        supabase.rpc('listar_caixas' as any),
       ]);
 
       const byKey = new Map<string, { key: string; nome: string }>();
@@ -143,8 +145,13 @@ export default function PedidosPage() {
         });
       }
 
+      const caixasList = ((caixasResult.data as any[]) || [])
+        .map((c: any) => ({ codigo: String(c.codigo || '').trim().toUpperCase(), apelido: String(c.apelido || '').trim() }))
+        .filter(c => c.codigo && c.apelido);
+
       if (!cancelled) {
         setSocios([...byKey.values()].sort((a, b) => a.key.localeCompare(b.key)));
+        setCaixas(caixasList);
       }
     };
 
@@ -973,20 +980,38 @@ export default function PedidosPage() {
                 />
               </div>
               <div>
-                <Label className="text-xs uppercase tracking-wide text-muted-foreground">Sócio que recebeu</Label>
-                <div className="flex gap-2 mt-2">
-                  {socios.length === 0 ? (
-                    <div className="text-xs text-muted-foreground">Nenhum sócio cadastrado.</div>
-                  ) : socios.map(s => (
-                    <Button
-                      key={s.key}
-                      variant={parcelaSocio === s.key ? 'default' : 'outline'}
-                      className={cn('flex-1 min-h-[44px]', parcelaSocio === s.key && 'bg-sf-green hover:bg-sf-green/90')}
-                      onClick={() => setParcelaSocio(s.key)}
-                    >
-                      {s.nome}
-                    </Button>
-                  ))}
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">Sócio / Caixa que recebeu</Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {socios.length === 0 && caixas.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">Nenhum sócio/caixa cadastrado.</div>
+                  ) : (
+                    <>
+                      {socios.map(s => (
+                        <Button
+                          key={s.key}
+                          variant={parcelaSocio === s.key ? 'default' : 'outline'}
+                          className={cn('flex-1 min-w-[100px] min-h-[44px]',
+                            parcelaSocio === s.key && 'bg-sf-green hover:bg-sf-green/90')}
+                          onClick={() => setParcelaSocio(s.key)}
+                        >
+                          {s.nome}
+                        </Button>
+                      ))}
+                      {caixas.map(c => (
+                        <Button
+                          key={c.codigo}
+                          variant={parcelaSocio === c.codigo ? 'default' : 'outline'}
+                          className={cn('flex-1 min-w-[100px] min-h-[44px]',
+                            parcelaSocio === c.codigo
+                              ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                              : 'border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30')}
+                          onClick={() => setParcelaSocio(c.codigo)}
+                        >
+                          🏪 {c.apelido}
+                        </Button>
+                      ))}
+                    </>
+                  )}
                 </div>
               </div>
               <Button
