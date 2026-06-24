@@ -26,6 +26,14 @@
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
+-- 0) DROP triggers que dependem das colunas (recriados ao final)
+--    Postgres rejeita ALTER COLUMN TYPE se a coluna é usada em qualquer
+--    trigger definition. Removemos antes, recriamos depois.
+-- ----------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trg_sync_data_cliente       ON public.contatos;
+DROP TRIGGER IF EXISTS trg_contato_virou_cliente   ON public.pedidos;
+
+-- ----------------------------------------------------------------------------
 -- 1) Converte primeira_venda_em DATE → TIMESTAMPTZ
 --    USING explícito: meia-noite no TZ Sao_Paulo (preserva o dia visualmente)
 -- ----------------------------------------------------------------------------
@@ -114,8 +122,10 @@ BEGIN
   RETURN NEW;
 END $$;
 
--- (trigger trg_sync_data_cliente já existe da migration anterior — função
--- recriada acima é o suficiente)
+-- Recria trigger (foi dropado no passo 0 pra liberar o ALTER COLUMN)
+CREATE TRIGGER trg_sync_data_cliente
+  BEFORE UPDATE OF primeira_venda_em ON public.contatos
+  FOR EACH ROW EXECUTE FUNCTION public.trigger_sync_data_cliente();
 
 -- ----------------------------------------------------------------------------
 -- 5) Backfill: alinha primeira/ultima_venda_em + data_cliente usando
