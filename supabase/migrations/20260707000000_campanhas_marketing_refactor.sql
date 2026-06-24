@@ -10,6 +10,11 @@
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
+-- 0) DROPa view dependente antes do DROP COLUMN (recriada no fim)
+-- ----------------------------------------------------------------------------
+DROP VIEW IF EXISTS public.v_debug_campanhas_status;
+
+-- ----------------------------------------------------------------------------
 -- 1) DROPs
 -- ----------------------------------------------------------------------------
 ALTER TABLE public.campanhas    DROP COLUMN IF EXISTS limite_diario_total;
@@ -381,6 +386,51 @@ END $$;
 
 GRANT EXECUTE ON FUNCTION public.claim_proximo_lead_followup(uuid)
   TO authenticated, anon, service_role;
+
+-- ----------------------------------------------------------------------------
+-- 9.9) Recria view v_debug_campanhas_status SEM limite_diario_total
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW public.v_debug_campanhas_status AS
+WITH agora AS (
+  SELECT (NOW() AT TIME ZONE 'America/Sao_Paulo')::time AS now_time,
+         (NOW() AT TIME ZONE 'America/Sao_Paulo')::date AS now_date
+)
+SELECT
+  c.tipo,
+  c.nome,
+  c.id            AS campanha_id,
+  c.ativa,
+  c.pausa_global,
+  c.horario_inicio,
+  c.horario_fim,
+  a.now_time      AS agora_brt,
+  CASE
+    WHEN NOT c.ativa                              THEN 'BLOQUEIO: ativa=false'
+    WHEN c.pausa_global                           THEN 'BLOQUEIO: pausa_global'
+    WHEN a.now_time < c.horario_inicio
+      OR a.now_time > c.horario_fim               THEN 'BLOQUEIO: fora_horario'
+    WHEN c.ultima_execucao_em IS NOT NULL
+      AND EXTRACT(EPOCH FROM (NOW() - c.ultima_execucao_em))/60 < c.intervalo_minutos
+                                                  THEN 'BLOQUEIO: intervalo (' ||
+                                                       round(EXTRACT(EPOCH FROM (NOW() - c.ultima_execucao_em))/60::numeric, 1) ||
+                                                       '/' || c.intervalo_minutos || 'min)'
+    WHEN c.coffee_break_inicio IS NOT NULL
+      AND c.coffee_break_fim   IS NOT NULL
+      AND a.now_time BETWEEN c.coffee_break_inicio AND c.coffee_break_fim
+                                                  THEN 'BLOQUEIO: coffee_break'
+    ELSE                                               'OK (pode disparar)'
+  END AS status_agora,
+  c.intervalo_minutos,
+  c.ultima_execucao_em,
+  c.coffee_break_inicio,
+  c.coffee_break_fim,
+  c.skip_rate,
+  EXTRACT(EPOCH FROM (NOW() - c.ultima_execucao_em))/60::numeric AS minutos_desde_ultima
+FROM public.campanhas c
+CROSS JOIN agora a
+WHERE c.tipo IN ('ativacao','followup','rmkt','marketing');
+
+GRANT SELECT ON public.v_debug_campanhas_status TO authenticated, anon, service_role;
 
 -- ----------------------------------------------------------------------------
 -- 10) Cria campanha Marketing default (uma só, pode customizar nome via UI)
