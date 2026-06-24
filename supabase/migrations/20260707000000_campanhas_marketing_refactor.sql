@@ -244,6 +244,12 @@ GRANT EXECUTE ON FUNCTION public.escolhe_template_v2(text, text, uuid, uuid)
   TO anon, authenticated, service_role;
 
 -- ----------------------------------------------------------------------------
+-- DROP funções claim que vamos recriar — evita conflito de signature/return.
+-- ----------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.claim_proximo_lead_marketing(uuid, uuid);
+DROP FUNCTION IF EXISTS public.claim_proximo_lead_rmkt(uuid, integer);
+
+-- ----------------------------------------------------------------------------
 -- 7) claim_proximo_lead_marketing
 --    Filtra por marketing_dispara_cliente / wait_followup da campanha.
 --    Respeita marketing_cooldown_ate global (evita disparar 2x sobreposto).
@@ -353,8 +359,12 @@ GRANT EXECUTE ON FUNCTION public.claim_proximo_lead_rmkt(uuid, integer)
 
 -- ----------------------------------------------------------------------------
 -- 9) FollowUp claim respeita marketing_cooldown_ate
---    Se a função existir; senão criamos versão básica.
+--    DROP antes pra permitir mudança de tipo de retorno (Postgres não aceita
+--    OR REPLACE com signature diferente).
 -- ----------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.claim_proximo_lead_followup(uuid);
+DROP FUNCTION IF EXISTS public.claim_proximo_lead_followup(uuid, integer);
+
 CREATE OR REPLACE FUNCTION public.claim_proximo_lead_followup(p_instancia_id uuid)
 RETURNS TABLE (id uuid, nome text, telefone text, subcategoria text)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
