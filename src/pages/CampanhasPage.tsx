@@ -34,7 +34,7 @@ export default function CampanhasPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('campanhas')
-        .select('id, nome, tipo, ativa, pausa_global, horario_inicio, horario_fim, cooldown_dias, dias_inativo_min, dias_sem_envio, max_tentativas_categoria, coffee_break_inicio, coffee_break_fim, skip_rate, intervalo_minutos, ultima_execucao_em, marketing_dispara_cliente, marketing_dispara_wait_followup, marketing_cooldown_dias, marketing_prioridade')
+        .select('id, nome, tipo, ativa, pausa_global, horario_inicio, horario_fim, cooldown_dias, dias_inativo_min, dias_sem_envio, max_tentativas_categoria, coffee_break_inicio, coffee_break_fim, skip_rate, intervalo_minutos, ultima_execucao_em, marketing_dispara_cliente, marketing_dispara_wait_followup, marketing_cooldown_dias, marketing_prioridade, rmkt_gap_1_2_dias, rmkt_gap_3_5_dias, rmkt_gap_5_plus_dias, rmkt_max_envios')
         .order('tipo')
         .order('nome');
       if (error) {

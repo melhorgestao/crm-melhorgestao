@@ -32,6 +32,10 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
   const [editObs, setEditObs] = useState('');
   const [editDiasInativo, setEditDiasInativo] = useState<string>('');
   const [editDiasSemEnvio, setEditDiasSemEnvio] = useState<string>('');
+  const [editRmktGap12, setEditRmktGap12] = useState<string>('30');
+  const [editRmktGap35, setEditRmktGap35] = useState<string>('45');
+  const [editRmktGap5p, setEditRmktGap5p] = useState<string>('60');
+  const [editRmktMax,   setEditRmktMax]   = useState<string>('3');
   const [editMaxTent, setEditMaxTent] = useState<string>('');
   const [editCoffeeIni, setEditCoffeeIni] = useState<string>('');
   const [editCoffeeFim, setEditCoffeeFim] = useState<string>('');
@@ -54,6 +58,10 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     setEditDiasInativo(campanha.dias_inativo_min?.toString() || '');
     setEditDiasSemEnvio(campanha.dias_sem_envio?.toString() || '');
     setEditMaxTent(campanha.max_tentativas_categoria?.toString() || '');
+    setEditRmktGap12((campanha as any).rmkt_gap_1_2_dias?.toString() || '30');
+    setEditRmktGap35((campanha as any).rmkt_gap_3_5_dias?.toString() || '45');
+    setEditRmktGap5p((campanha as any).rmkt_gap_5_plus_dias?.toString() || '60');
+    setEditRmktMax((campanha as any).rmkt_max_envios?.toString() || '3');
     setEditCoffeeIni(campanha.coffee_break_inicio?.slice(0, 5) || '');
     setEditCoffeeFim(campanha.coffee_break_fim?.slice(0, 5) || '');
     setEditSkipRate(campanha.skip_rate != null ? (campanha.skip_rate * 100).toString() : '0');
@@ -127,6 +135,17 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     if (diasInativo !== campanha.dias_inativo_min) changes.dias_inativo_min = diasInativo;
     if (diasSemEnvio !== campanha.dias_sem_envio) changes.dias_sem_envio = diasSemEnvio;
     if (maxTent !== campanha.max_tentativas_categoria) changes.max_tentativas_categoria = maxTent;
+
+    if (campanha.tipo === 'rmkt') {
+      const g12 = parseInt(editRmktGap12) || 30;
+      const g35 = parseInt(editRmktGap35) || 45;
+      const g5p = parseInt(editRmktGap5p) || 60;
+      const max = parseInt(editRmktMax)   || 3;
+      if (g12 !== (campanha as any).rmkt_gap_1_2_dias)    changes.rmkt_gap_1_2_dias    = g12;
+      if (g35 !== (campanha as any).rmkt_gap_3_5_dias)    changes.rmkt_gap_3_5_dias    = g35;
+      if (g5p !== (campanha as any).rmkt_gap_5_plus_dias) changes.rmkt_gap_5_plus_dias = g5p;
+      if (max !== (campanha as any).rmkt_max_envios)      changes.rmkt_max_envios      = max;
+    }
 
     const coffeeIni = editCoffeeIni.trim() === '' ? null : (editCoffeeIni.length === 5 ? editCoffeeIni + ':00' : editCoffeeIni);
     const coffeeFim = editCoffeeFim.trim() === '' ? null : (editCoffeeFim.length === 5 ? editCoffeeFim + ':00' : editCoffeeFim);
@@ -288,25 +307,51 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
 
               {campanha.tipo === 'rmkt' && (
                 <>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Dias sem compra (mínimo)</Label>
-                    <Input
-                      type="number"
-                      value={editDiasInativo}
-                      onChange={e => setEditDiasInativo(e.target.value)}
-                      placeholder="ex: 30"
-                    />
-                    <p className="text-[10px] text-muted-foreground">Cliente só entra se está há pelo menos X dias sem comprar (<code className="font-mono">data_cliente</code>).</p>
+                  {/* Gap por faixa de quantidade do último pedido */}
+                  <div className="border rounded-lg p-3 bg-muted/20 space-y-2">
+                    <p className="text-xs font-medium">Gap por quantidade do último pedido</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Dias mínimos desde a última venda pra entrar em RMKT, conforme a faixa de produtos comprados.
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">1–2 produtos</Label>
+                        <Input type="number" value={editRmktGap12} onChange={e => setEditRmktGap12(e.target.value)} className="h-8 text-xs" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">3–5 produtos</Label>
+                        <Input type="number" value={editRmktGap35} onChange={e => setEditRmktGap35(e.target.value)} className="h-8 text-xs" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">6+ produtos</Label>
+                        <Input type="number" value={editRmktGap5p} onChange={e => setEditRmktGap5p(e.target.value)} className="h-8 text-xs" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Dias sem receber esta campanha</Label>
-                    <Input
-                      type="number"
-                      value={editDiasSemEnvio}
-                      onChange={e => setEditDiasSemEnvio(e.target.value)}
-                      placeholder="ex: 30"
-                    />
-                    <p className="text-[10px] text-muted-foreground">Gap entre envios de RMKT pro mesmo contato (<code className="font-mono">data_ultimo_rmkt</code>). Diferente do cooldown — não afeta outras campanhas.</p>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Dias sem receber esta campanha</Label>
+                      <Input
+                        type="number"
+                        value={editDiasSemEnvio}
+                        onChange={e => setEditDiasSemEnvio(e.target.value)}
+                        placeholder="ex: 30"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Gap entre RMKTs.</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Max envios por contato</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={editRmktMax}
+                        onChange={e => setEditRmktMax(e.target.value)}
+                        placeholder="3"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Contador zera na compra.</p>
+                    </div>
                   </div>
                 </>
               )}
