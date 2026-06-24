@@ -20,7 +20,7 @@ export interface TemplateRow {
   ativo: boolean;
   anexo_url: string | null;
   anexo_tipo: AnexoTipo | null;
-  observacao: string | null;
+  // observacao removida do schema
 }
 
 interface Props {
@@ -40,7 +40,7 @@ export function TemplateModal({ open, onClose, campanhaId, campanhaTipo, campanh
   const [subcat, setSubcat] = useState<string | null>(null);
   const [anexoUrl, setAnexoUrl] = useState<string | null>(null);
   const [anexoTipo, setAnexoTipo] = useState<AnexoTipo | null>(null);
-  const [observacao, setObservacao] = useState('');
+  // observacao removida
   const [ativo, setAtivo] = useState(true);
   const [saving, setSaving] = useState(false);
   const [previewContatoId, setPreviewContatoId] = useState<string>('');
@@ -55,7 +55,7 @@ export function TemplateModal({ open, onClose, campanhaId, campanhaTipo, campanh
       setSubcat(template.subcategoria);
       setAnexoUrl(template.anexo_url);
       setAnexoTipo(template.anexo_tipo);
-      setObservacao(template.observacao || '');
+      // observacao removida
       setAtivo(template.ativo);
     } else {
       setTexto('');
@@ -84,7 +84,7 @@ export function TemplateModal({ open, onClose, campanhaId, campanhaTipo, campanh
       ativo,
       anexo_url: anexoUrl,
       anexo_tipo: anexoTipo,
-      observacao: observacao.trim() || null,
+      // observacao removida
     };
     if (template?.id) {
       const { error } = await supabase.from('templates_msg').update(payload).eq('id', template.id);
@@ -160,15 +160,9 @@ export function TemplateModal({ open, onClose, campanhaId, campanhaTipo, campanh
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Ordem (rotação)</Label>
-              <Input type="number" value={ordem} onChange={e => setOrdem(parseInt(e.target.value) || 0)} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Observação</Label>
-              <Input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="ex: tom comercial" />
-            </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Ordem (rotação)</Label>
+            <Input type="number" value={ordem} onChange={e => setOrdem(parseInt(e.target.value) || 0)} />
           </div>
 
           <p className="text-[11px] text-muted-foreground italic">

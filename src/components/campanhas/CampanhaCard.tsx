@@ -1,19 +1,19 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Sparkles, Repeat, TrendingUp, Clock, Send } from 'lucide-react';
+import { Sparkles, Repeat, TrendingUp, Clock, Send, ChevronRight, Megaphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface CampanhaRow {
   id: string;
   nome: string;
-  tipo: 'ativacao' | 'followup' | 'rmkt';
+  tipo: 'ativacao' | 'followup' | 'rmkt' | 'marketing';
   ativa: boolean;
   pausa_global: boolean;
   horario_inicio: string;
   horario_fim: string;
-  limite_diario_total: number | null;
   cooldown_dias: number;
   dias_inativo_min: number | null;
   dias_sem_envio: number | null;
@@ -23,7 +23,11 @@ export interface CampanhaRow {
   skip_rate: number;
   intervalo_minutos: number;
   ultima_execucao_em: string | null;
-  observacao: string | null;
+  // marketing
+  marketing_dispara_cliente?: boolean;
+  marketing_dispara_wait_followup?: boolean;
+  marketing_cooldown_dias?: number;
+  marketing_prioridade?: 'sem_prioridade' | 'clientes';
 }
 
 interface Props {
@@ -33,15 +37,17 @@ interface Props {
 }
 
 const TIPO_META: Record<CampanhaRow['tipo'], { icon: any; label: string; color: string }> = {
-  ativacao: { icon: Sparkles,    label: 'Ativação', color: 'text-amber-500'  },
-  followup: { icon: Repeat,      label: 'Follow-up', color: 'text-blue-500' },
-  rmkt:     { icon: TrendingUp,  label: 'RMKT',      color: 'text-purple-500' },
+  ativacao:  { icon: Sparkles,    label: 'Ativação',  color: 'text-amber-500'   },
+  followup:  { icon: Repeat,      label: 'Follow-up', color: 'text-blue-500'    },
+  rmkt:      { icon: TrendingUp,  label: 'RMKT',      color: 'text-purple-500'  },
+  marketing: { icon: Megaphone,   label: 'Marketing', color: 'text-emerald-500' },
 };
 
 export function CampanhaCard({ campanha, onOpenDetails, onToggleAtiva }: Props) {
   const c = campanha;
   const meta = TIPO_META[c.tipo];
   const Icon = meta.icon;
+  const [expandido, setExpandido] = useState(false);
 
   // stats: templates ativos + envios hoje (total e por instância) + instâncias ON/total
   const { data: stats } = useQuery({
@@ -107,28 +113,42 @@ export function CampanhaCard({ campanha, onOpenDetails, onToggleAtiva }: Props) 
           </div>
           <div className="min-w-0">
             <h3 className="font-bold truncate">{c.nome}</h3>
-            {c.observacao && <p className="text-[10px] text-muted-foreground truncate">{c.observacao}</p>}
           </div>
         </div>
         <Switch checked={c.ativa} onCheckedChange={() => onToggleAtiva(c)} />
       </div>
 
-      {/* Stats */}
+      {/* Stats — Enviados hoje (somatório, com chevron pra expandir) */}
       <div className="space-y-1.5 text-sm mb-3">
-        {stats?.por_instancia?.map((p) => (
-          <Row
-            key={p.instancia_id}
-            icon={Send}
-            label={`Enviados hoje (${p.nome})`}
-            value={p.limite != null ? `${p.enviados} / ${p.limite}` : `${p.enviados}`}
-            dim={!p.ativa}
-          />
+        {(() => {
+          const totalEnv = (stats?.por_instancia || []).reduce((s, p) => s + p.enviados, 0);
+          const totalLim = (stats?.por_instancia || []).reduce((s, p) => s + (p.limite || 0), 0);
+          const limStr = totalLim > 0 ? `${totalEnv} / ${totalLim}` : `${totalEnv}`;
+          return (
+            <button
+              type="button"
+              className="w-full flex items-center justify-between hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"
+              onClick={() => setExpandido(e => !e)}
+            >
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <ChevronRight className={cn('w-3.5 h-3.5 transition-transform', expandido && 'rotate-90')} />
+                <Send className="w-3.5 h-3.5" />
+                Enviados hoje
+              </span>
+              <span className="tabular-nums font-medium">{limStr}</span>
+            </button>
+          );
+        })()}
+        {expandido && stats?.por_instancia?.map((p) => (
+          <div key={p.instancia_id} className={cn('flex items-center justify-between pl-7 text-xs', !p.ativa && 'opacity-50')}>
+            <span className="text-muted-foreground truncate">{p.nome}</span>
+            <span className="tabular-nums shrink-0 ml-2">
+              {p.limite != null ? `${p.enviados} / ${p.limite}` : `${p.enviados}`}
+            </span>
+          </div>
         ))}
         <Row icon={Repeat} label="Templates" value={`${stats?.templates ?? '—'} ${stats?.templates === 1 ? 'variação' : 'variações'}`} />
         <Row icon={Clock} label="Janela" value={`${c.horario_inicio.slice(0, 5)} → ${c.horario_fim.slice(0, 5)}`} />
-        {c.limite_diario_total !== null && (
-          <Row icon={TrendingUp} label="Limite/dia Geral" value={`${stats?.envios_hoje ?? '—'} / ${c.limite_diario_total}`} />
-        )}
       </div>
 
       {/* Instâncias */}

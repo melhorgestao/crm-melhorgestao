@@ -34,7 +34,7 @@ export default function CampanhasPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('campanhas')
-        .select('id, nome, tipo, ativa, pausa_global, horario_inicio, horario_fim, limite_diario_total, cooldown_dias, dias_inativo_min, dias_sem_envio, max_tentativas_categoria, coffee_break_inicio, coffee_break_fim, skip_rate, intervalo_minutos, ultima_execucao_em, observacao')
+        .select('id, nome, tipo, ativa, pausa_global, horario_inicio, horario_fim, cooldown_dias, dias_inativo_min, dias_sem_envio, max_tentativas_categoria, coffee_break_inicio, coffee_break_fim, skip_rate, intervalo_minutos, ultima_execucao_em, marketing_dispara_cliente, marketing_dispara_wait_followup, marketing_cooldown_dias, marketing_prioridade')
         .order('tipo')
         .order('nome');
       if (error) {
@@ -120,13 +120,17 @@ export default function CampanhasPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {(['ativacao', 'followup', 'rmkt'] as const).map(tipo => {
-            const grupo = campanhas!.filter(c => c.tipo === tipo);
+          {([
+            { key: 'marketing', label: 'MARKETING', tipos: ['ativacao', 'marketing'] },
+            { key: 'followup',  label: 'FOLLOW-UP', tipos: ['followup'] },
+            { key: 'rmkt',      label: 'RMKT',      tipos: ['rmkt'] },
+          ] as const).map(secao => {
+            const grupo = campanhas!.filter(c => (secao.tipos as readonly string[]).includes(c.tipo));
             if (grupo.length === 0) return null;
             return (
-              <div key={tipo} className="space-y-3">
+              <div key={secao.key} className="space-y-3">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
-                  {tipo}
+                  {secao.label}
                   <Badge variant="outline" className="text-[10px]">{grupo.length}</Badge>
                 </h2>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">

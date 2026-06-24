@@ -12,6 +12,7 @@ import { Plus, Pencil, Trash2, Image as ImageIcon, Loader2 } from 'lucide-react'
 import type { CampanhaRow } from './CampanhaCard';
 import { TemplateModal, type TemplateRow } from './TemplateModal';
 import { AnexosManager } from './AnexosManager';
+import { MarketingRulesBlock } from './MarketingRulesBlock';
 
 interface Props {
   open: boolean;
@@ -47,9 +48,9 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     setEditNome(campanha.nome);
     setEditHorIni(campanha.horario_inicio.slice(0, 5));
     setEditHorFim(campanha.horario_fim.slice(0, 5));
-    setEditLimite(campanha.limite_diario_total?.toString() || '');
+    // limite_diario_total removido — só limite por instância importa
     setEditCooldown(campanha.cooldown_dias);
-    setEditObs(campanha.observacao || '');
+    // observacao removida
     setEditDiasInativo(campanha.dias_inativo_min?.toString() || '');
     setEditDiasSemEnvio(campanha.dias_sem_envio?.toString() || '');
     setEditMaxTent(campanha.max_tentativas_categoria?.toString() || '');
@@ -66,7 +67,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('templates_msg')
-        .select('id, campanha_id, categoria, subcategoria, ordem, texto, ativo, anexo_url, anexo_tipo, observacao')
+        .select('id, campanha_id, categoria, subcategoria, ordem, texto, ativo, anexo_url, anexo_tipo')
         .eq('campanha_id', campanha!.id)
         .order('subcategoria', { ascending: true, nullsFirst: true })
         .order('ordem', { ascending: true });
@@ -117,9 +118,9 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     if (horIni !== campanha.horario_inicio) changes.horario_inicio = horIni;
     if (horFim !== campanha.horario_fim) changes.horario_fim = horFim;
     const limite = editLimite.trim() === '' ? null : parseInt(editLimite, 10);
-    if (limite !== campanha.limite_diario_total) changes.limite_diario_total = limite;
+    // limite_diario_total removido (só por instância)
     if (editCooldown !== campanha.cooldown_dias) changes.cooldown_dias = editCooldown;
-    if (editObs !== (campanha.observacao || '')) changes.observacao = editObs.trim() || null;
+    // observacao removida
     const diasInativo = editDiasInativo.trim() === '' ? null : parseInt(editDiasInativo, 10);
     const diasSemEnvio = editDiasSemEnvio.trim() === '' ? null : parseInt(editDiasSemEnvio, 10);
     const maxTent = editMaxTent.trim() === '' ? null : parseInt(editMaxTent, 10);
@@ -215,6 +216,21 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
           </SheetHeader>
 
           <div className="space-y-6 py-4">
+            {/* Regra fixa — Ativação Geral */}
+            {campanha.tipo === 'ativacao' && (
+              <div className="border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-950/30 rounded-r-lg p-3 text-xs">
+                <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">📌 Regra desta campanha</p>
+                <p className="text-amber-800 dark:text-amber-300">
+                  Dispara apenas para contatos <code className="font-mono bg-amber-100 dark:bg-amber-900/50 px-1 rounded">ultima_interacao = NULL</code> e captura o contato para a instância (regra fixa).
+                </p>
+              </div>
+            )}
+
+            {/* Regras editáveis — Marketing */}
+            {campanha.tipo === 'marketing' && (
+              <MarketingRulesBlock campanha={campanha} onSaved={() => qc.invalidateQueries({ queryKey: ['campanhas'] })} />
+            )}
+
             {/* Configurações */}
             <section className="space-y-3">
               <p className="text-xs uppercase text-muted-foreground tracking-wide">Configurações</p>
@@ -232,11 +248,6 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                   <Input type="time" value={editHorFim} onChange={e => setEditHorFim(e.target.value)} />
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Limite diário total</Label>
-                <Input type="number" value={editLimite} onChange={e => setEditLimite(e.target.value)} placeholder="sem limite" />
-              </div>
-
               {/* Avançado — cooldown raramente usado */}
               <details className="text-xs">
                 <summary className="cursor-pointer text-muted-foreground hover:text-foreground select-none">
@@ -250,10 +261,6 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                   </p>
                 </div>
               </details>
-              <div className="space-y-1">
-                <Label className="text-xs">Observação</Label>
-                <Input value={editObs} onChange={e => setEditObs(e.target.value)} placeholder="ex: BlackFriday 2026" />
-              </div>
               <Button className="w-full" onClick={saveConfig} disabled={saving}>
                 {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 Salvar configurações
@@ -453,7 +460,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                 </table>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                <strong>Ativa</strong>: liga/desliga esta campanha só pra esta instância. <strong>Limite/dia</strong>: teto de envios desta campanha só por esta instância (vazio = sem teto individual, só vale o limite total da campanha). Pressione Enter ou clique fora pra salvar.
+                <strong>Ativa</strong>: liga/desliga esta campanha só pra esta instância. <strong>Limite/dia</strong>: teto de envios desta campanha por esta instância (vazio = sem teto). Pressione Enter ou clique fora pra salvar.
               </p>
               <p className="text-[10px] text-muted-foreground">
                 Pausar instância em <code className="font-mono">/instancias</code> sobrepõe esses toggles — workflows nem tentam usar instância pausada.
@@ -496,7 +503,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-[10px]">Var. {tpl.ordem}</Badge>
                             {tpl.anexo_url && <ImageIcon className="w-3.5 h-3.5 text-blue-500" />}
-                            {tpl.observacao && <span className="text-[10px] text-muted-foreground">{tpl.observacao}</span>}
+                            {/* observação removida */}
                           </div>
                           <div className="flex items-center gap-1">
                             <Switch checked={tpl.ativo} onCheckedChange={() => toggleTplAtivo(tpl)} />
