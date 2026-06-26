@@ -177,7 +177,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('RESOLVE INSTÂNCIA').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"={{ $('RESOLVE INSTÂNCIA').item.json.via_rep ? ('Olá ' + $('RESOLVE INSTÂNCIA').item.json.nome.split(' ')[0] + '!\\n\\nPedido do cliente *' + $('RESOLVE INSTÂNCIA').item.json.cliente_nome + '* foi postado pela Santa Flor.\\n\\nLink de rastreio para repassar ao cliente:\\n' + $('Split In Batches').item.json.link_rastreio) : ('Olá ' + $('RESOLVE INSTÂNCIA').item.json.nome.split(' ')[0] + '!\\n\\nSeu pedido foi postado pela Santa Flor.\\n\\nAcompanhe a entrega:\\n' + $('Split In Batches').item.json.link_rastreio + '\\n\\nBom uso!') }}\",\n  \"delay\": 2000\n}",
+        "jsonBody": "={{ JSON.stringify({ number: ('55' + String($('RESOLVE INSTÂNCIA').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55'), text: $('RESOLVE INSTÂNCIA').item.json.via_rep ? ('Olá ' + $('RESOLVE INSTÂNCIA').item.json.nome.split(' ')[0] + '!\\n\\nPedido do cliente *' + $('RESOLVE INSTÂNCIA').item.json.cliente_nome + '* foi postado pela Santa Flor.\\n\\nLink de rastreio para repassar ao cliente:\\n' + $('Split In Batches').item.json.link_rastreio) : ('Olá ' + $('RESOLVE INSTÂNCIA').item.json.nome.split(' ')[0] + '!\\n\\nSeu pedido foi postado pela Santa Flor.\\n\\nAcompanhe a entrega:\\n' + $('Split In Batches').item.json.link_rastreio + '\\n\\nBom uso!'), delay: 2000 }) }}",
         "options": {
           "response": { "response": { "neverError": true } }
         }
@@ -277,7 +277,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $('RESOLVE INSTÂNCIA').item.json._admin_instancia?.alerta_telefone || '5511991282579' }}\",\n  \"text\": \"🚨 ALERTA RASTREIO\\n\\nFalha ao enviar link (tentativa {{ Number($('INCREMENT TENTATIVA').item.json) }}/5).\\nInstância: {{ $('RESOLVE INSTÂNCIA').item.json._instancia?.nome || '?' }}\\nPedido: #{{ $('Split In Batches').item.json.order_number }}\\nContato: {{ $('GET CONTATO').item.json?.nome || '—' }}\\nTelefone: {{ $('GET CONTATO').item.json?.telefone || '—' }}\\n\\nVer logs do n8n.\"\n}",
+        "jsonBody": "={{ JSON.stringify({ number: $('RESOLVE INSTÂNCIA').item.json._admin_instancia?.alerta_telefone || '5511991282579', text: '🚨 ALERTA RASTREIO\\n\\nFalha ao enviar link (tentativa ' + Number($('INCREMENT TENTATIVA').item.json) + '/5).\\nInstância: ' + ($('RESOLVE INSTÂNCIA').item.json._instancia?.nome || '?') + '\\nPedido: #' + $('Split In Batches').item.json.order_number + '\\nContato: ' + ($('GET CONTATO').item.json?.nome || '—') + '\\nTelefone: ' + ($('GET CONTATO').item.json?.telefone || '—') + '\\n\\nVer logs do n8n.' }) }}",
         "options": {}
       },
       "id": "alerta-falha",
