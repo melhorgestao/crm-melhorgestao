@@ -332,18 +332,18 @@ const CRON_DOCS: Record<string, CronDoc> = {
       {
         titulo: '📋 Lead / Follow-up',
         transicoes: [
-          { from: 'start', to: 'wait_follow_up', when: 'sem resposta após 24h' },
-          { from: 'wait_follow_up', to: 'follow_up', when: 'gap atingido (24h, 3d ou 7d)' },
-          { from: 'follow_up', to: 'wait_follow_up', when: 'sem resposta após disparo' },
-          { from: 'em_fechamento', to: 'wait_follow_up', when: 'sem resposta por X dias' },
+          { from: 'start', to: 'wait_follow_up', when: '+24h sem resposta (data_start)' },
+          { from: 'wait_follow_up', to: 'follow_up', when: 'gap por tentativa: 24h (1ª) · 3d (2ª) · 7d (3ª)' },
+          { from: 'follow_up', to: 'wait_follow_up', when: '+24h no estado follow_up (não-REP)' },
+          { from: 'em_fechamento', to: 'wait_follow_up', when: '+48h sem venda (data_em_fechamento)' },
         ],
       },
       {
         titulo: '🎯 Cliente / RMKT',
         transicoes: [
           { from: 'cliente', to: 'rmkt', when: 'ao receber disparo da campanha RMKT' },
-          { from: 'rmkt', to: 'cliente', when: 'cliente respondeu OU 24h no estado' },
-          { from: 'rmkt', to: 'NUNCA_MAIS', when: '3 silêncios consecutivos' },
+          { from: 'rmkt', to: 'cliente', when: '+24h no estado (data_ultimo_rmkt) — cliente respondeu não é event-driven' },
+          { from: 'rmkt', to: 'NUNCA_MAIS', when: '3 silêncios consecutivos no contador' },
         ],
       },
       {
@@ -351,20 +351,21 @@ const CRON_DOCS: Record<string, CronDoc> = {
         transicoes: [
           { from: 'ativacao_contatos', to: 'ativacao_contatos', when: 'próxima tentativa (dentro do limite)' },
           { from: 'ativacao_contatos', to: 'cliente', when: 'lead comprou' },
-          { from: 'ativacao_contatos', to: 'NUNCA_MAIS', when: 'atingiu max_tentativas_categoria' },
+          { from: 'ativacao_contatos', to: 'NUNCA_MAIS', when: '+3d em ativação_contatos com 3 tentativas esgotadas' },
         ],
       },
       {
         titulo: '🛟 Suporte',
         transicoes: [
           { from: 'qualquer estado', to: 'suporte', when: 'escalação manual ou erro' },
-          { from: 'suporte', to: 'estado anterior', when: 'resolução manual pelo atendente' },
+          { from: 'suporte', to: 'estado anterior', when: '+48h sem ação (data_suporte) — não-REP' },
         ],
       },
     ],
     notas: [
       'Roda 2x por dia (00:00 e 12:00 BRT). Para "rodar agora" e processar atrasos sem esperar.',
-      'Só processa contatos cuja instância está conectada E ativa — contatos de instâncias banidas/desconectadas ficam pausados até reativar.',
+      'Só processa contatos cuja instância está conectada E ativa — contatos de instâncias banidas/desconectadas ficam congelados no estado atual até a instância ser reativada.',
+      'Contatos REP / C-REP NUNCA são movidos pra wait_follow_up nem follow_up. Quando expira em start ou em_fechamento, caem em suporte com motivo rep_*.',
     ],
   },
   'midnight-lead-migration': {

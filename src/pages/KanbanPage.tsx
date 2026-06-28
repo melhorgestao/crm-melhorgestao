@@ -15,17 +15,34 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { cn, copyToClipboard } from '@/lib/utils';
 import { findConversationByPhone } from '@/lib/chatwootApi';
 
-// 5 colunas do Kanban derivadas de ultima_interacao
-// Mapping: column key (estado interno) → label visual
+// 4 colunas do Kanban derivadas de ultima_interacao.
+// Follow-Up unifica 2 estados (wait_follow_up + follow_up) — distinção fica
+// na tag do card (WAIT vs F-UP).
 const KANBAN_COLUMNS = [
-  { key: 'wait_follow_up', label: 'WAIT F-UP', accent: 'border-t-amber-400' },
-  { key: 'follow_up',      label: 'F-UP',      accent: 'border-t-orange-500' },
+  { key: 'follow_up',      label: 'FOLLOW-UP', accent: 'border-t-orange-500' },
   { key: 'rmkt',           label: 'RMKT',      accent: 'border-t-purple-500' },
   { key: 'em_fechamento',  label: 'FECHAMENTO', accent: 'border-t-primary' },
   { key: 'suporte',        label: 'SUPORTE',   accent: 'border-t-blue-500' },
 ] as const;
 
 type ColumnKey = typeof KANBAN_COLUMNS[number]['key'];
+
+// Estados internos que vão pra cada coluna do Kanban.
+const COLUMN_STATES: Record<ColumnKey, readonly string[]> = {
+  follow_up:     ['wait_follow_up', 'follow_up'],
+  rmkt:          ['rmkt'],
+  em_fechamento: ['em_fechamento'],
+  suporte:       ['suporte'],
+};
+
+// Gaps de follow_up por tentativa (igual claim_proximo_lead_followup):
+// tentativa 0 → 24h, 1 → 3d, 2 → 7d. Usado pra ordenar WAIT por
+// proximidade do próximo disparo (quem está mais perto = topo).
+const FOLLOW_UP_GAPS_MS = [
+  24 * 3600 * 1000,
+  3  * 24 * 3600 * 1000,
+  7  * 24 * 3600 * 1000,
+] as const;
 
 interface Contact {
   id: string;
@@ -90,21 +107,26 @@ const KanbanCard = memo(({
     (!contact.tag_kanban_ate || new Date(contact.tag_kanban_ate) > new Date())
     ? contact.tag_kanban : null;
 
-  // Determina tempo "no estado" e tentativa pra exibir
+  // Determina tempo "no estado" e tentativa pra exibir.
+  // Coluna 'follow_up' cobre 2 estados internos — checa ultima_interacao.
+  const realState = contact.ultima_interacao || '';
   const stateInfo = (() => {
-    switch (column) {
-      case 'wait_follow_up':
-        return {
-          time: contact.data_wait_follow_up ? timeAgo(contact.data_wait_follow_up) : null,
-          tentativa: formatTentativa(contact.follow_up_tentativas, 3),
-          label: 'no aguardo',
-        };
-      case 'follow_up':
+    if (column === 'follow_up') {
+      if (realState === 'follow_up') {
         return {
           time: contact.data_ultimo_follow_up ? timeAgo(contact.data_ultimo_follow_up) : null,
           tentativa: formatTentativa(contact.follow_up_tentativas, 3),
           label: 'disparado',
         };
+      }
+      // wait_follow_up
+      return {
+        time: contact.data_wait_follow_up ? timeAgo(contact.data_wait_follow_up) : null,
+        tentativa: formatTentativa(contact.follow_up_tentativas, 3),
+        label: 'no aguardo',
+      };
+    }
+    switch (column) {
       case 'rmkt':
         return {
           time: contact.data_ultimo_rmkt ? timeAgo(contact.data_ultimo_rmkt) : null,
@@ -166,6 +188,12 @@ const KanbanCard = memo(({
           <div className="flex-1 min-w-0">
             {/* Tags + nome */}
             <div className="flex items-center gap-1 flex-wrap">
+              {column === 'follow_up' && realState === 'follow_up' && (
+                <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0 font-bold">F-UP</Badge>
+              )}
+              {column === 'follow_up' && realState === 'wait_follow_up' && (
+                <Badge className="bg-amber-400 text-black text-[10px] px-1.5 py-0 font-bold">WAIT</Badge>
+              )}
               {activeTag === 'NEW' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">NEW</Badge>}
               {activeTag === 'VIP' && <Badge className="bg-yellow-500 text-black text-[10px] px-1.5 py-0 font-bold">VIP</Badge>}
               {activeTag === 'BUYER' && <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0 font-bold">BUYER</Badge>}
@@ -294,8 +322,9 @@ export default function KanbanPage() {
     window.open(found.url, '_blank');
   };
 
-  // Visible states (mapeados nas 5 colunas)
-  const VISIBLE_STATES = KANBAN_COLUMNS.map(c => c.key) as readonly string[];
+  // Estados que aparecem em alguma coluna do Kanban.
+  // Pode ser mais que o número de colunas (Follow-Up cobre 2 estados).
+  const VISIBLE_STATES = KANBAN_COLUMNS.flatMap(c => COLUMN_STATES[c.key]);
 
   const { data: contacts = [], isLoading: loading } = useQuery({
     queryKey: ['kanban-v2', filter],
@@ -338,9 +367,10 @@ export default function KanbanPage() {
   }, [queryClient]);
 
   const getColumnContacts = (col: ColumnKey) => {
-    const list = contacts.filter(c => c.ultima_interacao === col);
-    // Coluna SUPORTE: ordena por data_suporte ASC (mais antigos no topo,
-    // pra atendente atacar primeiro os que estão esperando mais tempo).
+    const states = COLUMN_STATES[col];
+    const list = contacts.filter(c => states.includes(c.ultima_interacao || ''));
+
+    // Coluna SUPORTE: ordena por data_suporte ASC (mais antigos no topo).
     if (col === 'suporte') {
       return list.sort((a, b) => {
         const ta = a.data_suporte ? new Date(a.data_suporte).getTime() : Infinity;
@@ -348,6 +378,23 @@ export default function KanbanPage() {
         return ta - tb;
       });
     }
+
+    // Coluna FOLLOW-UP: F-UP (já disparados) no topo. Depois WAIT ordenados
+    // por proximidade do próximo disparo (quanto MENOS tempo faltar pro gap,
+    // mais alto). Tempo até disparo = data_wait_follow_up + gap_da_tentativa.
+    if (col === 'follow_up') {
+      const now = Date.now();
+      const tempoAteDisparo = (c: Contact): number => {
+        if (c.ultima_interacao === 'follow_up') return -Infinity; // sempre topo
+        if (!c.data_wait_follow_up) return Infinity;
+        const tent = Math.min(c.follow_up_tentativas ?? 0, FOLLOW_UP_GAPS_MS.length - 1);
+        const gap = FOLLOW_UP_GAPS_MS[tent];
+        const proxDisparo = new Date(c.data_wait_follow_up).getTime() + gap;
+        return proxDisparo - now;
+      };
+      return list.sort((a, b) => tempoAteDisparo(a) - tempoAteDisparo(b));
+    }
+
     return list;
   };
 
@@ -362,10 +409,13 @@ export default function KanbanPage() {
       updated_at: new Date().toISOString(),
     };
 
-    // Atualiza data do estado de destino quando faz sentido
+    // Atualiza data do estado de destino quando faz sentido.
+    // Coluna 'follow_up' tem 2 estados internos — drag-drop está desativado,
+    // então tratamento default usa data_wait_follow_up.
     const now = new Date().toISOString();
     switch (newColumn) {
-      case 'wait_follow_up':
+      case 'follow_up':
+        updates.ultima_interacao = 'wait_follow_up';
         updates.data_wait_follow_up = now;
         break;
       case 'em_fechamento':
