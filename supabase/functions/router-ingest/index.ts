@@ -112,8 +112,9 @@ Deno.serve(async (req) => {
     const ctwa_source_url = msg.messageContextInfo?.ctwaContext?.sourceUrl || null
 
     // 2) filtros baratos antes de bater no banco.
-    // ATENÇÃO: comandos "/" são digitados PELO DONO no WhatsApp (fromMe=true).
-    // Deixa passar pra ser tratado no bloco de comando lá embaixo.
+    // ATENÇÃO: comandos "/" são digitados PELO DONO no WhatsApp (fromMe=true,
+    // ou pode vir de um chip INTERNO nosso). Deixa passar pra ser tratado no
+    // bloco de comando lá embaixo. Filtro de INTERNO acontece após DB lookup.
     const isComando = msg_text.trim().startsWith('/')
     if (from_me && !isComando)                return j({ ok: true, deve_processar: false, motivo: 'from_me' })
     if (!isComando && !TIPOS_ACEITOS.has(message_type)) {
@@ -127,14 +128,18 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // 3) resolve instância + checa bot global em paralelo
-    const [instRes, botRes] = await Promise.all([
+    // 3) resolve instância + checa bot global + checa se remetente é INTERNO
+    //    (qualquer chip configurado em instancias.numero — todos os "nossos"
+    //    números). Mensagem de número INTERNO é ignorada como fromMe.
+    const [instRes, botRes, internoRes] = await Promise.all([
       supabase.from('instancias')
         .select('id,evolution_url,evolution_apikey,evolution_instance,status,ativo,pausado_ate,motivo_pausa')
         .eq('evolution_instance', instancia_nome)
         .eq('ativo', true).maybeSingle(),
       supabase.from('configuracoes')
         .select('valor').eq('chave', 'bot_ativo_global').maybeSingle(),
+      supabase.from('instancias')
+        .select('id,nome').eq('numero', telefone_clean).maybeSingle(),
     ])
 
     const inst = instRes.data
@@ -145,6 +150,16 @@ Deno.serve(async (req) => {
       motivo_pausa: inst.motivo_pausa,
       pausado_ate: inst.pausado_ate,
     })
+
+    // Remetente é um dos nossos chips INTERNO → trata como fromMe (ignora,
+    // exceto comandos "/"). Útil quando uma instância manda alerta pra outra,
+    // ou quando o dono manda msg manual de um chip nosso pra outro.
+    if (internoRes.data?.id && !isComando) {
+      return j({
+        ok: true, deve_processar: false, motivo: 'from_interno',
+        from_interno_instancia: internoRes.data.nome,
+      })
+    }
 
     const evolution_url    = inst.evolution_url    || EVOLUTION_BASE_URL_DEFAULT
     const evolution_apikey = inst.evolution_apikey
