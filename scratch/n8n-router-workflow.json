@@ -124,7 +124,7 @@
             },
             {
               "name": "select",
-              "value": "id,nome,evolution_instance,evolution_url,evolution_apikey"
+              "value": "id,nome,numero,evolution_instance,evolution_url,evolution_apikey"
             }
           ]
         },
@@ -141,7 +141,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Resolve config da instância que recebeu a mensagem (matching pelo evolution_instance)\nconst instancia_nome = $('EXTRAI CAMPOS').item.json.instancia_nome;\nconst instancias = $input.all().map(i => i.json);\nconst inst = instancias.find(i => i.evolution_instance === instancia_nome) || null;\nreturn [{\n  json: {\n    ...$('EXTRAI CAMPOS').item.json,\n    instancia_uuid: inst?.id || null,\n    evolution_apikey: inst?.evolution_apikey || null,\n    evolution_url: inst?.evolution_url || $('EXTRAI CAMPOS').item.json.evolution_base_url,\n    _instancia_found: inst !== null,\n  }\n}];"
+        "jsCode": "// Resolve config da instância que recebeu a mensagem (matching pelo evolution_instance)\nconst instancia_nome = $(\"EXTRAI CAMPOS\").item.json.instancia_nome;\nconst instancias = $input.all().map(i => i.json);\nconst inst = instancias.find(i => i.evolution_instance === instancia_nome) || null;\n// Detecta se o REMETENTE é um dos nossos chips INTERNO (instancias.numero).\n// Se for, trata como fromMe (ignora, exceto comandos) — alerta entre chips.\nconst normBr = (s) => { let d = String(s || \"\").replace(/[^0-9]/g, \"\"); if ((d.length === 12 || d.length === 13) && d.startsWith(\"55\")) d = d.slice(2); return d; };\nconst telNorm = normBr($(\"EXTRAI CAMPOS\").item.json.telefone_clean);\nconst isInterno = !!telNorm && instancias.some(i => i.numero && normBr(i.numero) === telNorm);\nreturn [{\n  json: {\n    ...$(\"EXTRAI CAMPOS\").item.json,\n    instancia_uuid: inst?.id || null,\n    evolution_apikey: inst?.evolution_apikey || null,\n    evolution_url: inst?.evolution_url || $(\"EXTRAI CAMPOS\").item.json.evolution_base_url,\n    _instancia_found: inst !== null,\n    is_interno: isInterno,\n  }\n}];"
       },
       "id": "resolve-inst-router",
       "name": "RESOLVE CONFIG INSTÂNCIA",
@@ -216,9 +216,18 @@
                 "type": "boolean",
                 "operation": "true"
               }
+            },
+            {
+              "id": "is-interno",
+              "leftValue": "={{ $json.is_interno }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
-          "combinator": "and"
+          "combinator": "or"
         },
         "options": {}
       },
