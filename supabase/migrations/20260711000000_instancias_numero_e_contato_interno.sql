@@ -6,11 +6,12 @@
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 1) Expande canal_origem pra incluir 'INTERNO' (se ainda não tiver)
+-- 1) Expande canal_origem pra incluir 'INTERNO' (mantém ADMIN legado da
+--    migration 20260406000015 — necessário pros contatos Admin V / Admin A).
 -- ----------------------------------------------------------------------------
 ALTER TABLE public.contatos DROP CONSTRAINT IF EXISTS contatos_canal_origem_check;
 ALTER TABLE public.contatos ADD CONSTRAINT contatos_canal_origem_check
-  CHECK (canal_origem IN ('ADS', 'BASE', 'REP', 'C-REP', 'INTERNO'));
+  CHECK (canal_origem IN ('ADS', 'BASE', 'REP', 'C-REP', 'ADMIN', 'INTERNO'));
 
 -- ----------------------------------------------------------------------------
 -- 2) Rename da coluna
