@@ -341,8 +341,8 @@ const CRON_DOCS: Record<string, CronDoc> = {
       {
         titulo: '🎯 Cliente / RMKT',
         transicoes: [
-          { from: 'cliente', to: 'rmkt', when: 'data_cliente + dias_inativo_min' },
-          { from: 'rmkt', to: 'cliente', when: 'cliente respondeu' },
+          { from: 'cliente', to: 'rmkt', when: 'ao receber disparo da campanha RMKT' },
+          { from: 'rmkt', to: 'cliente', when: 'cliente respondeu OU 24h no estado' },
           { from: 'rmkt', to: 'NUNCA_MAIS', when: '3 silêncios consecutivos' },
         ],
       },
@@ -362,7 +362,10 @@ const CRON_DOCS: Record<string, CronDoc> = {
         ],
       },
     ],
-    notas: ['Roda 1x por dia (00:00 BRT). Para "rodar agora" e processar atrasos sem esperar.'],
+    notas: [
+      'Roda 2x por dia (00:00 e 12:00 BRT). Para "rodar agora" e processar atrasos sem esperar.',
+      'Só processa contatos cuja instância está conectada E ativa — contatos de instâncias banidas/desconectadas ficam pausados até reativar.',
+    ],
   },
   'midnight-lead-migration': {
     resumo: 'Move contatos do canal ADS para BASE no funil quando viram clientes. Não toca instancia_id — contato fica na mesma instância pra sempre.',
