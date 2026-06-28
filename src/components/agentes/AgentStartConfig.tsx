@@ -1,12 +1,13 @@
 /**
  * Configurações do Agent Start (editáveis sem redeploy).
- * Estrutura: 3 seções colapsáveis.
- *  - APRESENTAÇÃO INICIAL: texto, foto, header, regras de bônus
- *  - SAUDAÇÃO: 4 templates (BASE / ADS / REP / CLIENTE)
- *  - REAPRESENTAÇÃO & LLM: reapresentar_meses, temperature
+ * Os blocos 1–4 da apresentação inicial migraram pra aba "1ª Apresentação".
+ * Aqui ficam:
+ *  - SAUDAÇÃO (bloco 5): templates por canal (BASE / ADS / REP / CLIENTE /
+ *    CLIENTE PENDENTE). Usado quando o lead manda saudação genérica; se vier
+ *    pergunta direta, o agent responde via LLM em vez de usar o template.
+ *  - LLM: temperature.
  *
- * Foto upload usa bucket Start (público). Demais campos: textarea simples
- * salvos em agent_config (key/value JSONB).
+ * Campos salvos em agent_config (key/value JSONB).
  */
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -92,9 +93,9 @@ export function AgentStartConfig() {
   return (
     <div className="space-y-6">
       <div className="border rounded-xl p-3 bg-muted/20 text-[11px] text-muted-foreground">
-        📌 Os 3 blocos da apresentação inicial (texto, foto+cardápio, bônus) agora vivem
-        na aba <strong>1ª Apresentação</strong>. Aqui ficam: saudações por canal (bloco 4)
-        + temperature do LLM.
+        📌 Os 4 primeiros blocos da apresentação inicial (texto, cardápio, bônus, foto)
+        vivem na aba <strong>1ª Apresentação</strong>. Aqui fica o <strong>bloco 5</strong>:
+        saudação por canal (ou resposta à pergunta direta) + temperature do LLM.
       </div>
 
       {/* ===== SAUDAÇÃO ===== */}
