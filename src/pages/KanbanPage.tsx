@@ -66,7 +66,7 @@ interface Contact {
   data_ultimo_rmkt?: string | null;
   data_suporte?: string | null;
   suporte_motivo?: string | null;
-  instancias?: { nome: string; numero_final: string } | null;
+  instancias?: { nome: string; numero: string } | null;
 }
 
 interface Instancia {
@@ -197,7 +197,7 @@ const KanbanCard = memo(({
               {activeTag === 'NEW' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">NEW</Badge>}
               {activeTag === 'VIP' && <Badge className="bg-yellow-500 text-black text-[10px] px-1.5 py-0 font-bold">VIP</Badge>}
               {activeTag === 'BUYER' && <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0 font-bold">BUYER</Badge>}
-              {activeTag === 'REP' && <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0 font-bold">REP</Badge>}
+              {activeTag === 'REP' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">REP</Badge>}
               {activeTag === 'ADS' && <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">ADS</Badge>}
               <p className="font-bold text-sm truncate">{contact.nome}</p>
             </div>
@@ -339,7 +339,7 @@ export default function KanbanPage() {
           follow_up_tentativas, ativacao_tentativas,
           data_start, data_wait_follow_up, data_ultimo_follow_up,
           data_em_fechamento, data_ultimo_rmkt, data_suporte, suporte_motivo,
-          instancias(nome, numero_final)
+          instancias(nome, numero)
         `)
         .in('ultima_interacao', VISIBLE_STATES as string[]);
 

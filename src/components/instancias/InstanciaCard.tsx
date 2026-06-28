@@ -19,7 +19,7 @@ export interface InstanciaRow {
   ativo: boolean;
   chatwoot_inbox_id: string | null;
   chatwoot_integrated: boolean;
-  numero_final: string | null;
+  numero: string | null;
 }
 
 interface Props {

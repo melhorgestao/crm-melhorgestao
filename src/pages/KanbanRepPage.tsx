@@ -138,7 +138,7 @@ const KanbanCard = memo(({
               {activeTag === 'NEW' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">NEW</Badge>}
               {activeTag === 'VIP' && <Badge className="bg-yellow-500 text-black text-[10px] px-1.5 py-0 font-bold">VIP</Badge>}
               {activeTag === 'BUYER' && <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0 font-bold">BUYER</Badge>}
-              {activeTag === 'REP' && <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0 font-bold">REP</Badge>}
+              {activeTag === 'REP' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">REP</Badge>}
               {activeTag === 'ADS' && <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">ADS</Badge>}
               <p className="font-bold text-sm truncate">{contact.nome}</p>
             </div>
