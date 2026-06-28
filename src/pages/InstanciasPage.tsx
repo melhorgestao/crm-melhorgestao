@@ -24,7 +24,7 @@ export default function InstanciasPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('instancias')
-        .select('id, nome, evolution_instance, evolution_url, evolution_apikey, status, pausado_ate, motivo_pausa, alerta_admin, alerta_telefone, ativo, chatwoot_inbox_id, chatwoot_integrated')
+        .select('id, nome, evolution_instance, evolution_url, evolution_apikey, status, pausado_ate, motivo_pausa, alerta_admin, alerta_telefone, ativo, chatwoot_inbox_id, chatwoot_integrated, numero_final')
         .order('nome');
       if (error) throw error;
       return ((data || []) as any[])

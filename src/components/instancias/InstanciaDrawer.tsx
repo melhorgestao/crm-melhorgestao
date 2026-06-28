@@ -29,6 +29,7 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
   const [editAlertaTel, setEditAlertaTel] = useState('');
   const [editChatwootInbox, setEditChatwootInbox] = useState('');
   const [editAtivo, setEditAtivo] = useState(true);
+  const [editNumeroFinal, setEditNumeroFinal] = useState('');
   const [showApikey, setShowApikey] = useState(false);
   const [qrBase64, setQrBase64] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
@@ -46,6 +47,7 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
     setEditAlertaTel(instancia.alerta_telefone || '');
     setEditChatwootInbox(instancia.chatwoot_inbox_id || '');
     setEditAtivo(!!instancia.ativo);
+    setEditNumeroFinal(instancia.numero_final || '');
     setShowApikey(false);
     setQrBase64(null);
   }, [instancia]);
@@ -107,6 +109,7 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
     if (editAlertaTel !== (instancia.alerta_telefone || '')) changes.alerta_telefone = editAlertaTel.trim() || null;
     if (editChatwootInbox !== (instancia.chatwoot_inbox_id || '')) changes.chatwoot_inbox_id = editChatwootInbox.trim() || null;
     if (editAtivo !== instancia.ativo) changes.ativo = editAtivo;
+    if (editNumeroFinal !== (instancia.numero_final || '')) changes.numero_final = editNumeroFinal.trim() || null;
     if (Object.keys(changes).length === 0) { toast.info('Sem alterações'); return; }
 
     const { error } = await supabase.from('instancias').update(changes).eq('id', instancia.id);
@@ -279,6 +282,18 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
             <div className="space-y-2">
               <Label className="text-xs">Nome CRM</Label>
               <Input value={editNome} onChange={e => setEditNome(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Últimos 4 dígitos</Label>
+              <Input
+                value={editNumeroFinal}
+                onChange={e => setEditNumeroFinal(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="0000"
+                inputMode="numeric"
+                maxLength={4}
+                className="font-mono"
+              />
+              <p className="text-[10px] text-muted-foreground">Identificador visual do número no Kanban. Troque ao reconectar com chip novo.</p>
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Nome Evolution</Label>
