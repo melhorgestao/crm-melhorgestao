@@ -123,20 +123,16 @@ BEGIN
 END $$;
 
 -- ----------------------------------------------------------------------------
--- 4) Caso específico: Snoop (5180511911) duplicata de VK (55519805119).
---    Números genuinamente diferentes (artefato LID) → não pega no dedup acima.
---    User autorizou: merge Snoop → VK (preserva pedidos/histórico se houver).
+-- 4) Caso específico: DELETA o contato duplicado "Snoop" (5180511911).
+--    Número genuinamente diferente do VK (artefato LID) → não pega no dedup
+--    canônico acima. User confirmou: APAGAR Snoop (não mergear).
+--    FK-safe: nula a self-ref representante_id antes; buffer/eventos/follow_up
+--    saem por CASCADE; pedidos/lancamentos viram contato_id=NULL (SET NULL).
 -- ----------------------------------------------------------------------------
 DO $$
 DECLARE
-  v_vk    UUID;
   v_snoop UUID;
 BEGIN
-  SELECT id INTO v_vk
-    FROM public.contatos
-   WHERE regexp_replace(coalesce(telefone,''), '[^0-9]', '', 'g') = '55519805119'
-   ORDER BY created_at ASC LIMIT 1;
-
   SELECT id INTO v_snoop
     FROM public.contatos
    WHERE nome ILIKE 'snoop'
@@ -144,15 +140,12 @@ BEGIN
    ORDER BY created_at ASC LIMIT 1;
 
   IF v_snoop IS NOT NULL THEN
-    IF v_vk IS NOT NULL THEN
-      PERFORM public.merge_contato(v_vk, v_snoop);
-      RAISE NOTICE 'Snoop (%) mergeado em VK (%).', v_snoop, v_vk;
-    ELSE
-      DELETE FROM public.contatos WHERE id = v_snoop;
-      RAISE NOTICE 'Snoop (%) deletado (VK não encontrado).', v_snoop;
-    END IF;
+    -- caso Snoop seja representante de algum C-REP, solta a referência
+    UPDATE public.contatos SET representante_id = NULL WHERE representante_id = v_snoop;
+    DELETE FROM public.contatos WHERE id = v_snoop;
+    RAISE NOTICE 'Snoop (%) DELETADO.', v_snoop;
   ELSE
-    RAISE NOTICE 'Snoop não encontrado pelos critérios — nada feito.';
+    RAISE NOTICE 'Snoop não encontrado (nome=snoop, tel=5180511911) — nada feito.';
   END IF;
 END $$;
 
