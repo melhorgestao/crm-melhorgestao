@@ -3,8 +3,33 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Sparkles, Repeat, TrendingUp, Clock, Send, ChevronRight, Megaphone } from 'lucide-react';
+import { Sparkles, Repeat, TrendingUp, Clock, Send, ChevronRight, Megaphone, ChevronDown } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+
+type PeriodoKey = 'hoje' | 'ontem' | '7d' | '30d';
+const PERIODOS: Array<{ key: PeriodoKey; label: string }> = [
+  { key: 'hoje',  label: 'hoje' },
+  { key: 'ontem', label: 'ontem' },
+  { key: '7d',    label: 'últimos 7 dias' },
+  { key: '30d',   label: 'últimos 30 dias' },
+];
+
+/** Retorna [inicioISO, fimISO?] do período. ontem tem teto, demais só piso. */
+function rangePeriodo(p: PeriodoKey): { startIso: string; endIso?: string } {
+  const now = new Date();
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  if (p === 'hoje') {
+    return { startIso: today.toISOString() };
+  }
+  if (p === 'ontem') {
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    return { startIso: yesterday.toISOString(), endIso: today.toISOString() };
+  }
+  const dias = p === '7d' ? 7 : 30;
+  const start = new Date(today); start.setDate(today.getDate() - (dias - 1));
+  return { startIso: start.toISOString() };
+}
 
 export interface CampanhaRow {
   id: string;
