@@ -326,7 +326,12 @@ export default function KanbanRepPage() {
       setFormTelefone('');
       queryClient.invalidateQueries({ queryKey: ['kanban-rep-v2'] });
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao criar contato');
+      // 23505 = unique_violation do índice canônico (telefone já cadastrado)
+      if (err?.code === '23505') {
+        toast.error('Já existe um contato com esse número.');
+      } else {
+        toast.error(err.message || 'Erro ao criar contato');
+      }
     } finally {
       setCreating(false);
     }
