@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { timeAgo } from '@/lib/format';
-import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X } from 'lucide-react';
+import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Pause, Play, ShoppingCart } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn, copyToClipboard } from '@/lib/utils';
@@ -67,6 +67,7 @@ interface Contact {
   data_ultimo_rmkt?: string | null;
   data_suporte?: string | null;
   suporte_motivo?: string | null;
+  bot_pausado_ate?: string | null;
   instancias?: { nome: string; numero: string } | null;
 }
 
@@ -91,7 +92,7 @@ const formatTentativa = (atual: number | null | undefined, max = 3) => {
 
 const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
-  draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, sairFechamento, copyPhone, openChatwoot
+  draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, pausarBot, reativarBot, copyPhone, openChatwoot
 }: {
   contact: Contact;
   column: ColumnKey;
@@ -102,10 +103,13 @@ const KanbanCard = memo(({
   setDeleteTarget: (c: Contact) => void;
   setSuporteTarget: (c: Contact) => void;
   setVendaTarget: (c: Contact) => void;
-  sairFechamento: (c: Contact) => void;
+  pausarBot: (c: Contact) => void;
+  reativarBot: (c: Contact) => void;
   copyPhone: (p: string) => void;
   openChatwoot: (telefone: string) => void;
 }) => {
+  // Bot está pausado se bot_pausado_ate está no futuro
+  const botPausado = !!contact.bot_pausado_ate && new Date(contact.bot_pausado_ate).getTime() > Date.now();
   const activeTag = contact.tag_kanban &&
     (!contact.tag_kanban_ate || new Date(contact.tag_kanban_ate) > new Date())
     ? contact.tag_kanban : null;
@@ -247,34 +251,47 @@ const KanbanCard = memo(({
             )}
           </div>
 
-          {/* Ações — botões contextuais da coluna moram aqui pra manter card padrão */}
+          {/* Ações — botões contextuais moram aqui pra manter altura padrão do card */}
           <div className="flex items-center gap-1">
-            {column === 'em_fechamento' && (
+            {/* Suporte: [✓] realizado · [🛒] registrar venda. Sem pause/play
+                (bot já está pausado neste estado). */}
+            {column === 'suporte' && (
               <>
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
-                  title="Sinal certo — registrar venda"
-                  onClick={() => setVendaTarget(contact)}
+                  title="Suporte realizado (reativa o bot)"
+                  onClick={() => setSuporteTarget(contact)}
                 >
                   <CheckCircle className="w-3.5 h-3.5" />
                 </Button>
                 <Button
-                  variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                  title="Sair de fechamento (volta ao estado anterior)"
-                  onClick={() => sairFechamento(contact)}
+                  variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
+                  title="Registrar venda"
+                  onClick={() => setVendaTarget(contact)}
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <ShoppingCart className="w-3.5 h-3.5" />
                 </Button>
               </>
             )}
-            {column === 'suporte' && (
-              <Button
-                variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
-                title="Suporte realizado"
-                onClick={() => setSuporteTarget(contact)}
-              >
-                <CheckCircle className="w-3.5 h-3.5" />
-              </Button>
+            {/* Demais colunas: pause/play que equivalem a /humano e /voltar */}
+            {column !== 'suporte' && (
+              botPausado ? (
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
+                  title="Reativar bot (/voltar)"
+                  onClick={() => reativarBot(contact)}
+                >
+                  <Play className="w-3.5 h-3.5" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:bg-amber-500/10"
+                  title="Pausar bot — humano atendendo (/humano)"
+                  onClick={() => pausarBot(contact)}
+                >
+                  <Pause className="w-3.5 h-3.5" />
+                </Button>
+              )
             )}
             <Button
               variant="ghost" size="icon" className="h-7 w-7"
@@ -359,6 +376,7 @@ export default function KanbanPage() {
           follow_up_tentativas, ativacao_tentativas,
           data_start, data_wait_follow_up, data_ultimo_follow_up,
           data_em_fechamento, data_ultimo_rmkt, data_suporte, suporte_motivo,
+          bot_pausado_ate,
           instancias(nome, numero)
         `)
         .in('ultima_interacao', VISIBLE_STATES as string[]);
@@ -472,14 +490,32 @@ export default function KanbanPage() {
     queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
   };
 
-  // Botão X do fechamento → sai de em_fechamento, volta ao estado anterior
-  const sairFechamento = async (c: Contact) => {
+  // Pause = /humano (pausa bot indefinidamente + move pra suporte)
+  const pausarBot = async (c: Contact) => {
     try {
-      const { data, error } = await supabase.rpc('sair_fechamento_contato' as any, { p_contato_id: c.id });
+      const { data, error } = await supabase.rpc('executa_comando_dono' as any, {
+        p_contato_id: c.id, p_comando: '/humano',
+      });
       if (error) throw error;
       const r = data as any;
       if (!r?.ok) throw new Error(r?.error || 'falha desconhecida');
-      toast.success(`${c.nome} saiu de fechamento → ${r.destino}`);
+      toast.success(`${c.nome} → suporte (bot pausado)`);
+      queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
+    } catch (err: any) {
+      toast.error('Erro: ' + (err.message || err));
+    }
+  };
+
+  // Play = /voltar (reativa bot + restaura estado_antes_suporte)
+  const reativarBot = async (c: Contact) => {
+    try {
+      const { data, error } = await supabase.rpc('executa_comando_dono' as any, {
+        p_contato_id: c.id, p_comando: '/voltar',
+      });
+      if (error) throw error;
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error || 'falha desconhecida');
+      toast.success(`${c.nome}: bot reativado`);
       queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
     } catch (err: any) {
       toast.error('Erro: ' + (err.message || err));
@@ -541,7 +577,8 @@ export default function KanbanPage() {
         setDeleteTarget={setDeleteTarget}
         setSuporteTarget={setSuporteTarget}
         setVendaTarget={setVendaTarget}
-        sairFechamento={sairFechamento}
+        pausarBot={pausarBot}
+        reativarBot={reativarBot}
         copyPhone={copyPhone}
         openChatwoot={openChatwoot}
       />
