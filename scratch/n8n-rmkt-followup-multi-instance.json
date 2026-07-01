@@ -513,7 +513,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('UNIFICA LEAD').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"mediatype\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.anexo_tipo }}\",\n  \"media\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.anexo_url }}\",\n  \"caption\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.texto.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"delay\": 2000\n}",
+        "jsonBody": "={{ JSON.stringify({ number: (\"55\" + String($('UNIFICA LEAD').item.json.telefone).replace(/[^0-9]/g, \"\")).replace(/^5555/, \"55\"), mediatype: $('ESCOLHE TEMPLATE v2').item.json.anexo_tipo, media: $('ESCOLHE TEMPLATE v2').item.json.anexo_url, caption: $('ESCOLHE TEMPLATE v2').item.json.texto, delay: 2000 }) }}",
         "options": {
           "response": {
             "response": {
@@ -551,7 +551,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ ('55' + String($('UNIFICA LEAD').item.json.telefone).replace(/\\D/g, '')).replace(/^5555/, '55') }}\",\n  \"text\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.texto.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"delay\": 2000\n}",
+        "jsonBody": "={{ JSON.stringify({ number: (\"55\" + String($('UNIFICA LEAD').item.json.telefone).replace(/[^0-9]/g, \"\")).replace(/^5555/, \"55\"), text: $('ESCOLHE TEMPLATE v2').item.json.texto, delay: 2000 }) }}",
         "options": {
           "response": {
             "response": {
@@ -687,6 +687,41 @@
       "position": [
         1800,
         680
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/reverter_claim_lead",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_contato_id: $('UNIFICA LEAD').item.json.contato_id, p_categoria: $('UNIFICA LEAD').item.json.categoria }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "reverter-lead",
+      "name": "REVERTER LEAD",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        340
       ]
     }
   ],
@@ -969,7 +1004,7 @@
       "main": [
         [
           {
-            "node": "PAUSA instância (falha send)",
+            "node": "REVERTER LEAD",
             "type": "main",
             "index": 0
           }
@@ -1010,6 +1045,17 @@
         [
           {
             "node": "Split por Instância",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "REVERTER LEAD": {
+      "main": [
+        [
+          {
+            "node": "PAUSA instância (falha send)",
             "type": "main",
             "index": 0
           }
