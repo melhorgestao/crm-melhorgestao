@@ -273,8 +273,10 @@ const KanbanCard = memo(({
                 </Button>
               </>
             )}
-            {/* Demais colunas: pause/play que equivalem a /humano e /voltar */}
-            {column !== 'suporte' && (
+            {/* Demais colunas (exceto suporte e fechamento): pause/play.
+                Fechamento não tem — o agent-closing está atendendo, e um trigger
+                move automaticamente pra suporte se algo pausar o bot lá. */}
+            {column !== 'suporte' && column !== 'em_fechamento' && (
               botPausado ? (
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
