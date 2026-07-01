@@ -87,6 +87,16 @@ Deno.serve(async (req) => {
     }
 
     const estado = contatoInfo?.ultima_interacao || ''
+
+    // 2b) Estado suporte = atendimento HUMANO. Agent não responde até
+    //     /voltar no WhatsApp ou botão "Suporte Realizado" no CRM.
+    if (estado === 'suporte') {
+      return j({
+        ok: true, deve_enviar: false, motivo: 'em_suporte_humano',
+        contato_id, took_ms: Date.now() - t0,
+      })
+    }
+
     const targetAgent = ESTADOS_FECHAMENTO.has(estado) ? 'agent-closing' : 'agent-start'
 
     // 3) Chama o agent

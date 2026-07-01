@@ -438,6 +438,16 @@
                 "operation": "true",
                 "singleValue": true
               }
+            },
+            {
+              "id": "nao-em-suporte",
+              "leftValue": "={{ $('GET/CREATE Contato').item.json.ultima_interacao !== 'suporte' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -445,7 +455,7 @@
         "options": {}
       },
       "id": "if-bot-active",
-      "name": "Bot ativo?",
+      "name": "Bot ativo? (e não suporte)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
@@ -839,25 +849,7 @@
       "main": [
         [
           {
-            "node": "Bot ativo?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Bot ativo?": {
-      "main": [
-        [
-          {
-            "node": "WAIT 12s (debounce)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Respond: bot pausado",
+            "node": "Bot ativo? (e não suporte)",
             "type": "main",
             "index": 0
           }
@@ -964,6 +956,24 @@
         [
           {
             "node": "AGENT_START (call)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bot ativo? (e não suporte)": {
+      "main": [
+        [
+          {
+            "node": "WAIT 12s (debounce)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: bot pausado",
             "type": "main",
             "index": 0
           }

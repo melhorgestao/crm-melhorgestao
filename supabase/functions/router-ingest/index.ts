@@ -222,6 +222,7 @@ Deno.serve(async (req) => {
     const contato_id = extractContatoId(contato)
     if (!contato_id) return j({ ok: false, error: 'contato sem id' }, 500)
     const bot_pausado_ate = (contato as { bot_pausado_ate?: string | null }).bot_pausado_ate ?? null
+    const estado_atual = (contato as { ultima_interacao?: string | null }).ultima_interacao ?? null
 
     // 6) transcrever áudio se for o caso
     let texto_final = msg_text
@@ -267,6 +268,23 @@ Deno.serve(async (req) => {
         evolution_apikey,
         recebida_em,
         bot_pausado_ate,
+      })
+    }
+
+    // Estado suporte = atendimento humano. Msg fica gravada no buffer
+    // pra histórico, mas o processamento é pulado até /voltar ou botão.
+    if (estado_atual === 'suporte') {
+      return j({
+        ok: true,
+        deve_processar: false,
+        motivo: 'em_suporte_humano',
+        contato_id,
+        instancia_uuid,
+        telefone_clean,
+        instancia_nome,
+        evolution_url,
+        evolution_apikey,
+        recebida_em,
       })
     }
 
