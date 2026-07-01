@@ -29,6 +29,7 @@ const MODALIDADES = [
 
 export function FechamentoVendaModal({ open, onClose, contato, onDone }: Props) {
   const [produtos, setProdutos] = useState<any[]>([]);
+  const [ufsCadastradas, setUfsCadastradas] = useState<string[]>([]);
   const [rows, setRows] = useState<{ produto_id: string; quantidade: number }[]>([{ produto_id: '', quantidade: 1 }]);
   const [modalidade, setModalidade] = useState('mini');
   const [ufPostagem, setUfPostagem] = useState('');
@@ -42,11 +43,13 @@ export function FechamentoVendaModal({ open, onClose, contato, onDone }: Props) 
     if (!open || !contato) return;
     setLoading(true);
     (async () => {
-      const [{ data: prods }, { data: c }] = await Promise.all([
+      const [{ data: prods }, { data: c }, ufsRes] = await Promise.all([
         supabase.from('produtos').select('*').eq('ativo', true).order('preco', { ascending: true }),
         supabase.from('contatos').select('endereco, numero, complemento, bairro, cidade, uf, cidade_uf, cep, observacao').eq('id', contato.id).maybeSingle(),
+        supabase.from('estoque_ufs' as any).select('uf').order('uf'),
       ]);
       setProdutos(prods || []);
+      setUfsCadastradas(((ufsRes.data || []) as any[]).map(r => r.uf).filter(Boolean));
       if (c) {
         setEnd({
           endereco: c.endereco || '', numero: (c as any).numero || '', complemento: c.complemento || '',
@@ -186,10 +189,18 @@ export function FechamentoVendaModal({ open, onClose, contato, onDone }: Props) 
                   </SelectContent>
                 </Select>
               </div>
-              <div className="w-24 space-y-1">
+              <div className="w-32 space-y-1">
                 <Label className="text-xs">UF postagem</Label>
-                <Input value={ufPostagem} maxLength={2} placeholder="SP"
-                       onChange={e => setUfPostagem(e.target.value.toUpperCase().slice(0, 2))} />
+                <Select value={ufPostagem} onValueChange={setUfPostagem}>
+                  <SelectTrigger><SelectValue placeholder="Origem" /></SelectTrigger>
+                  <SelectContent>
+                    {ufsCadastradas.length === 0 ? (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhuma UF cadastrada</div>
+                    ) : ufsCadastradas.map(uf => (
+                      <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

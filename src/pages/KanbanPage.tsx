@@ -266,15 +266,19 @@ const KanbanCard = memo(({
           </div>
         </div>
 
-        {/* Botão Suporte Realizado (apenas coluna suporte) */}
+        {/* Suporte: [✓] realizado — ícone discreto */}
         {column === 'suporte' && (
-          <Button
-            size="sm"
-            className="mt-2 w-full min-h-[36px] bg-sf-green hover:bg-sf-green/90 text-primary-foreground"
-            onClick={() => setSuporteTarget(contact)}
-          >
-            <CheckCircle className="w-4 h-4 mr-1" /> Suporte Realizado
-          </Button>
+          <div className="mt-2 flex justify-end">
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-7 w-7 text-sf-green border-sf-green/40 hover:bg-sf-green/10"
+              title="Suporte realizado"
+              onClick={() => setSuporteTarget(contact)}
+            >
+              <CheckCircle className="w-4 h-4" />
+            </Button>
+          </div>
         )}
 
         {/* Fechamento: [✓] abre Venda · [X] sai de fechamento — ícones discretos */}
