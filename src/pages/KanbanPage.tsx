@@ -9,11 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { timeAgo } from '@/lib/format';
-import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare } from 'lucide-react';
+import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { findConversationByPhone } from '@/lib/chatwootApi';
+import { FechamentoVendaModal } from '@/components/kanban/FechamentoVendaModal';
 
 // 4 colunas do Kanban derivadas de ultima_interacao.
 // Follow-Up unifica 2 estados (wait_follow_up + follow_up) — distinção fica
@@ -90,7 +91,7 @@ const formatTentativa = (atual: number | null | undefined, max = 3) => {
 
 const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
-  draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, copyPhone, openChatwoot
+  draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, sairFechamento, copyPhone, openChatwoot
 }: {
   contact: Contact;
   column: ColumnKey;
@@ -100,6 +101,8 @@ const KanbanCard = memo(({
   setDraggedCard: (id: string | null) => void;
   setDeleteTarget: (c: Contact) => void;
   setSuporteTarget: (c: Contact) => void;
+  setVendaTarget: (c: Contact) => void;
+  sairFechamento: (c: Contact) => void;
   copyPhone: (p: string) => void;
   openChatwoot: (telefone: string) => void;
 }) => {
@@ -273,6 +276,28 @@ const KanbanCard = memo(({
             <CheckCircle className="w-4 h-4 mr-1" /> Suporte Realizado
           </Button>
         )}
+
+        {/* Fechamento: [Sinal Certo] abre Venda · [X] sai de fechamento */}
+        {column === 'em_fechamento' && (
+          <div className="mt-2 flex gap-2 justify-end">
+            <Button
+              size="sm"
+              className="flex-1 min-h-[34px] bg-sf-green hover:bg-sf-green/90 text-primary-foreground"
+              onClick={() => setVendaTarget(contact)}
+            >
+              <CheckCircle className="w-4 h-4 mr-1" /> Sinal Certo
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="min-h-[34px] px-3 text-destructive border-destructive/40 hover:bg-destructive/10"
+              title="Sair de fechamento (volta ao estado anterior)"
+              onClick={() => sairFechamento(contact)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -284,6 +309,7 @@ export default function KanbanPage() {
   const [filter, setFilter] = useState<string>('');
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [suporteTarget, setSuporteTarget] = useState<Contact | null>(null);
+  const [vendaTarget, setVendaTarget] = useState<Contact | null>(null);
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
 
   const canDeleteCard = (profile as any)?.pode_excluir_card !== false;
@@ -452,6 +478,20 @@ export default function KanbanPage() {
     queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
   };
 
+  // Botão X do fechamento → sai de em_fechamento, volta ao estado anterior
+  const sairFechamento = async (c: Contact) => {
+    try {
+      const { data, error } = await supabase.rpc('sair_fechamento_contato' as any, { p_contato_id: c.id });
+      if (error) throw error;
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error || 'falha desconhecida');
+      toast.success(`${c.nome} saiu de fechamento → ${r.destino}`);
+      queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
+    } catch (err: any) {
+      toast.error('Erro: ' + (err.message || err));
+    }
+  };
+
   // Suporte Finalizado → chama RPC que restaura estado_antes_suporte
   // (cobre cliente, wait_follow_up, rmkt, follow_up, em_fechamento, etc).
   const handleSuporteRealizado = async () => {
@@ -506,6 +546,8 @@ export default function KanbanPage() {
         setDraggedCard={setDraggedCard}
         setDeleteTarget={setDeleteTarget}
         setSuporteTarget={setSuporteTarget}
+        setVendaTarget={setVendaTarget}
+        sairFechamento={sairFechamento}
         copyPhone={copyPhone}
         openChatwoot={openChatwoot}
       />
@@ -598,6 +640,14 @@ export default function KanbanPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal de Venda (botão Sinal Certo no fechamento) */}
+      <FechamentoVendaModal
+        open={!!vendaTarget}
+        onClose={() => setVendaTarget(null)}
+        contato={vendaTarget}
+        onDone={() => queryClient.invalidateQueries({ queryKey: ['kanban-v2'] })}
+      />
     </div>
   );
 }
