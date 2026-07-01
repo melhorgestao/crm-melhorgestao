@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { timeAgo } from '@/lib/format';
-import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Pause, Play, ShoppingCart } from 'lucide-react';
+import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Pause, Play, ShoppingCart, RefreshCw } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn, copyToClipboard } from '@/lib/utils';
@@ -363,7 +363,7 @@ export default function KanbanPage() {
   // Pode ser mais que o número de colunas (Follow-Up cobre 2 estados).
   const VISIBLE_STATES = KANBAN_COLUMNS.flatMap(c => COLUMN_STATES[c.key]);
 
-  const { data: contacts = [], isLoading: loading } = useQuery({
+  const { data: contacts = [], isLoading: loading, isFetching, refetch } = useQuery({
     queryKey: ['kanban-v2', filter],
     enabled: !!filter,
     queryFn: async () => {
@@ -391,7 +391,11 @@ export default function KanbanPage() {
       if (filter === 'all') return list;
       return list.filter(c => c.instancia_id === filter || c.instancia_id === null);
     },
-    staleTime: 5 * 60 * 1000,
+    // Realtime cuida do 99% das atualizações; refetchInterval é fallback pra caso
+    // a Publication de contatos não esteja ligada no Supabase.
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+    refetchOnWindowFocus: true,
   });
 
   // Realtime subscription
@@ -589,17 +593,27 @@ export default function KanbanPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Kanban</h1>
-        {canSwitch && instancias.length > 0 && (
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Instância" /></SelectTrigger>
-            <SelectContent>
-              {instancias.length > 1 && <SelectItem value="all">Todas</SelectItem>}
-              {instancias.map(i => (
-                <SelectItem key={i.id} value={i.id}>{i.nome}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline" size="icon" className="h-9 w-9"
+            title="Atualizar Kanban"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+          </Button>
+          {canSwitch && instancias.length > 0 && (
+            <Select value={filter} onValueChange={setFilter}>
+              <SelectTrigger className="w-40"><SelectValue placeholder="Instância" /></SelectTrigger>
+              <SelectContent>
+                {instancias.length > 1 && <SelectItem value="all">Todas</SelectItem>}
+                {instancias.map(i => (
+                  <SelectItem key={i.id} value={i.id}>{i.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-4 overflow-x-auto kanban-scroll pb-4" style={{ minHeight: 500 }}>
