@@ -277,20 +277,22 @@ const KanbanCard = memo(({
           </Button>
         )}
 
-        {/* Fechamento: [Sinal Certo] abre Venda · [X] sai de fechamento */}
+        {/* Fechamento: [✓] abre Venda · [X] sai de fechamento — ícones discretos */}
         {column === 'em_fechamento' && (
-          <div className="mt-2 flex gap-2 justify-end">
+          <div className="mt-2 flex gap-1.5 justify-end">
             <Button
-              size="sm"
-              className="flex-1 min-h-[34px] bg-sf-green hover:bg-sf-green/90 text-primary-foreground"
+              size="icon"
+              variant="outline"
+              className="h-7 w-7 text-sf-green border-sf-green/40 hover:bg-sf-green/10"
+              title="Sinal certo — registrar venda"
               onClick={() => setVendaTarget(contact)}
             >
-              <CheckCircle className="w-4 h-4 mr-1" /> Sinal Certo
+              <CheckCircle className="w-4 h-4" />
             </Button>
             <Button
-              size="sm"
+              size="icon"
               variant="outline"
-              className="min-h-[34px] px-3 text-destructive border-destructive/40 hover:bg-destructive/10"
+              className="h-7 w-7 text-destructive border-destructive/40 hover:bg-destructive/10"
               title="Sair de fechamento (volta ao estado anterior)"
               onClick={() => sairFechamento(contact)}
             >
