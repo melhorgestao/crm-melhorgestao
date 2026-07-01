@@ -247,8 +247,35 @@ const KanbanCard = memo(({
             )}
           </div>
 
-          {/* Ações */}
+          {/* Ações — botões contextuais da coluna moram aqui pra manter card padrão */}
           <div className="flex items-center gap-1">
+            {column === 'em_fechamento' && (
+              <>
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
+                  title="Sinal certo — registrar venda"
+                  onClick={() => setVendaTarget(contact)}
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                  title="Sair de fechamento (volta ao estado anterior)"
+                  onClick={() => sairFechamento(contact)}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </>
+            )}
+            {column === 'suporte' && (
+              <Button
+                variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
+                title="Suporte realizado"
+                onClick={() => setSuporteTarget(contact)}
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+              </Button>
+            )}
             <Button
               variant="ghost" size="icon" className="h-7 w-7"
               title="Abrir conversa no Chatwoot"
@@ -265,45 +292,6 @@ const KanbanCard = memo(({
             </Button>
           </div>
         </div>
-
-        {/* Suporte: [✓] realizado — ícone discreto */}
-        {column === 'suporte' && (
-          <div className="mt-2 flex justify-end">
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-7 w-7 text-sf-green border-sf-green/40 hover:bg-sf-green/10"
-              title="Suporte realizado"
-              onClick={() => setSuporteTarget(contact)}
-            >
-              <CheckCircle className="w-4 h-4" />
-            </Button>
-          </div>
-        )}
-
-        {/* Fechamento: [✓] abre Venda · [X] sai de fechamento — ícones discretos */}
-        {column === 'em_fechamento' && (
-          <div className="mt-2 flex gap-1.5 justify-end">
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-7 w-7 text-sf-green border-sf-green/40 hover:bg-sf-green/10"
-              title="Sinal certo — registrar venda"
-              onClick={() => setVendaTarget(contact)}
-            >
-              <CheckCircle className="w-4 h-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-7 w-7 text-destructive border-destructive/40 hover:bg-destructive/10"
-              title="Sair de fechamento (volta ao estado anterior)"
-              onClick={() => sairFechamento(contact)}
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
