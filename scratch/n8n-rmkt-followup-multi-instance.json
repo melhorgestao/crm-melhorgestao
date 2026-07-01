@@ -376,7 +376,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let payload;\nconst hasFu = $('Tem follow-up?').item.json.length > 0;\nif (hasFu) {\n  const lead = $('CLAIM follow-up').item.json[0];\n  const sub = ({ 1: '24h', 2: '3d', 3: '7d' })[lead.tentativa] || '24h';\n  payload = { contato_id: lead.id, telefone: lead.telefone, categoria: 'followup', subcategoria: sub };\n} else {\n  const lead = $('CLAIM rmkt').item.json[0];\n  payload = { contato_id: lead.id, telefone: lead.telefone, categoria: 'rmkt', subcategoria: null };\n}\nreturn [{ json: payload }];"
+        "jsCode": "let payload;\nconst hasFu = $(\"Tem follow-up?\").item.json.length > 0;\nif (hasFu) {\n  const lead = $(\"CLAIM follow-up\").item.json[0];\n  // claim retorna a coluna subcategoria (24h/3d/7d), NÃO tentativa\n  payload = { contato_id: lead.id, telefone: lead.telefone, categoria: \"followup\", subcategoria: lead.subcategoria || \"24h\" };\n} else {\n  const lead = $(\"CLAIM rmkt\").item.json[0];\n  payload = { contato_id: lead.id, telefone: lead.telefone, categoria: \"rmkt\", subcategoria: null };\n}\nreturn [{ json: payload }];"
       },
       "id": "merge-lead",
       "name": "UNIFICA LEAD",
