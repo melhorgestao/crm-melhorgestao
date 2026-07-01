@@ -273,10 +273,11 @@ const KanbanCard = memo(({
                 </Button>
               </>
             )}
-            {/* Demais colunas (exceto suporte e fechamento): pause/play.
-                Fechamento não tem — o agent-closing está atendendo, e um trigger
-                move automaticamente pra suporte se algo pausar o bot lá. */}
-            {column !== 'suporte' && column !== 'em_fechamento' && (
+            {/* Demais colunas (não-suporte): pause/play.
+                Em em_fechamento o pause é útil pra intervenção humana quando
+                o agent está com problema — o trigger de invariante move o
+                card pra suporte imediatamente e o humano fecha pelo carrinho. */}
+            {column !== 'suporte' && (
               botPausado ? (
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
