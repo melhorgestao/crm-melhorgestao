@@ -727,7 +727,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/confirmar_envio_followup",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/confirmar_envio_lead",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
@@ -751,7 +751,7 @@
         }
       },
       "id": "confirma-followup",
-      "name": "CONFIRMA FOLLOWUP",
+      "name": "CONFIRMA ENVIO",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -1068,7 +1068,7 @@
       "main": [
         [
           {
-            "node": "CONFIRMA FOLLOWUP",
+            "node": "CONFIRMA ENVIO",
             "type": "main",
             "index": 0
           }
@@ -1097,7 +1097,7 @@
         ]
       ]
     },
-    "CONFIRMA FOLLOWUP": {
+    "CONFIRMA ENVIO": {
       "main": [
         [
           {

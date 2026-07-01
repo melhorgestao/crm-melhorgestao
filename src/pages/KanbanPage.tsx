@@ -68,6 +68,7 @@ interface Contact {
   data_suporte?: string | null;
   suporte_motivo?: string | null;
   bot_pausado_ate?: string | null;
+  ultima_venda_em?: string | null;
   instancias?: { nome: string; numero: string } | null;
 }
 
@@ -134,12 +135,17 @@ const KanbanCard = memo(({
       };
     }
     switch (column) {
-      case 'rmkt':
+      case 'rmkt': {
+        // RMKT: mostra tempo desde a ÚLTIMA COMPRA (não "sumiu há").
+        const d = contact.ultima_venda_em
+          ? Math.floor((Date.now() - new Date(contact.ultima_venda_em).getTime()) / 86400000)
+          : null;
         return {
-          time: contact.data_ultimo_rmkt ? timeAgo(contact.data_ultimo_rmkt) : null,
+          time: d != null ? `última compra há ${d} dia${d !== 1 ? 's' : ''}` : null,
           tentativa: null,
           label: 'disparado',
         };
+      }
       case 'em_fechamento':
         return {
           time: contact.data_em_fechamento ? timeAgo(contact.data_em_fechamento) : null,
@@ -203,7 +209,8 @@ const KanbanCard = memo(({
               )}
               {activeTag === 'NEW' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">NEW</Badge>}
               {activeTag === 'VIP' && <Badge className="bg-yellow-500 text-black text-[10px] px-1.5 py-0 font-bold">VIP</Badge>}
-              {activeTag === 'BUYER' && <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0 font-bold">BUYER</Badge>}
+              {/* BUYER é redundante na coluna RMKT (todos são compradores) */}
+              {activeTag === 'BUYER' && column !== 'rmkt' && <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0 font-bold">BUYER</Badge>}
               {activeTag === 'REP' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">REP</Badge>}
               {activeTag === 'ADS' && <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">ADS</Badge>}
               <p className="font-bold text-sm truncate">{contact.nome}</p>
@@ -379,7 +386,7 @@ export default function KanbanPage() {
           follow_up_tentativas, ativacao_tentativas,
           data_start, data_wait_follow_up, data_ultimo_follow_up,
           data_em_fechamento, data_ultimo_rmkt, data_suporte, suporte_motivo,
-          bot_pausado_ate,
+          bot_pausado_ate, ultima_venda_em,
           instancias(nome, numero)
         `)
         .in('ultima_interacao', VISIBLE_STATES as string[]);

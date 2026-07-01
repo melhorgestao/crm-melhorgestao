@@ -73,6 +73,12 @@ export default function PedidosPage() {
   const [rankPageV, setRankPageV] = useState(1);
   const [rankPageQ, setRankPageQ] = useState(1);
 
+  // Config VIP
+  const [vipModalOpen, setVipModalOpen] = useState(false);
+  const [vipMinPedidos, setVipMinPedidos] = useState('3');
+  const [vipMinValor, setVipMinValor] = useState('0');
+  const [savingVip, setSavingVip] = useState(false);
+
   const RANK_PER_PAGE = 10;
   const PER_PAGE_FETCH = 50;
 
@@ -254,6 +260,35 @@ export default function PedidosPage() {
   useEffect(() => {
     if (activeTab === 'ranking') fetchRanking();
   }, [activeTab, rankStart, rankEnd]);
+
+  // Config VIP — carrega thresholds ao abrir o modal
+  const openVipModal = async () => {
+    const { data } = await supabase.from('configuracoes').select('chave, valor')
+      .in('chave', ['vip_min_pedidos', 'vip_min_valor']);
+    const map = Object.fromEntries((data || []).map((c: any) => [c.chave, c.valor]));
+    setVipMinPedidos(map.vip_min_pedidos ?? '3');
+    setVipMinValor(map.vip_min_valor ?? '0');
+    setVipModalOpen(true);
+  };
+
+  const salvarVipConfig = async () => {
+    setSavingVip(true);
+    try {
+      const { error } = await supabase.from('configuracoes').upsert([
+        { chave: 'vip_min_pedidos', valor: String(parseInt(vipMinPedidos) || 0) },
+        { chave: 'vip_min_valor',   valor: String(parseFloat(vipMinValor) || 0) },
+      ], { onConflict: 'chave' });
+      if (error) throw error;
+      const { data: rc, error: rcErr } = await supabase.rpc('recalcular_tags_vip' as any);
+      if (rcErr) throw rcErr;
+      toast.success(`VIP atualizado — ${(rc as any)?.alterados ?? 0} contatos recalculados`);
+      setVipModalOpen(false);
+    } catch (e: any) {
+      toast.error('Erro: ' + (e.message || e));
+    } finally {
+      setSavingVip(false);
+    }
+  };
 
   const openContactDetail = async (contatoId: string) => {
     const [contatoResult, pedsResult] = await Promise.all([
@@ -833,9 +868,12 @@ export default function PedidosPage() {
         </TabsContent>
 
         <TabsContent value="ranking" className="space-y-4">
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-3 items-center flex-wrap">
             <span className="text-sm">De:</span><Input type="date" value={rankStart} onChange={e => setRankStart(e.target.value)} className="w-40" />
             <span className="text-sm">Até:</span><Input type="date" value={rankEnd} onChange={e => setRankEnd(e.target.value)} className="w-40" />
+            <Button variant="outline" size="sm" className="ml-auto" onClick={openVipModal}>
+              <Trophy className="w-4 h-4 mr-1 text-sf-gold" /> Configurar VIP
+            </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
@@ -873,6 +911,40 @@ export default function PedidosPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Modal config VIP */}
+      <Dialog open={vipModalOpen} onOpenChange={setVipModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-sf-gold" /> Configurar tag VIP
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Um contato vira <strong>VIP</strong> se atingir <strong>qualquer</strong> um dos critérios abaixo.
+              Deixe o valor em <strong>0</strong> pra desligar o critério.
+            </p>
+            <div className="space-y-1">
+              <Label className="text-xs">Qtd. mínima de pedidos pagos</Label>
+              <Input type="number" min={0} value={vipMinPedidos}
+                     onChange={e => setVipMinPedidos(e.target.value)} placeholder="3" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Valor total gasto mínimo (R$)</Label>
+              <Input type="number" min={0} step="0.01" value={vipMinValor}
+                     onChange={e => setVipMinValor(e.target.value)} placeholder="0,00" />
+              <p className="text-[10px] text-muted-foreground">0 = não considera valor, só quantidade.</p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setVipModalOpen(false)} disabled={savingVip}>Cancelar</Button>
+              <Button className="flex-1 bg-sf-green hover:bg-sf-green/90" onClick={salvarVipConfig} disabled={savingVip}>
+                {savingVip ? 'Salvando…' : 'Salvar e recalcular'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Marcar Pago Prompt */}
       <AlertDialog open={!!marcarPagoTarget} onOpenChange={() => setMarcarPagoTarget(null)}>
