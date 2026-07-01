@@ -723,6 +723,41 @@
         1540,
         340
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/confirmar_envio_followup",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_contato_id: $('UNIFICA LEAD').item.json.contato_id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "confirma-followup",
+      "name": "CONFIRMA FOLLOWUP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        800
+      ]
     }
   ],
   "connections": {
@@ -1033,7 +1068,7 @@
       "main": [
         [
           {
-            "node": "LOG eventos_contato",
+            "node": "CONFIRMA FOLLOWUP",
             "type": "main",
             "index": 0
           }
@@ -1056,6 +1091,17 @@
         [
           {
             "node": "PAUSA instância (falha send)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIRMA FOLLOWUP": {
+      "main": [
+        [
+          {
+            "node": "LOG eventos_contato",
             "type": "main",
             "index": 0
           }
