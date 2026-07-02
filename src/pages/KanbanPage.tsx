@@ -114,6 +114,9 @@ const KanbanCard = memo(({
   const activeTag = contact.tag_kanban &&
     (!contact.tag_kanban_ate || new Date(contact.tag_kanban_ate) > new Date())
     ? contact.tag_kanban : null;
+  // Representante: detectado pelo canal (fonte real) OU pela tag. REP prevalece
+  // sobre BUYER — um representante nunca deve exibir tag de comprador.
+  const isRep = contact.canal_atual === 'REP' || contact.canal_origem === 'REP' || activeTag === 'REP';
 
   // Determina tempo "no estado" e tentativa pra exibir.
   // Coluna 'follow_up' cobre 2 estados internos — checa ultima_interacao.
@@ -209,9 +212,13 @@ const KanbanCard = memo(({
               )}
               {activeTag === 'NEW' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">NEW</Badge>}
               {activeTag === 'VIP' && <Badge className="bg-yellow-500 text-black text-[10px] px-1.5 py-0 font-bold">VIP</Badge>}
-              {/* BUYER é redundante na coluna RMKT (todos são compradores) */}
-              {activeTag === 'BUYER' && column !== 'rmkt' && <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0 font-bold">BUYER</Badge>}
-              {activeTag === 'REP' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">REP</Badge>}
+              {/* REP prevalece: representante (por canal ou tag) mostra REP,
+                  NUNCA BUYER. BUYER também é redundante na coluna RMKT. */}
+              {isRep ? (
+                <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">REP</Badge>
+              ) : (
+                activeTag === 'BUYER' && column !== 'rmkt' && <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0 font-bold">BUYER</Badge>
+              )}
               {activeTag === 'ADS' && <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">ADS</Badge>}
               <p className="font-bold text-sm truncate">{contact.nome}</p>
             </div>
