@@ -292,11 +292,12 @@
           "conditions": [
             {
               "id": "has-lead",
-              "leftValue": "={{ $json.length }}",
-              "rightValue": 0,
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
               "operator": {
-                "type": "number",
-                "operation": "gt"
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
               }
             }
           ],
@@ -352,12 +353,13 @@
           },
           "conditions": [
             {
-              "id": "has-rmkt",
-              "leftValue": "={{ $json.length }}",
-              "rightValue": 0,
+              "id": "has-lead",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
               "operator": {
-                "type": "number",
-                "operation": "gt"
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
               }
             }
           ],
@@ -376,7 +378,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let payload;\nconst hasFu = $(\"Tem follow-up?\").item.json.length > 0;\nif (hasFu) {\n  const lead = $(\"CLAIM follow-up\").item.json[0];\n  // claim retorna a coluna subcategoria (24h/3d/7d), NÃO tentativa\n  payload = { contato_id: lead.id, telefone: lead.telefone, categoria: \"followup\", subcategoria: lead.subcategoria || \"24h\" };\n} else {\n  const lead = $(\"CLAIM rmkt\").item.json[0];\n  payload = { contato_id: lead.id, telefone: lead.telefone, categoria: \"rmkt\", subcategoria: null };\n}\nreturn [{ json: payload }];"
+        "jsCode": "let payload;\nconst fuItems = $(\"CLAIM follow-up\").all();\nconst rmktItems = $(\"CLAIM rmkt\").all();\nconst fuLead = fuItems.length > 0 ? fuItems[0].json : null;\nconst rmktLead = rmktItems.length > 0 ? rmktItems[0].json : null;\nif (fuLead && fuLead.id) {\n  payload = { contato_id: fuLead.id, telefone: fuLead.telefone, categoria: \"followup\", subcategoria: fuLead.subcategoria || \"24h\" };\n} else if (rmktLead && rmktLead.id) {\n  payload = { contato_id: rmktLead.id, telefone: rmktLead.telefone, categoria: \"rmkt\", subcategoria: null };\n} else {\n  return [];\n}\nreturn [{ json: payload }];"
       },
       "id": "merge-lead",
       "name": "UNIFICA LEAD",
