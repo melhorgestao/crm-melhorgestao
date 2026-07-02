@@ -180,7 +180,14 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"p_id\": \"{{ $json.id }}\",\n  \"p_motivo\": \"connectionState={{ $json._detected_state }}\",\n  \"p_horas\": 6\n}",
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          }
+        }
       },
       "id": "pausar-inst",
       "name": "PAUSA INSTÂNCIA",
@@ -622,7 +629,14 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"p_id\": \"{{ $('Split por Instância').item.json.id }}\",\n  \"p_motivo\": \"send falhou — sem key.id\",\n  \"p_horas\": 6\n}",
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          }
+        }
       },
       "id": "pausar-na-falha",
       "name": "PAUSA instância (falha send)",
@@ -651,7 +665,14 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"p_campanha_id\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.campanha_id }}\",\n  \"p_template_id\": \"{{ $('ESCOLHE TEMPLATE v2').item.json.template_id }}\",\n  \"p_instancia_id\": \"{{ $('Split por Instância').item.json.id }}\",\n  \"p_contato_id\": \"{{ $('UNIFICA LEAD').item.json.contato_id }}\"\n}",
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          }
+        }
       },
       "id": "registra-envio",
       "name": "REGISTRA ENVIO",
@@ -680,7 +701,14 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"contato_id\": \"{{ $('UNIFICA LEAD').item.json.contato_id }}\",\n  \"tipo\": \"{{ $('UNIFICA LEAD').item.json.categoria }}_enviado\",\n  \"canal\": \"{{ $('Split por Instância').item.json.evolution_instance }}\",\n  \"instancia_id\": \"{{ $('Split por Instância').item.json.id }}\",\n  \"metadata\": {{ JSON.stringify({sub: $('UNIFICA LEAD').item.json.subcategoria, campanha_id: $('ESCOLHE TEMPLATE v2').item.json.campanha_id, template_id: $('ESCOLHE TEMPLATE v2').item.json.template_id, anexo: !!$('ESCOLHE TEMPLATE v2').item.json.anexo_url, texto: $('ESCOLHE TEMPLATE v2').item.json.texto?.substring(0,200)}) }}\n}",
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          }
+        }
       },
       "id": "log-evento",
       "name": "LOG eventos_contato",
@@ -712,7 +740,8 @@
         "options": {
           "response": {
             "response": {
-              "neverError": true
+              "neverError": true,
+              "responseFormat": "text"
             }
           }
         }
@@ -747,7 +776,8 @@
         "options": {
           "response": {
             "response": {
-              "neverError": true
+              "neverError": true,
+              "responseFormat": "text"
             }
           }
         }
