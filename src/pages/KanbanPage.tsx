@@ -20,10 +20,10 @@ import { FechamentoVendaModal } from '@/components/kanban/FechamentoVendaModal';
 // Follow-Up unifica 2 estados (wait_follow_up + follow_up) — distinção fica
 // na tag do card (WAIT vs F-UP).
 const KANBAN_COLUMNS = [
-  { key: 'follow_up',      label: 'FOLLOW-UP', accent: 'border-t-orange-500' },
-  { key: 'rmkt',           label: 'RMKT',      accent: 'border-t-purple-500' },
-  { key: 'em_fechamento',  label: 'FECHAMENTO', accent: 'border-t-primary' },
   { key: 'suporte',        label: 'SUPORTE',   accent: 'border-t-blue-500' },
+  { key: 'follow_up',      label: 'FOLLOW-UP', accent: 'border-t-orange-500' },
+  { key: 'em_fechamento',  label: 'FECHAMENTO', accent: 'border-t-primary' },
+  { key: 'rmkt',           label: 'RMKT',      accent: 'border-t-purple-500' },
 ] as const;
 
 type ColumnKey = typeof KANBAN_COLUMNS[number]['key'];
@@ -69,6 +69,10 @@ interface Contact {
   suporte_motivo?: string | null;
   bot_pausado_ate?: string | null;
   ultima_venda_em?: string | null;
+  qtd_ultimo_pedido?: number | null;
+  rmkt_consecutive_silenciosos?: number | null;
+  proxima_rmkt_em?: string | null;
+  _rmktWait?: boolean;
   instancias?: { nome: string; numero: string } | null;
 }
 
@@ -145,8 +149,8 @@ const KanbanCard = memo(({
           : null;
         return {
           time: d != null ? `última compra há ${d} dia${d !== 1 ? 's' : ''}` : null,
-          tentativa: null,
-          label: 'disparado',
+          tentativa: formatTentativa(contact.rmkt_consecutive_silenciosos, 3),
+          label: contact._rmktWait ? 'aguardando disparo' : 'disparado',
         };
       }
       case 'em_fechamento':
@@ -209,6 +213,12 @@ const KanbanCard = memo(({
               )}
               {column === 'follow_up' && realState === 'wait_follow_up' && (
                 <Badge className="bg-amber-400 text-black text-[10px] px-1.5 py-0 font-bold">WAIT</Badge>
+              )}
+              {column === 'rmkt' && contact._rmktWait && (
+                <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">WAIT</Badge>
+              )}
+              {column === 'rmkt' && !contact._rmktWait && (
+                <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">RMKT</Badge>
               )}
               {activeTag === 'NEW' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">NEW</Badge>}
               {activeTag === 'VIP' && <Badge className="bg-yellow-500 text-black text-[10px] px-1.5 py-0 font-bold">VIP</Badge>}
@@ -393,7 +403,7 @@ export default function KanbanPage() {
           follow_up_tentativas, ativacao_tentativas,
           data_start, data_wait_follow_up, data_ultimo_follow_up,
           data_em_fechamento, data_ultimo_rmkt, data_suporte, suporte_motivo,
-          bot_pausado_ate, ultima_venda_em,
+          bot_pausado_ate, ultima_venda_em, rmkt_consecutive_silenciosos,
           instancias(nome, numero)
         `)
         .in('ultima_interacao', VISIBLE_STATES as string[]);
@@ -413,6 +423,29 @@ export default function KanbanPage() {
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
     refetchOnWindowFocus: true,
+  });
+
+  // Clientes ELEGÍVEIS pra RMKT (fase wait) — view espelha a elegibilidade do claim.
+  const { data: rmktWait = [] } = useQuery({
+    queryKey: ['kanban-rmkt-wait', filter],
+    enabled: !!filter,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('v_kanban_rmkt_wait' as any)
+        .select('*')
+        .order('proxima_rmkt_em', { ascending: true });
+      if (error) { console.error('rmkt-wait:', error); return []; }
+      const rows = (data || []) as any[];
+      const mapped: Contact[] = rows.map(r => ({
+        ...r,
+        _rmktWait: true,
+        instancias: r.inst_nome ? { nome: r.inst_nome, numero: r.inst_numero } : null,
+      }));
+      if (filter === 'all') return mapped;
+      return mapped.filter(c => c.instancia_id === filter || c.instancia_id === null);
+    },
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
   });
 
   // Realtime subscription
@@ -452,6 +485,20 @@ export default function KanbanPage() {
         return proxDisparo - now;
       };
       return list.sort((a, b) => tempoAteDisparo(a) - tempoAteDisparo(b));
+    }
+
+    // Coluna RMKT: dispatched ('rmkt') no topo + WAIT (elegíveis da view)
+    // ordenados por proximidade do disparo (proxima_rmkt_em ASC = mais atrasado
+    // primeiro, igual a ordem do claim por ultima_venda_em).
+    if (col === 'rmkt') {
+      const merged = [...list, ...rmktWait];
+      return merged.sort((a, b) => {
+        if (!a._rmktWait && b._rmktWait) return -1; // dispatched no topo
+        if (a._rmktWait && !b._rmktWait) return 1;
+        const ta = a.proxima_rmkt_em ? new Date(a.proxima_rmkt_em).getTime() : Infinity;
+        const tb = b.proxima_rmkt_em ? new Date(b.proxima_rmkt_em).getTime() : Infinity;
+        return ta - tb;
+      });
     }
 
     return list;
