@@ -378,7 +378,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let payload;\nconst fuItems = $(\"CLAIM follow-up\").all();\nconst rmktItems = $(\"CLAIM rmkt\").all();\nconst fuLead = fuItems.length > 0 ? fuItems[0].json : null;\nconst rmktLead = rmktItems.length > 0 ? rmktItems[0].json : null;\nif (fuLead && fuLead.id) {\n  payload = { contato_id: fuLead.id, telefone: fuLead.telefone, categoria: \"followup\", subcategoria: fuLead.subcategoria || \"24h\" };\n} else if (rmktLead && rmktLead.id) {\n  payload = { contato_id: rmktLead.id, telefone: rmktLead.telefone, categoria: \"rmkt\", subcategoria: null };\n} else {\n  return [];\n}\nreturn [{ json: payload }];"
+        "jsCode": "let payload;\nlet fuLead = null, rmktLead = null;\n// Referenciar um nó não-executado (o outro branch) lança erro → try/catch.\ntry { const a = $(\"CLAIM follow-up\").all(); fuLead = a.length ? a[0].json : null; } catch (e) {}\ntry { const a = $(\"CLAIM rmkt\").all(); rmktLead = a.length ? a[0].json : null; } catch (e) {}\nif (fuLead && fuLead.id) {\n  payload = { contato_id: fuLead.id, telefone: fuLead.telefone, categoria: \"followup\", subcategoria: fuLead.subcategoria || \"24h\" };\n} else if (rmktLead && rmktLead.id) {\n  payload = { contato_id: rmktLead.id, telefone: rmktLead.telefone, categoria: \"rmkt\", subcategoria: null };\n} else {\n  return [];\n}\nreturn [{ json: payload }];"
       },
       "id": "merge-lead",
       "name": "UNIFICA LEAD",
