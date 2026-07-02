@@ -758,6 +758,67 @@
         1620,
         800
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/pode_disparar_campanha",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_tipo\": \"rmkt\"\n}",
+        "options": {}
+      },
+      "id": "anti-ban-rmkt",
+      "name": "ANTI-BAN RMKT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -860,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "ok",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-anti-ban-rmkt",
+      "name": "Pode disparar RMKT?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -700,
+        820
+      ]
     }
   ],
   "connections": {
@@ -868,7 +929,7 @@
         ],
         [
           {
-            "node": "Split por Instância",
+            "node": "ANTI-BAN RMKT",
             "type": "main",
             "index": 0
           }
@@ -908,7 +969,7 @@
         ],
         [
           {
-            "node": "CLAIM rmkt",
+            "node": "ANTI-BAN RMKT",
             "type": "main",
             "index": 0
           }
@@ -1102,6 +1163,35 @@
         [
           {
             "node": "LOG eventos_contato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ANTI-BAN RMKT": {
+      "main": [
+        [
+          {
+            "node": "Pode disparar RMKT?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pode disparar RMKT?": {
+      "main": [
+        [
+          {
+            "node": "CLAIM rmkt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split por Instância",
             "type": "main",
             "index": 0
           }
