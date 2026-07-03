@@ -187,11 +187,13 @@ Deno.serve(async (req) => {
         || `Santa Flor possui óleos🥥 Base de TCM, um suplemento nutricional extraído da polpa do coco, extremamente nutritivo e de rápida absorção, o mais indicado pelos médicos.\n\nTodos os produtos possuem:\n\n🌱 Flores de cannabis de genética CBD e THC plantada em estufa livre de pesticidas.\n\nE são produzidos💯 sem solvente (100% natural e sabor real da cannabis)`)
 
       // BLOCO 2 = TEXTO (header + lista produtos auto + footer opcional)
+      // Formatação: item em *negrito*, linha em branco entre produtos pra
+      // aumentar a largura da bolha do WhatsApp e melhorar leitura.
       const bloco2Header = String(apresentacaoCfg.bloco2_header || '📋 *Nosso cardápio:*')
       const bloco2Footer = String(apresentacaoCfg.bloco2_footer || '')
       const linhasCardapio = (catalogo || [])
-        .map(p => `${p.emoji || '•'} ${p.nome_oficial} — R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
-        .join('\n') || '(catálogo vazio)'
+        .map(p => `${p.emoji || '•'} *${p.nome_oficial}*\n   R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
+        .join('\n\n') || '(catálogo vazio)'
       const bloco2 = [bloco2Header, '', linhasCardapio, bloco2Footer ? '\n' + bloco2Footer : ''].join('\n').trim()
 
       const bloco3 = String(apresentacaoCfg.bloco3_bonus

@@ -282,7 +282,6 @@ export default function KanbanRepPage() {
       const now = new Date().toISOString();
       const updates: any = {
         ultima_interacao: returnState,
-        duvidas_consecutivas: 0,
         updated_at: now,
       };
       if (returnState === 'wait_follow_up') {
