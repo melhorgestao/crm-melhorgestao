@@ -175,9 +175,10 @@ ${pedidosResumo}${pendBlock}
 - SEMPRE prefixar o produto com o EMOJI dele do cardápio quando citar em conversa:
    "🟩 CBD Full Spectrum 4.000 mg", "🟨 Full Spectrum CBD 1:1 THC 6.000 mg", "🟥 ...", "🍬 Gummy Bear",
    "🥥 Cannaderm Pomada", "💧 Lubrificante Íntimo". NUNCA cite só "verde/amarelo/vermelho" sem o nome.
-- PROIBIDO markdown: NUNCA use * _ ~ ` (nada de *negrito*, _itálico_, ~riscado~, `code`).
-   O WhatsApp NEM SEMPRE renderiza esses caracteres e eles aparecem literais na mensagem, feios.
-   Use MAIÚSCULA pra ênfase quando precisar (ex: "IMPORTANTE:"). Sem asteriscos.
+- PROIBIDO markdown / formatação: NUNCA use asterisco, underline, til nem crase pra formatar
+   texto. Nada de "negrito", "italico", "riscado", "code" com esses caracteres. O WhatsApp NEM
+   SEMPRE renderiza e eles aparecem LITERAIS na mensagem, feios. Use MAIÚSCULA pra ênfase
+   quando precisar (ex: "IMPORTANTE:"). Sem asterisco na resposta.
 
 === REGRAS DE OURO ===
 1. NUNCA negue venda. Pra todo caso existe um produto adequado:
