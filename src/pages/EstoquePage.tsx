@@ -73,6 +73,11 @@ export default function EstoquePage() {
   const [formBoxQtyMax, setFormBoxQtyMax] = useState(10);
   const [formPeso, setFormPeso] = useState(300);
   const [formPreco, setFormPreco] = useState<string>('');
+  const [formEmoji, setFormEmoji] = useState<string>('');
+  const [formArteUrl, setFormArteUrl] = useState<string>('');
+  const [formFotoUrl, setFormFotoUrl] = useState<string>('');
+  const [uploadingArte, setUploadingArte] = useState(false);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
 
   // Estoque state
   const [produtos, setProdutos] = useState<any[]>([]);
@@ -355,6 +360,9 @@ export default function EstoquePage() {
             p_box_qty_max: formBoxQtyMax || 10,
             p_peso: formPeso || 300,
             p_preco: formPreco === '' ? null : Number(formPreco),
+            p_emoji: formEmoji || null,
+            p_arte_url: formArteUrl || null,
+            p_foto_url: formFotoUrl || null,
           }),
         });
         console.log('Update response:', response.status, response.statusText);
@@ -386,6 +394,9 @@ export default function EstoquePage() {
             p_box_qty_max: formBoxQtyMax || 10,
             p_peso: formPeso || 300,
             p_preco: formPreco === '' ? null : Number(formPreco),
+            p_emoji: formEmoji || null,
+            p_arte_url: formArteUrl || null,
+            p_foto_url: formFotoUrl || null,
           }),
         });
         console.log('Create response:', response.status, response.statusText);
@@ -551,6 +562,9 @@ export default function EstoquePage() {
     setFormGrupo('');
     setFormBoxSize('');
     setFormPreco('');
+    setFormEmoji('');
+    setFormArteUrl('');
+    setFormFotoUrl('');
   };
 
   const openEditProduct = (p: any) => {
@@ -565,7 +579,35 @@ export default function EstoquePage() {
     setFormBoxQtyMax(p.box_qty_max || 10);
     setFormPeso(p.peso || 300);
     setFormPreco(p.preco != null ? String(p.preco) : '');
+    setFormEmoji(p.emoji || '');
+    setFormArteUrl(p.arte_url || '');
+    setFormFotoUrl(p.foto_url || '');
     setShowAddProduct(true);
+  };
+
+  // Upload de imagem (arte ou foto) pro bucket Start
+  const uploadImagem = async (file: File, tipo: 'arte' | 'foto'): Promise<string | null> => {
+    if (file.size > 16 * 1024 * 1024) { toast.error('Máx 16 MB'); return null; }
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+    const safeName = (formTag || formNome || 'produto').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const path = `produtos/${safeName}-${tipo}-${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from('Start').upload(path, file, { upsert: true });
+    if (upErr) { toast.error('Upload: ' + upErr.message); return null; }
+    const { data: pub } = supabase.storage.from('Start').getPublicUrl(path);
+    return pub.publicUrl;
+  };
+
+  const handleUploadArte = async (file: File) => {
+    setUploadingArte(true);
+    const url = await uploadImagem(file, 'arte');
+    if (url) setFormArteUrl(url);
+    setUploadingArte(false);
+  };
+  const handleUploadFoto = async (file: File) => {
+    setUploadingFoto(true);
+    const url = await uploadImagem(file, 'foto');
+    if (url) setFormFotoUrl(url);
+    setUploadingFoto(false);
   };
 
   const toggleProductStatus = async (p: any) => {
@@ -1378,6 +1420,78 @@ export default function EstoquePage() {
                 Usado pelo bot de fechamento (Pix, total, resumo do pedido). Não é usado em lançamentos financeiros — lá o valor é manual.
               </p>
             </div>
+
+            {/* Emoji / Icon (já existia no banco, agora editável) */}
+            <div>
+              <Label>Emoji / Ícone</Label>
+              <Input
+                value={formEmoji}
+                onChange={e => setFormEmoji(e.target.value)}
+                placeholder="🟩 🟨 🟥 🍬 🔰 …"
+                maxLength={8}
+                className="font-mono text-lg"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Usado em resumos do bot e cardápio.</p>
+            </div>
+
+            {/* Arte Produto (marketing) */}
+            <div>
+              <Label>Arte Produto (imagem de marketing)</Label>
+              <div className="mt-1 border rounded-lg p-3 bg-muted/20 flex items-center gap-3">
+                {formArteUrl ? (
+                  <img src={formArteUrl} alt="arte" className="w-16 h-16 object-cover rounded" />
+                ) : (
+                  <div className="w-16 h-16 rounded bg-background border flex items-center justify-center text-xs text-muted-foreground">—</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-muted-foreground truncate">{formArteUrl || 'Nenhuma arte'}</p>
+                  <div className="flex gap-1 mt-1">
+                    <label className="inline-flex">
+                      <Button size="sm" variant="outline" disabled={uploadingArte} asChild>
+                        <span>{uploadingArte ? 'Enviando…' : (formArteUrl ? 'Trocar' : 'Enviar arte')}</span>
+                      </Button>
+                      <input type="file" accept="image/*" className="hidden"
+                             onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadArte(f); e.target.value = ''; }} />
+                    </label>
+                    {formArteUrl && (
+                      <Button size="sm" variant="ghost" className="text-destructive"
+                              onClick={() => setFormArteUrl('')}>Remover</Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Imagem editada / mais vendável.</p>
+            </div>
+
+            {/* Foto Produto (real / mockup) */}
+            <div>
+              <Label>Foto Produto (foto real / fundo branco)</Label>
+              <div className="mt-1 border rounded-lg p-3 bg-muted/20 flex items-center gap-3">
+                {formFotoUrl ? (
+                  <img src={formFotoUrl} alt="foto" className="w-16 h-16 object-cover rounded" />
+                ) : (
+                  <div className="w-16 h-16 rounded bg-background border flex items-center justify-center text-xs text-muted-foreground">—</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-muted-foreground truncate">{formFotoUrl || 'Nenhuma foto'}</p>
+                  <div className="flex gap-1 mt-1">
+                    <label className="inline-flex">
+                      <Button size="sm" variant="outline" disabled={uploadingFoto} asChild>
+                        <span>{uploadingFoto ? 'Enviando…' : (formFotoUrl ? 'Trocar' : 'Enviar foto')}</span>
+                      </Button>
+                      <input type="file" accept="image/*" className="hidden"
+                             onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFoto(f); e.target.value = ''; }} />
+                    </label>
+                    {formFotoUrl && (
+                      <Button size="sm" variant="ghost" className="text-destructive"
+                              onClick={() => setFormFotoUrl('')}>Remover</Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Foto real / mockup fundo branco.</p>
+            </div>
+
             <Button onClick={handleSaveProduct} disabled={submitting} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground">
               {submitting ? 'Salvando...' : 'Salvar'}
             </Button>
