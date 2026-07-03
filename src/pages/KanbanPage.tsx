@@ -9,12 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { timeAgo } from '@/lib/format';
-import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Pause, Play, ShoppingCart, RefreshCw } from 'lucide-react';
+import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Pause, Play, ShoppingCart, RefreshCw, Package, Minus } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { findConversationByPhone } from '@/lib/chatwootApi';
 import { FechamentoVendaModal } from '@/components/kanban/FechamentoVendaModal';
+import { PedidoDetailModal } from '@/components/pedidos/PedidoDetailModal';
 
 // 4 colunas do Kanban derivadas de ultima_interacao.
 // Follow-Up unifica 2 estados (wait_follow_up + follow_up) — distinção fica
@@ -72,6 +73,8 @@ interface Contact {
   qtd_ultimo_pedido?: number | null;
   rmkt_consecutive_silenciosos?: number | null;
   proxima_rmkt_em?: string | null;
+  ultimo_pedido_id?: string | null;
+  ultimo_pedido_order?: number | null;
   _rmktWait?: boolean;
   instancias?: { nome: string; numero: string } | null;
 }
@@ -97,7 +100,9 @@ const formatTentativa = (atual: number | null | undefined, max = 3) => {
 
 const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
-  draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, pausarBot, reativarBot, copyPhone, openChatwoot
+  draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget,
+  pausarBot, reativarBot, copyPhone, openChatwoot,
+  collapsed, toggleCollapsed, openPedido
 }: {
   contact: Contact;
   column: ColumnKey;
@@ -112,6 +117,9 @@ const KanbanCard = memo(({
   reativarBot: (c: Contact) => void;
   copyPhone: (p: string) => void;
   openChatwoot: (telefone: string) => void;
+  collapsed: boolean;
+  toggleCollapsed: (id: string) => void;
+  openPedido: (pedidoId: string | null, contatoId?: string) => void;
 }) => {
   // Bot está pausado se bot_pausado_ate está no futuro
   const botPausado = !!contact.bot_pausado_ate && new Date(contact.bot_pausado_ate).getTime() > Date.now();
@@ -148,7 +156,7 @@ const KanbanCard = memo(({
           ? Math.floor((Date.now() - new Date(contact.ultima_venda_em).getTime()) / 86400000)
           : null;
         return {
-          time: d != null ? `última compra há ${d} dia${d !== 1 ? 's' : ''}` : null,
+          time: d != null ? `Comprou há ${d} dia${d !== 1 ? 's' : ''}` : null,
           tentativa: formatTentativa(contact.rmkt_consecutive_silenciosos, 3),
           label: contact._rmktWait ? 'aguardando disparo' : 'disparado',
         };
@@ -206,19 +214,37 @@ const KanbanCard = memo(({
       <CardContent className="p-3">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
-            {/* Tags + nome */}
+            {/* Tags + contador X/3 (junto da tag principal) + nome */}
             <div className="flex items-center gap-1 flex-wrap">
+              {/* Botão minimizar/expandir (- / +) — deixa o card fininho */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); toggleCollapsed(contact.id); }}
+                className="text-muted-foreground hover:text-foreground transition-colors -ml-0.5 mr-0.5 rounded hover:bg-muted/40 leading-none"
+                title={collapsed ? 'Expandir' : 'Minimizar card'}
+              >
+                {collapsed ? <span className="text-xs font-bold px-1">+</span> : <Minus className="w-3 h-3" />}
+              </button>
+
               {column === 'follow_up' && realState === 'follow_up' && (
-                <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0 font-bold">F-UP</Badge>
+                <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0 font-bold">
+                  F-UP{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
+                </Badge>
               )}
               {column === 'follow_up' && realState === 'wait_follow_up' && (
-                <Badge className="bg-amber-400 text-black text-[10px] px-1.5 py-0 font-bold">WAIT</Badge>
+                <Badge className="bg-amber-400 text-black text-[10px] px-1.5 py-0 font-bold">
+                  WAIT{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
+                </Badge>
               )}
               {column === 'rmkt' && contact._rmktWait && (
-                <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">WAIT</Badge>
+                <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">
+                  WAIT{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
+                </Badge>
               )}
               {column === 'rmkt' && !contact._rmktWait && (
-                <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">RMKT</Badge>
+                <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">
+                  RMKT{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
+                </Badge>
               )}
               {activeTag === 'NEW' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">NEW</Badge>}
               {activeTag === 'VIP' && <Badge className="bg-yellow-500 text-black text-[10px] px-1.5 py-0 font-bold">VIP</Badge>}
@@ -233,37 +259,50 @@ const KanbanCard = memo(({
               <p className="font-bold text-sm truncate">{contact.nome}</p>
             </div>
 
-            {/* Telefone + instância */}
-            <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-              <Phone className="w-3 h-3" />
-              <span>{contact.instancias?.nome || 'sem instância'}</span>
-            </div>
+            {!collapsed && (
+              <>
+                {/* Telefone (clicável = copia) + instância */}
+                <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); copyPhone(contact.telefone || ''); }}
+                    className="hover:text-foreground transition-colors flex items-center gap-1"
+                    title="Copiar telefone"
+                  >
+                    <Phone className="w-3 h-3" />
+                  </button>
+                  <span>{contact.instancias?.nome || 'sem instância'}</span>
+                </div>
 
-            {/* Tempo no estado + tentativa */}
-            {(stateInfo.time || stateInfo.tentativa) && (
-              <div className="flex items-center gap-2 mt-1.5 text-xs">
+                {/* Tempo no estado + (RMKT) ícone caixa com qtd → abre popup pedido */}
                 {stateInfo.time && (
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <Clock className="w-3 h-3" /> {stateInfo.time}
-                  </span>
+                  <div className="flex items-center gap-2 mt-1.5 text-xs">
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <Clock className="w-3 h-3" /> {stateInfo.time}
+                    </span>
+                    {column === 'rmkt' && contact.qtd_ultimo_pedido != null && contact.qtd_ultimo_pedido > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openPedido(contact.ultimo_pedido_id || null, contact.id); }}
+                        className="flex items-center gap-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                        title={contact.ultimo_pedido_order ? `Ver Pedido #${contact.ultimo_pedido_order}` : 'Ver último pedido'}
+                      >
+                        <Package className="w-3 h-3" />
+                        <span className="tabular-nums">{contact.qtd_ultimo_pedido}</span>
+                      </button>
+                    )}
+                  </div>
                 )}
-                {stateInfo.tentativa && (
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                    {stateInfo.tentativa}
-                  </Badge>
-                )}
-              </div>
+              </>
             )}
 
-            {/* Motivo do suporte */}
-            {column === 'suporte' && contact.suporte_motivo && (
+            {!collapsed && column === 'suporte' && contact.suporte_motivo && (
               <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" /> {contact.suporte_motivo}
               </p>
             )}
 
-            {/* Tempo no suporte com cor por urgência */}
-            {column === 'suporte' && suporteLabel && (
+            {!collapsed && column === 'suporte' && suporteLabel && (
               <p className={cn(
                 'text-[11px] mt-1 font-medium flex items-center gap-1',
                 suporteNivel === 'urgente'  ? 'text-destructive' :
@@ -327,13 +366,6 @@ const KanbanCard = memo(({
             >
               <MessageSquare className="w-3 h-3" />
             </Button>
-            <Button
-              variant="ghost" size="icon" className="h-7 w-7"
-              title="Copiar telefone"
-              onClick={() => copyPhone(contact.telefone || '')}
-            >
-              <Copy className="w-3 h-3" />
-            </Button>
           </div>
         </div>
       </CardContent>
@@ -349,6 +381,24 @@ export default function KanbanPage() {
   const [suporteTarget, setSuporteTarget] = useState<Contact | null>(null);
   const [vendaTarget, setVendaTarget] = useState<Contact | null>(null);
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [pedidoAbertoId, setPedidoAbertoId] = useState<string | null>(null);
+
+  const toggleCollapsed = (id: string) => setCollapsedIds(prev => {
+    const n = new Set(prev);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  const openPedido = async (pedidoId: string | null, contatoId?: string) => {
+    if (pedidoId) { setPedidoAbertoId(pedidoId); return; }
+    if (!contatoId) return;
+    // Sem ultimo_pedido_id na view (cards dispatched) → busca o último pedido.
+    const { data } = await supabase.from('pedidos').select('id')
+      .eq('contato_id', contatoId).neq('status_pedido', 'cancelado')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (data?.id) setPedidoAbertoId(data.id);
+    else toast.info('Nenhum pedido encontrado');
+  };
 
   const canDeleteCard = (profile as any)?.pode_excluir_card !== false;
   const canSwitch = profile?.acesso_kanban === 'todos';
@@ -404,6 +454,7 @@ export default function KanbanPage() {
           data_start, data_wait_follow_up, data_ultimo_follow_up,
           data_em_fechamento, data_ultimo_rmkt, data_suporte, suporte_motivo,
           bot_pausado_ate, ultima_venda_em, rmkt_consecutive_silenciosos,
+          qtd_ultimo_pedido,
           instancias(nome, numero)
         `)
         .in('ultima_interacao', VISIBLE_STATES as string[]);
@@ -649,6 +700,9 @@ export default function KanbanPage() {
         reativarBot={reativarBot}
         copyPhone={copyPhone}
         openChatwoot={openChatwoot}
+        collapsed={collapsedIds.has(contact.id)}
+        toggleCollapsed={toggleCollapsed}
+        openPedido={openPedido}
       />
     );
   };
@@ -756,6 +810,13 @@ export default function KanbanPage() {
         onClose={() => setVendaTarget(null)}
         contato={vendaTarget}
         onDone={() => queryClient.invalidateQueries({ queryKey: ['kanban-v2'] })}
+      />
+
+      {/* Modal Detalhes do Pedido (ícone caixa nos cards RMKT) */}
+      <PedidoDetailModal
+        open={!!pedidoAbertoId}
+        onClose={() => setPedidoAbertoId(null)}
+        pedidoId={pedidoAbertoId}
       />
     </div>
   );
