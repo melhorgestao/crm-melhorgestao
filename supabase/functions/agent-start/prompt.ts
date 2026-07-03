@@ -80,7 +80,7 @@ export function buildSystemPrompt({
 
   // Lista de produtos formatada
   const linhasCardapio = (catalogo || [])
-    .map(p => `${p.emoji || '•'} *${p.nome_oficial}*\n   R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
+    .map(p => `${p.emoji || '•'} ${p.nome_oficial}\n   R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
     .join('\n\n') || '(catálogo vazio)'
 
   const clienteBlock = jaComprou ? `
@@ -175,6 +175,9 @@ ${pedidosResumo}${pendBlock}
 - SEMPRE prefixar o produto com o EMOJI dele do cardápio quando citar em conversa:
    "🟩 CBD Full Spectrum 4.000 mg", "🟨 Full Spectrum CBD 1:1 THC 6.000 mg", "🟥 ...", "🍬 Gummy Bear",
    "🥥 Cannaderm Pomada", "💧 Lubrificante Íntimo". NUNCA cite só "verde/amarelo/vermelho" sem o nome.
+- PROIBIDO markdown: NUNCA use * _ ~ ` (nada de *negrito*, _itálico_, ~riscado~, `code`).
+   O WhatsApp NEM SEMPRE renderiza esses caracteres e eles aparecem literais na mensagem, feios.
+   Use MAIÚSCULA pra ênfase quando precisar (ex: "IMPORTANTE:"). Sem asteriscos.
 
 === REGRAS DE OURO ===
 1. NUNCA negue venda. Pra todo caso existe um produto adequado:

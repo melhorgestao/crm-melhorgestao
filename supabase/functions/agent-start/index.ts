@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
       const bloco2Header = String(apresentacaoCfg.bloco2_header || '📋 *Nosso cardápio:*')
       const bloco2Footer = String(apresentacaoCfg.bloco2_footer || '')
       const linhasCardapio = (catalogo || [])
-        .map(p => `${p.emoji || '•'} *${p.nome_oficial}*\n   R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
+        .map(p => `${p.emoji || '•'} ${p.nome_oficial}\n   R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
         .join('\n\n') || '(catálogo vazio)'
       const bloco2 = [bloco2Header, '', linhasCardapio, bloco2Footer ? '\n' + bloco2Footer : ''].join('\n').trim()
 
