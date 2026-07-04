@@ -19,24 +19,22 @@ interface ToolCtx {
   fotosEnviadas?: string[]
 }
 
-// Mapa produto → arquivo no bucket "Start"
-const FOTO_MAP: Record<string, { tag: string; arquivo: string }> = {
-  cbd:        { tag: 'cbd',        arquivo: 'Cbd.jpg' },
-  verde:      { tag: 'cbd',        arquivo: 'Cbd.jpg' },
-  'cbd 4000': { tag: 'cbd',        arquivo: 'Cbd.jpg' },
-  amarelo:    { tag: 'full6k',     arquivo: 'Full6k.jpg' },
-  full6k:     { tag: 'full6k',     arquivo: 'Full6k.jpg' },
-  '6000':     { tag: 'full6k',     arquivo: 'Full6k.jpg' },
-  vermelho:   { tag: 'full10k',    arquivo: 'Full10k.jpg' },
-  full10k:    { tag: 'full10k',    arquivo: 'Full10k.jpg' },
-  '10000':    { tag: 'full10k',    arquivo: 'Full10k.jpg' },
-  gummy:      { tag: 'gummy',      arquivo: 'Gummy.jpg' },
-  bear:       { tag: 'gummy',      arquivo: 'Gummy.jpg' },
-  pomada:     { tag: 'cannaderm',  arquivo: 'Cannaderm.jpg' },
-  cannaderm:  { tag: 'cannaderm',  arquivo: 'Cannaderm.jpg' },
-  lub:        { tag: 'lub',        arquivo: 'Lub.jpg' },
-  lubrificante: { tag: 'lub',      arquivo: 'Lub.jpg' },
-  intimo:     { tag: 'lub',        arquivo: 'Lub.jpg' },
+// Alias keyword (que o LLM manda) → tag REAL do produto na tabela.
+// Tags reais: verde | amarelo | vermelho | gummy | pomada | lub.
+const TAG_ALIAS: Record<string, string> = {
+  verde: 'verde', cbd: 'verde', cbd4000: 'verde', '4000': 'verde', '4000mg': 'verde',
+  amarelo: 'amarelo', full6k: 'amarelo', '6000': 'amarelo', '6k': 'amarelo', '6000mg': 'amarelo',
+  vermelho: 'vermelho', full10k: 'vermelho', '10000': 'vermelho', '10k': 'vermelho', '10000mg': 'vermelho',
+  gummy: 'gummy', bear: 'gummy', gummybear: 'gummy',
+  pomada: 'pomada', cannaderm: 'pomada',
+  lub: 'lub', lubrificante: 'lub', intimo: 'lub', lubintimo: 'lub',
+}
+
+// Fallback LEGADO (arquivo fixo no bucket Start) SÓ se o produto não tiver
+// arte_url cadastrada. Keyed pela tag real do produto.
+const FOTO_LEGACY: Record<string, string> = {
+  verde: 'Cbd.jpg', amarelo: 'Full6k.jpg', vermelho: 'Full10k.jpg',
+  gummy: 'Gummy.jpg', pomada: 'Cannaderm.jpg', lub: 'Lub.jpg',
 }
 
 // ---- SCHEMAS pro OpenRouter (formato OpenAI tools v1) ----------------------
@@ -104,11 +102,11 @@ export const TOOL_SCHEMAS = [
     type: 'function',
     function: {
       name: 'enviar_foto_produto',
-      description: 'Envia foto do produto. Use UMA ÚNICA VEZ por conversa quando cliente perguntar/demonstrar interesse específico em um produto. Não use pra produtos já mencionados de passagem; só quando há foco explícito. Aceita keyword: cbd | verde | amarelo | full6k | vermelho | full10k | gummy | pomada | cannaderm | lub. Se já foi enviada antes, retorna already_sent=true e nada acontece — não tente outra vez.',
+      description: 'Envia a ARTE (imagem) de um produto pro cliente. Chame quando você RECOMENDAR um produto específico OU o cliente focar num produto, na PRIMEIRA VEZ que ESSE produto aparece na conversa — uma vez por PRODUTO (pode enviar de produtos diferentes na mesma conversa). Não envie em saudação genérica nem pra produto citado só de passagem. Keywords: verde/cbd/4000 | amarelo/6000 | vermelho/10000 | gummy | pomada/cannaderm | lub. Se já foi enviada antes, retorna already_sent=true — não tente de novo.',
       parameters: {
         type: 'object',
         properties: {
-          produto: { type: 'string', description: 'Keyword do produto.' },
+          produto: { type: 'string', description: 'Keyword ou nome do produto (ex: verde, amarelo, gummy, cannaderm, "6.000 mg").' },
         },
         required: ['produto'],
       },
@@ -181,12 +179,36 @@ export async function executeTool(ctx: ToolCtx): Promise<any> {
       }
 
       case 'enviar_foto_produto': {
-        const key = String(args.produto || '').toLowerCase().trim()
-        const match = FOTO_MAP[key]
-        if (!match) return { send: false, error: `produto desconhecido: ${args.produto}` }
-        if (fotosEnviadas.includes(match.tag)) return { send: false, already_sent: true, foto_tag: match.tag }
-        const url = `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/Start/${match.arquivo}`
-        return { send: true, url, foto_tag: match.tag, caption: '' }
+        const raw = String(args.produto || '').toLowerCase().trim()
+        const nk = raw.replace(/[^a-z0-9]/g, '')
+        // resolve keyword → tag real do produto
+        const tag = TAG_ALIAS[raw] || TAG_ALIAS[nk] || nk
+        // já enviada pra este contato? (persistido em contatos.fotos_enviadas)
+        if (fotosEnviadas.includes(tag)) return { send: false, already_sent: true, foto_tag: tag }
+
+        // 1) busca a ARTE do produto por tag
+        let arte: string | null = null
+        let prodNome = ''
+        const { data: prodByTag } = await supabase
+          .from('produtos').select('arte_url, foto_url, nome_oficial, emoji')
+          .eq('tag', tag).eq('ativo', true).maybeSingle()
+        if (prodByTag) { arte = (prodByTag as any).arte_url || null; prodNome = (prodByTag as any).nome_oficial || '' }
+
+        // 2) fallback: casa pelo NOME do produto contendo a keyword
+        if (!arte && raw.length >= 3) {
+          const { data: byName } = await supabase
+            .from('produtos').select('arte_url, tag, nome_oficial')
+            .ilike('nome_oficial', `%${raw}%`).eq('ativo', true).limit(1).maybeSingle()
+          if ((byName as any)?.arte_url) { arte = (byName as any).arte_url; prodNome = (byName as any).nome_oficial || '' }
+        }
+
+        // 3) fallback LEGADO: arquivo fixo no bucket (só se não tiver arte cadastrada)
+        const base = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '')
+        const legacy = FOTO_LEGACY[tag]
+        const url = arte || (legacy ? `${base}/storage/v1/object/public/Start/${legacy}` : null)
+
+        if (!url) return { send: false, error: `sem arte cadastrada pro produto: ${args.produto}` }
+        return { send: true, url, foto_tag: tag, caption: '', usou_arte: !!arte, produto: prodNome }
       }
 
       case 'iniciar_fechamento': {
