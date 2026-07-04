@@ -100,7 +100,7 @@ const formatTentativa = (atual: number | null | undefined, max = 3) => {
 
 const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
-  draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget,
+  draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, setPararTarget,
   pausarBot, reativarBot, copyPhone, openChatwoot,
   collapsed, toggleCollapsed, openPedido
 }: {
@@ -113,6 +113,7 @@ const KanbanCard = memo(({
   setDeleteTarget: (c: Contact) => void;
   setSuporteTarget: (c: Contact) => void;
   setVendaTarget: (c: Contact) => void;
+  setPararTarget: (t: { contact: Contact; mode: 'followup' | 'rmkt' }) => void;
   pausarBot: (c: Contact) => void;
   reativarBot: (c: Contact) => void;
   copyPhone: (p: string) => void;
@@ -359,6 +360,18 @@ const KanbanCard = memo(({
                 </Button>
               )
             )}
+            {/* X = parar campanha (F-UP ou RMKT) deste contato.
+                F-UP → volta pra Start (nunca-mais F-UP).
+                RMKT → volta pra Cliente (nunca-mais RMKT até nova compra). */}
+            {(column === 'follow_up' || column === 'rmkt') && (
+              <Button
+                variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                title={column === 'rmkt' ? 'Parar RMKT deste contato' : 'Parar F-UP deste contato'}
+                onClick={() => setPararTarget({ contact, mode: column === 'rmkt' ? 'rmkt' : 'followup' })}
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            )}
             <Button
               variant="ghost" size="icon" className="h-7 w-7"
               title="Abrir conversa no Chatwoot"
@@ -380,6 +393,7 @@ export default function KanbanPage() {
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [suporteTarget, setSuporteTarget] = useState<Contact | null>(null);
   const [vendaTarget, setVendaTarget] = useState<Contact | null>(null);
+  const [pararTarget, setPararTarget] = useState<{ contact: Contact; mode: 'followup' | 'rmkt' } | null>(null);
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [pedidoAbertoId, setPedidoAbertoId] = useState<string | null>(null);
@@ -669,6 +683,37 @@ export default function KanbanPage() {
     }
   };
 
+  // Parar campanha (X no card) — F-UP ou RMKT.
+  //  followup → parar_followup_contato: volta pra 'start' + followup_bloqueado.
+  //  rmkt     → parar_rmkt_contato:     volta pra 'cliente' + rmkt_bloqueado.
+  const handlePararCampanha = async () => {
+    if (!pararTarget) return;
+    const { contact, mode } = pararTarget;
+    const rpc = mode === 'rmkt' ? 'parar_rmkt_contato' : 'parar_followup_contato';
+    const nomeCamp = mode === 'rmkt' ? 'RMKT' : 'F-UP';
+    try {
+      const { data, error } = await supabase.rpc(rpc as any, { p_contato_id: contact.id });
+      if (error) throw error;
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error || 'falha desconhecida');
+
+      await supabase.from('log_atividades').insert({
+        usuario: profile?.nome || 'Desconhecido',
+        acao: `Parou ${nomeCamp} via Kanban → ${r.estado_para}`,
+        tabela_afetada: 'contatos',
+        registro_id: contact.id,
+        detalhe: contact.nome,
+      });
+
+      toast.success(`${nomeCamp} parado para ${contact.nome}`);
+      setPararTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
+      queryClient.invalidateQueries({ queryKey: ['kanban-rmkt-wait'] });
+    } catch (err: any) {
+      toast.error(`Erro ao parar ${nomeCamp}: ` + (err.message || err));
+    }
+  };
+
   const copyPhone = (phone: string) => {
     copyToClipboard(phone).then(success => {
       if (success) toast.success('Número copiado!');
@@ -696,6 +741,7 @@ export default function KanbanPage() {
         setDeleteTarget={setDeleteTarget}
         setSuporteTarget={setSuporteTarget}
         setVendaTarget={setVendaTarget}
+        setPararTarget={setPararTarget}
         pausarBot={pausarBot}
         reativarBot={reativarBot}
         copyPhone={copyPhone}
@@ -799,6 +845,34 @@ export default function KanbanPage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleSuporteRealizado} className="bg-sf-green text-primary-foreground">
               Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmação de parar campanha (X no card F-UP / RMKT) */}
+      <AlertDialog open={!!pararTarget} onOpenChange={() => setPararTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Parar {pararTarget?.mode === 'rmkt' ? 'RMKT' : 'F-UP'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja realmente parar {pararTarget?.mode === 'rmkt' ? 'RMKT' : 'F-UP'} para {pararTarget?.contact.nome}?
+              <br /><br />
+              {pararTarget?.mode === 'rmkt' ? (
+                <><strong>RMKT:</strong> o contato volta para <strong>Cliente</strong> e não recebe mais RMKT
+                  até fazer uma nova compra (a compra reativa automaticamente).</>
+              ) : (
+                <><strong>F-UP:</strong> o contato volta para <strong>Start</strong> e não recebe mais follow-up
+                  (nunca-mais F-UP).</>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePararCampanha} className="bg-destructive text-destructive-foreground">
+              Parar {pararTarget?.mode === 'rmkt' ? 'RMKT' : 'F-UP'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
