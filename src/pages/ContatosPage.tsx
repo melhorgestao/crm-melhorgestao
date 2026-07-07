@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { formatBRL, formatDateShort } from '@/lib/format';
@@ -98,6 +99,8 @@ export default function ContatosPage() {
   const [newUf, setNewUf] = useState('');
   const [newCep, setNewCep] = useState('');
   const [newCanal, setNewCanal] = useState('ADS');
+  const [newInstanciaId, setNewInstanciaId] = useState<string | null>(null);
+  const [newIsCliente, setNewIsCliente] = useState(false);
   const [newCepLoading, setNewCepLoading] = useState(false);
   const [newContactSaved, setNewContactSaved] = useState(false);
   const [newSubmitting, setNewSubmitting] = useState(false);
@@ -419,24 +422,27 @@ export default function ContatosPage() {
         p_cidade: newCidade || null,
         p_uf: newUf || null,
         p_representante_id: newCanal === 'C-REP' ? newRepresentanteId : null,
+        p_instancia_id: newInstanciaId || null,
+        p_ja_comprou: newIsCliente,
       };
 
-      const { data: createdContact, error: rpcError } = await supabase.rpc('create_contato' as any, body);
+      const { error: rpcError } = await supabase.rpc('create_contato' as any, body);
       if (rpcError) {
         console.error('RPC error:', rpcError);
         toast.error('Erro ao salvar: ' + rpcError.message);
         setNewSubmitting(false);
         return;
       }
-      
-      // Insert directly into React Query cache for instant display
-      queryClient.setQueryData(['contatos_lista', debouncedSearch], (old: any) => {
-        if (!old) return { pages: [[createdContact]], pageParams: [0] };
-        const firstPage = [createdContact, ...old.pages[0]];
-        return { ...old, pages: [firstPage, ...old.pages.slice(1)] };
-      });
 
-      toast.success('Contato criado!');
+      // Revalida lista + total + métricas por instância (Clientes) pra refletir
+      // o novo contato/cliente em todas as visões.
+      queryClient.invalidateQueries({ queryKey: ['contatos_lista'] });
+      queryClient.invalidateQueries({ queryKey: ['contatos_total'] });
+      if (newInstanciaId) {
+        queryClient.invalidateQueries({ queryKey: ['instancia_metricas', newInstanciaId] });
+      }
+
+      toast.success(newIsCliente ? 'Cliente criado!' : 'Contato criado!');
       resetNewContactForm();
     } catch (err: any) {
       toast.error('Erro ao salvar contato: ' + (err.message || 'Erro desconhecido'));
@@ -452,6 +458,7 @@ export default function ContatosPage() {
     setNewNumero(''); setNewComplemento(''); setNewBairro(''); setNewCidade('');
     setNewUf(''); setNewCep(''); setNewCanal('ADS'); setNewContactSaved(false);
     setPhoneDuplicate(null); setNewRepresentanteId(null); setRepSearch('');
+    setNewInstanciaId(null); setNewIsCliente(false);
   };
 
   const copyPhone = (phone: string) => { 
@@ -728,6 +735,28 @@ export default function ContatosPage() {
                     </Select>
                   </div>
                 )}
+
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Instância</Label>
+                  <Select value={newInstanciaId || 'none'} onValueChange={(v) => setNewInstanciaId(v === 'none' ? null : v)}>
+                    <SelectTrigger className="min-h-[44px]"><SelectValue placeholder="Sem instância" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem instância</SelectItem>
+                      {allInstancias.map((i: any) => (
+                        <SelectItem key={i.id} value={i.id}>Instância {i.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Cliente on/off — marca ja_comprou=true (sem histórico de pedido) */}
+                <label className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 min-h-[44px] cursor-pointer">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">Cliente</span>
+                    <span className="text-[11px] text-muted-foreground">Marca como já comprou (sem histórico de pedido)</span>
+                  </div>
+                  <Switch checked={newIsCliente} onCheckedChange={setNewIsCliente} />
+                </label>
 
                 <Input placeholder="Nome *" value={newNome} onChange={e => setNewNome(e.target.value)} className="min-h-[44px]" />
                 <Input placeholder="CPF" value={newCpf} onChange={e => setNewCpf(e.target.value)} className="min-h-[44px]" />
