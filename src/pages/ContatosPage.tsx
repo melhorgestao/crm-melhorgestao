@@ -24,6 +24,43 @@ const UF_OPTIONS = [
   'PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SE','SP','TO'
 ];
 
+// Países (DDI) pra cadastro de contatos internacionais. Brasil é o default.
+// Códigos ÚNICOS (value do Select). EUA/Canadá compartilham o +1.
+const COUNTRIES = [
+  { code: '55',  flag: '🇧🇷', name: 'Brasil' },
+  { code: '1',   flag: '🇺🇸', name: 'EUA/Canadá' },
+  { code: '351', flag: '🇵🇹', name: 'Portugal' },
+  { code: '54',  flag: '🇦🇷', name: 'Argentina' },
+  { code: '598', flag: '🇺🇾', name: 'Uruguai' },
+  { code: '595', flag: '🇵🇾', name: 'Paraguai' },
+  { code: '56',  flag: '🇨🇱', name: 'Chile' },
+  { code: '57',  flag: '🇨🇴', name: 'Colômbia' },
+  { code: '52',  flag: '🇲🇽', name: 'México' },
+  { code: '34',  flag: '🇪🇸', name: 'Espanha' },
+  { code: '44',  flag: '🇬🇧', name: 'Reino Unido' },
+  { code: '33',  flag: '🇫🇷', name: 'França' },
+  { code: '49',  flag: '🇩🇪', name: 'Alemanha' },
+  { code: '39',  flag: '🇮🇹', name: 'Itália' },
+  { code: '41',  flag: '🇨🇭', name: 'Suíça' },
+  { code: '81',  flag: '🇯🇵', name: 'Japão' },
+];
+
+// Máscara genérica internacional: só dígitos (até 15 = máximo E.164).
+const applyIntlMask = (val: string) => val.replace(/\D/g, '').slice(0, 15);
+
+// Detecta país + número nacional a partir do telefone salvo (dígitos).
+// BR: nacional sem 55 (10 díg fixo, ou 11 díg móvel com 9º dígito).
+// Estrangeiro: casa o MAIOR prefixo de DDI conhecido.
+const detectCountry = (stored: string | null | undefined): { code: string; national: string } => {
+  const d = (stored || '').replace(/\D/g, '');
+  if (!d) return { code: '55', national: '' };
+  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) return { code: '55', national: d.slice(2) };
+  if (d.length === 10 || (d.length === 11 && d[2] === '9')) return { code: '55', national: d };
+  const foreign = COUNTRIES.filter(c => c.code !== '55').map(c => c.code).sort((a, b) => b.length - a.length);
+  for (const code of foreign) if (d.startsWith(code)) return { code, national: d.slice(code.length) };
+  return { code: '55', national: d };
+};
+
 export default function ContatosPage() {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
@@ -35,6 +72,7 @@ export default function ContatosPage() {
   const [editNome, setEditNome] = useState('');
   const [editTelefone, setEditTelefone] = useState('');
   const [editCanalAtual, setEditCanalAtual] = useState('BASE');
+  const [editCountry, setEditCountry] = useState('55');
   const [editRepresentanteId, setEditRepresentanteId] = useState<string | null>(null);
   const [editInstanciaId, setEditInstanciaId] = useState<string | null>(null);
   const [editIsCliente, setEditIsCliente] = useState(false);
@@ -101,6 +139,7 @@ export default function ContatosPage() {
   const [newUf, setNewUf] = useState('');
   const [newCep, setNewCep] = useState('');
   const [newCanal, setNewCanal] = useState('ADS');
+  const [newCountry, setNewCountry] = useState('55');
   const [newInstanciaId, setNewInstanciaId] = useState<string | null>(null);
   const [newIsCliente, setNewIsCliente] = useState(false);
   const [newCepLoading, setNewCepLoading] = useState(false);
@@ -229,7 +268,9 @@ export default function ContatosPage() {
     const contact = fullContact || c;
     setSelected(contact);
     setEditNome(contact.nome || '');
-    setEditTelefone(contact.telefone ? applyPhoneMask(contact.telefone) : '');
+    const det = detectCountry(contact.telefone);
+    setEditCountry(det.code);
+    setEditTelefone(det.code === '55' ? applyPhoneMask(det.national) : applyIntlMask(det.national));
     setEditCanalAtual(contact.canal_atual || contact.canal_origem || 'BASE');
     setEditRepresentanteId(contact.representante_id || null);
     setEditInstanciaId(contact.instancia_id || null);
@@ -311,6 +352,18 @@ export default function ContatosPage() {
     return `(${num.slice(0, 2)}) ${num.slice(2, 7)}-${num.slice(7, 11)}`;
   };
 
+  // Monta o número que vai pro banco/Evolution.
+  //  - BR (55): nacional SEM 55 (Evolution completa o 55 no envio — convenção
+  //    existente de toda a base).
+  //  - Estrangeiro: internacional COMPLETO (DDI + nacional), enviado como está
+  //    pro Evolution (não leva 55). Sobrevive ao trigger normalize_telefone_br.
+  const buildStoredNumber = (countryCode: string, national: string): string | null => {
+    const nat = (national || '').replace(/\D/g, '');
+    if (!nat) return null;
+    if (countryCode === '55') return normalizePhoneDigits(nat);
+    return nat.startsWith(countryCode) ? nat : countryCode + nat;
+  };
+
   const applyCpfMask = (val: string) => {
     const num = val.replace(/\D/g, '');
     if (!num) return '';
@@ -370,10 +423,11 @@ export default function ContatosPage() {
 
     const changes: any = {};
     if (editNome !== (selected.nome || '')) changes.nome = editNome.trim();
-    // Compara por dígitos normalizados — evita sobrescrever quando o DB tinha
-    // formato "5511965285486" e a máscara só exibiu "(11) 96528-5486" sem mudança real.
-    if (normalizePhoneDigits(editTelefone) !== normalizePhoneDigits(selected.telefone || '')) {
-      changes.telefone = editTelefone || null;
+    // Compara o número montado (DDI + nacional pra estrangeiro; nacional pra BR)
+    // com o que está salvo — só grava se realmente mudou.
+    const builtTel = buildStoredNumber(editCountry, editTelefone);
+    if ((builtTel || '') !== (selected.telefone || '')) {
+      changes.telefone = builtTel;
     }
     if (editCanalAtual !== (selected.canal_atual || '')) changes.canal_atual = editCanalAtual;
     if (editRepresentanteId !== (selected.representante_id || null)) {
@@ -446,7 +500,7 @@ export default function ContatosPage() {
       const body = {
         p_nome: newNome,
         p_canal_origem: newCanal,
-        p_telefone: newTelefone || null,
+        p_telefone: buildStoredNumber(newCountry, newTelefone),
         p_cpf: newCpf || null,
         p_endereco: enderecoFull || null,
         p_complemento: newComplemento || null,
@@ -492,7 +546,7 @@ export default function ContatosPage() {
     setNewNumero(''); setNewComplemento(''); setNewBairro(''); setNewCidade('');
     setNewUf(''); setNewCep(''); setNewCanal('ADS'); setNewContactSaved(false);
     setPhoneDuplicate(null); setNewRepresentanteId(null); setRepSearch('');
-    setNewInstanciaId(null); setNewIsCliente(false);
+    setNewInstanciaId(null); setNewIsCliente(false); setNewCountry('55');
   };
 
   const copyPhone = (phone: string) => { 
@@ -804,16 +858,32 @@ export default function ContatosPage() {
                 <Input placeholder="Nome *" value={newNome} onChange={e => setNewNome(e.target.value)} className="min-h-[44px]" />
                 <Input placeholder="CPF" value={newCpf} onChange={e => setNewCpf(e.target.value)} className="min-h-[44px]" />
                 <div className="flex gap-2">
-                  <div className="flex items-center justify-center px-3 border rounded-md bg-muted text-sm min-h-[44px]">🇧🇷 +55</div>
-                  <Input 
-                    placeholder={newCanal === 'C-REP' ? "(XX) XXXXX-XXXX Opcional" : "(XX) XXXXX-XXXX"} 
-                    value={newTelefone} 
+                  <Select
+                    value={newCountry}
+                    onValueChange={(v) => {
+                      const digits = newTelefone.replace(/\D/g, '');
+                      setNewCountry(v);
+                      setNewTelefone(v === '55' ? applyPhoneMask(digits) : applyIntlMask(digits));
+                    }}
+                  >
+                    <SelectTrigger className="min-h-[44px] w-[120px] shrink-0"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {COUNTRIES.map(c => (
+                        <SelectItem key={c.code} value={c.code}>{c.flag} +{c.code}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder={newCountry === '55'
+                      ? (newCanal === 'C-REP' ? '(XX) XXXXX-XXXX Opcional' : '(XX) XXXXX-XXXX')
+                      : 'Número com DDD (só dígitos)'}
+                    value={newTelefone}
                     onChange={e => {
-                      const masked = applyPhoneMask(e.target.value);
+                      const masked = newCountry === '55' ? applyPhoneMask(e.target.value) : applyIntlMask(e.target.value);
                       setNewTelefone(masked);
-                      checkPhoneDuplicate(masked);
-                    }} 
-                    className="min-h-[44px] flex-1" 
+                      checkPhoneDuplicate(buildStoredNumber(newCountry, masked) || '');
+                    }}
+                    className="min-h-[44px] flex-1"
                   />
                 </div>
                 <Input placeholder="Endereço (Rua)" value={newEndereco} onChange={e => setNewEndereco(e.target.value)} className="min-h-[44px]" />
@@ -961,14 +1031,30 @@ export default function ContatosPage() {
             <div>
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">Telefone</Label>
               <div className="flex gap-2 mt-1 items-stretch">
-                <div className="flex items-center justify-center px-3 border rounded-md bg-muted text-sm min-h-[44px]">🇧🇷 +55</div>
+                <Select
+                  value={editCountry}
+                  onValueChange={(v) => {
+                    const digits = editTelefone.replace(/\D/g, '');
+                    setEditCountry(v);
+                    setEditTelefone(v === '55' ? applyPhoneMask(digits) : applyIntlMask(digits));
+                  }}
+                >
+                  <SelectTrigger className="min-h-[44px] w-[120px] shrink-0"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {COUNTRIES.map(c => (
+                      <SelectItem key={c.code} value={c.code}>{c.flag} +{c.code}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input
-                  placeholder={editCanalAtual === 'C-REP' ? '(XX) XXXXX-XXXX Opcional' : '(XX) XXXXX-XXXX'}
+                  placeholder={editCountry === '55'
+                    ? (editCanalAtual === 'C-REP' ? '(XX) XXXXX-XXXX Opcional' : '(XX) XXXXX-XXXX')
+                    : 'Número com DDD (só dígitos)'}
                   value={editTelefone}
                   onChange={e => {
-                    const masked = applyPhoneMask(e.target.value);
+                    const masked = editCountry === '55' ? applyPhoneMask(e.target.value) : applyIntlMask(e.target.value);
                     setEditTelefone(masked);
-                    checkEditPhoneDuplicate(masked);
+                    checkEditPhoneDuplicate(buildStoredNumber(editCountry, masked) || '');
                   }}
                   className="min-h-[44px] flex-1"
                 />
