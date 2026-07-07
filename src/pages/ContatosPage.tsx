@@ -36,6 +36,8 @@ export default function ContatosPage() {
   const [editTelefone, setEditTelefone] = useState('');
   const [editCanalAtual, setEditCanalAtual] = useState('BASE');
   const [editRepresentanteId, setEditRepresentanteId] = useState<string | null>(null);
+  const [editInstanciaId, setEditInstanciaId] = useState<string | null>(null);
+  const [editIsCliente, setEditIsCliente] = useState(false);
   const [editEndereco, setEditEndereco] = useState('');
   const [editNumero, setEditNumero] = useState('');
   const [editComplemento, setEditComplemento] = useState('');
@@ -230,6 +232,8 @@ export default function ContatosPage() {
     setEditTelefone(contact.telefone ? applyPhoneMask(contact.telefone) : '');
     setEditCanalAtual(contact.canal_atual || contact.canal_origem || 'BASE');
     setEditRepresentanteId(contact.representante_id || null);
+    setEditInstanciaId(contact.instancia_id || null);
+    setEditIsCliente(!!contact.ja_comprou);
     setEditPhoneDuplicate(null);
     // Prioriza colunas separadas (fonte de verdade nova).
     // Fallback ao split de 'endereco' pra contatos legacy ainda não migrados.
@@ -385,6 +389,29 @@ export default function ContatosPage() {
     if (editCep !== (selected.cep || '')) changes.cep = editCep || null;
     if (editCpf !== (selected.cpf || '')) changes.cpf = editCpf || null;
     if (editObs !== (selected.observacao || '')) changes.observacao = editObs;
+
+    // Instância: só grava se mudou. UI trava o dropdown quando há instância
+    // atribuída + histórico de pedido; guarda defensiva aqui também.
+    const hasPedidos = contactPedidos.length > 0;
+    if (editInstanciaId !== (selected.instancia_id || null)) {
+      if (selected.instancia_id && hasPedidos) {
+        toast.error('Instância travada: contato com histórico de pedido');
+        return;
+      }
+      changes.instancia_id = editInstanciaId || null;
+    }
+
+    // Cliente (ja_comprou): não pode DESMARCAR se tiver histórico de pedido.
+    if (editIsCliente !== !!selected.ja_comprou) {
+      if (!editIsCliente && hasPedidos) {
+        toast.error('Contato com histórico de pedido não pode deixar de ser Cliente');
+        return;
+      }
+      changes.ja_comprou = editIsCliente;
+      // Marca 'cliente' ao ativar; ao desativar (sem pedido) volta a contato neutro.
+      changes.ultima_interacao = editIsCliente ? 'cliente' : null;
+    }
+
     if (Object.keys(changes).length === 0) { toast.info('Nenhuma alteração'); return; }
     const { error } = await supabase.from('contatos').update(changes).eq('id', selected.id);
     if (error) { toast.error('Erro ao salvar: ' + error.message); console.error(error); return; }
@@ -393,7 +420,14 @@ export default function ContatosPage() {
       usuario: profile?.nome || 'Desconhecido', acao: 'Editou contato', tabela_afetada: 'contatos', registro_id: selected.id, detalhe: selected.nome,
     });
     toast.success('Contato atualizado!');
+    // Mantém o 'selected' coerente (relock imediato se instância virou fixa).
+    setSelected((prev: any) => prev ? { ...prev, ...changes } : prev);
     queryClient.invalidateQueries({ queryKey: ['contatos_lista'] });
+    queryClient.invalidateQueries({ queryKey: ['contatos_total'] });
+    if (selected.instancia_id) queryClient.invalidateQueries({ queryKey: ['instancia_metricas', selected.instancia_id] });
+    if (editInstanciaId && editInstanciaId !== selected.instancia_id) {
+      queryClient.invalidateQueries({ queryKey: ['instancia_metricas', editInstanciaId] });
+    }
   };
 
   const handleCreateContact = async () => {
@@ -524,6 +558,15 @@ export default function ContatosPage() {
   };
 
   if (isLoading) return <Skeleton className="h-[500px]" />;
+
+  // Regras de trava na edição:
+  //  - Instância travada só quando JÁ tem instância atribuída E há histórico de
+  //    pedido. Sem instância OU sem pedido → liberada (rebalanceamento temporário).
+  //  - Cliente: não pode DESMARCAR se há histórico de pedido (switch desabilita
+  //    quando está ligado + tem pedido). Ligar é sempre permitido.
+  const editHasPedidos = contactPedidos.length > 0;
+  const editInstanciaLocked = !!selected?.instancia_id && editHasPedidos;
+  const editClienteLockedOn = editIsCliente && editHasPedidos;
 
   return (
     <div className="space-y-4">
@@ -877,6 +920,33 @@ export default function ContatosPage() {
                 </Select>
               </div>
             )}
+
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Instância</Label>
+              <Select value={editInstanciaId || 'none'} onValueChange={(v) => setEditInstanciaId(v === 'none' ? null : v)} disabled={editInstanciaLocked}>
+                <SelectTrigger className="min-h-[44px] mt-1"><SelectValue placeholder="Sem instância" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem instância</SelectItem>
+                  {allInstancias.map((i: any) => (
+                    <SelectItem key={i.id} value={i.id}>Instância {i.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {editInstanciaLocked && (
+                <p className="text-[11px] text-muted-foreground mt-1 italic">Travado: instância atribuída + histórico de pedido.</p>
+              )}
+            </div>
+
+            {/* Cliente on/off — só desmarca se NÃO houver histórico de pedido */}
+            <label className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 min-h-[44px] cursor-pointer">
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">Cliente</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {editClienteLockedOn ? 'Com histórico de pedido — não pode desmarcar' : 'Marca como já comprou'}
+                </span>
+              </div>
+              <Switch checked={editIsCliente} onCheckedChange={setEditIsCliente} disabled={editClienteLockedOn} />
+            </label>
 
             <div>
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">Nome</Label>
