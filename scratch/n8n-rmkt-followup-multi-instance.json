@@ -522,7 +522,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ number: (\"55\" + String($('UNIFICA LEAD').item.json.telefone).replace(/[^0-9]/g, \"\")).replace(/^5555/, \"55\"), mediatype: $('ESCOLHE TEMPLATE v2').item.json.anexo_tipo, media: $('ESCOLHE TEMPLATE v2').item.json.anexo_url, caption: $('ESCOLHE TEMPLATE v2').item.json.texto, delay: 2000 }) }}",
+        "jsonBody": "={{ JSON.stringify({ number: (nd => (nd.length===10 || (nd.length===11 && nd.charAt(2)==='9')) ? '55'+nd : nd)(String($('UNIFICA LEAD').item.json.telefone).replace(/[^0-9]/g, '')), mediatype: $('ESCOLHE TEMPLATE v2').item.json.anexo_tipo, media: $('ESCOLHE TEMPLATE v2').item.json.anexo_url, caption: $('ESCOLHE TEMPLATE v2').item.json.texto, delay: 2000 }) }}",
         "options": {
           "response": {
             "response": {
@@ -560,7 +560,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ number: (\"55\" + String($('UNIFICA LEAD').item.json.telefone).replace(/[^0-9]/g, \"\")).replace(/^5555/, \"55\"), text: $('ESCOLHE TEMPLATE v2').item.json.texto, delay: 2000 }) }}",
+        "jsonBody": "={{ JSON.stringify({ number: (nd => (nd.length===10 || (nd.length===11 && nd.charAt(2)==='9')) ? '55'+nd : nd)(String($('UNIFICA LEAD').item.json.telefone).replace(/[^0-9]/g, '')), text: $('ESCOLHE TEMPLATE v2').item.json.texto, delay: 2000 }) }}",
         "options": {
           "response": {
             "response": {

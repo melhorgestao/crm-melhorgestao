@@ -259,7 +259,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  number: ('55' + String(($('CLAIM lead marketing').item.json.telefone ?? $('CLAIM lead marketing').item.json[0]?.telefone)).replace(/\\D/g, '')).replace(/^5555/, '55'),\n  mediatype: $('ESCOLHE TEMPLATE v2').item.json.anexo_tipo,\n  media: $('ESCOLHE TEMPLATE v2').item.json.anexo_url,\n  caption: $('ESCOLHE TEMPLATE v2').item.json.texto || '',\n  delay: 2000\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  number: (nd => (nd.length===10 || (nd.length===11 && nd.charAt(2)==='9')) ? '55'+nd : nd)(String(($('CLAIM lead marketing').item.json.telefone ?? $('CLAIM lead marketing').item.json[0]?.telefone)).replace(/[^0-9]/g, '')),\n  mediatype: $('ESCOLHE TEMPLATE v2').item.json.anexo_tipo,\n  media: $('ESCOLHE TEMPLATE v2').item.json.anexo_url,\n  caption: $('ESCOLHE TEMPLATE v2').item.json.texto || '',\n  delay: 2000\n}) }}",
         "options": { "response": { "response": { "neverError": true } } }
       },
       "id": "send-media",
@@ -282,7 +282,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  number: ('55' + String(($('CLAIM lead marketing').item.json.telefone ?? $('CLAIM lead marketing').item.json[0]?.telefone)).replace(/\\D/g, '')).replace(/^5555/, '55'),\n  text: $('ESCOLHE TEMPLATE v2').item.json.texto || '',\n  delay: 2000\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  number: (nd => (nd.length===10 || (nd.length===11 && nd.charAt(2)==='9')) ? '55'+nd : nd)(String(($('CLAIM lead marketing').item.json.telefone ?? $('CLAIM lead marketing').item.json[0]?.telefone)).replace(/[^0-9]/g, '')),\n  text: $('ESCOLHE TEMPLATE v2').item.json.texto || '',\n  delay: 2000\n}) }}",
         "options": { "response": { "response": { "neverError": true } } }
       },
       "id": "send-text",
