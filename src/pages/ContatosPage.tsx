@@ -91,6 +91,7 @@ export default function ContatosPage() {
   const [mergeContacts, setMergeContacts] = useState<any[]>([]);
   const [cepLoading, setCepLoading] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   // Sort state - default: alphabetical by name (A-Z)
   const [sortColumn, setSortColumn] = useState<'nome' | 'created_at'>('nome');
@@ -578,22 +579,60 @@ export default function ContatosPage() {
   //  - phone em E.164: só dígitos COM código do país. BR nacional (10 díg fixo
   //    ou 11 com 9º dígito) ganha o 55; estrangeiro já vem internacional completo.
   //  - Sem coluna de data. Campos entre aspas (nomes com vírgula/acento seguros).
-  const exportCSV = () => {
+  const exportCSV = async () => {
     const toE164 = (t: string | null | undefined) => {
       const nd = (t || '').replace(/\D/g, '');
       if (!nd) return '';
       return (nd.length === 10 || (nd.length === 11 && nd.charAt(2) === '9')) ? '55' + nd : nd;
     };
     const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = [['fn', 'ln', 'phone']];
-    contatos.forEach(c => {
-      const parts = (c.nome || '').trim().split(/\s+/).filter(Boolean);
-      rows.push([parts[0] || '', parts.slice(1).join(' '), toE164(c.telefone)]);
-    });
-    const csv = rows.map(r => r.map(esc).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'contatos-meta-ads.csv'; a.click();
+
+    setExporting(true);
+    try {
+      // Busca TODOS os contatos do filtro atual (não só os carregados na tela).
+      // Pagina de 1000 em 1000 (limite do PostgREST). Ordena por id como
+      // desempate pra paginação estável.
+      const PAGE = 1000;
+      const all: any[] = [];
+      for (let from = 0; ; from += PAGE) {
+        let query = supabase.from('contatos')
+          .select('nome, telefone')
+          .order(sortColumn, { ascending: sortAsc })
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1);
+
+        if (isRepresentante) query = query.eq('representante_id', user?.id);
+        if (instanciaFilter !== 'all') query = query.eq('instancia_id', instanciaFilter);
+        if (filterClientes) query = query.eq('ja_comprou', true);
+        if (filterCanais.size > 0) query = query.in('canal_atual', Array.from(filterCanais));
+        if (debouncedSearch) {
+          const s = `%${debouncedSearch}%`;
+          query = query.or(`nome.ilike.${s},telefone.ilike.${s},cpf.ilike.${s}`);
+        }
+
+        const { data, error } = await query;
+        if (error) { toast.error('Erro ao exportar: ' + error.message); return; }
+        const batch = data || [];
+        all.push(...batch);
+        if (batch.length < PAGE) break;
+      }
+
+      if (all.length === 0) { toast.info('Nenhum contato para exportar'); return; }
+
+      const rows = [['fn', 'ln', 'phone']];
+      all.forEach(c => {
+        const parts = (c.nome || '').trim().split(/\s+/).filter(Boolean);
+        rows.push([parts[0] || '', parts.slice(1).join(' '), toE164(c.telefone)]);
+      });
+      const csv = rows.map(r => r.map(esc).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'contatos-meta-ads.csv'; a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${all.length.toLocaleString('pt-BR')} contatos exportados`);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const toggleSelect = (id: string) => {
@@ -651,7 +690,9 @@ export default function ContatosPage() {
           {selectedIds.size === 2 && (
             <Button variant="outline" size="sm" onClick={openMerge}><Merge className="w-4 h-4 mr-1" /> Mesclar selecionados</Button>
           )}
-          <Button variant="outline" size="sm" onClick={exportCSV}><Download className="w-4 h-4 mr-1" /> CSV</Button>
+          <Button variant="outline" size="sm" onClick={exportCSV} disabled={exporting}>
+            {exporting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />} CSV
+          </Button>
         </div>
       </div>
       <div className="flex flex-col gap-2">
