@@ -574,8 +574,8 @@ export default function ContatosPage() {
   };
 
   const exportCSV = () => {
-    const rows = [['Nome', 'Número', 'Data Cadastro']];
-    contatos.forEach(c => rows.push([c.nome, c.telefone || '', formatDateShort(c.created_at)]));
+    const rows = [['Nome', 'Número']];
+    contatos.forEach(c => rows.push([c.nome, (c.telefone || '').replace(/\D/g, '')]));
     const csv = rows.map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
