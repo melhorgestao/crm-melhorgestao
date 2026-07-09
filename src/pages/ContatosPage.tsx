@@ -573,13 +573,27 @@ export default function ContatosPage() {
     });
   };
 
+  // Export no formato de lista de clientes do Meta Ads (Custom Audience).
+  //  - Colunas fn/ln/phone = identificadores que o Meta reconhece e auto-mapeia.
+  //  - phone em E.164: só dígitos COM código do país. BR nacional (10 díg fixo
+  //    ou 11 com 9º dígito) ganha o 55; estrangeiro já vem internacional completo.
+  //  - Sem coluna de data. Campos entre aspas (nomes com vírgula/acento seguros).
   const exportCSV = () => {
-    const rows = [['Nome', 'Número']];
-    contatos.forEach(c => rows.push([c.nome, (c.telefone || '').replace(/\D/g, '')]));
-    const csv = rows.map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const toE164 = (t: string | null | undefined) => {
+      const nd = (t || '').replace(/\D/g, '');
+      if (!nd) return '';
+      return (nd.length === 10 || (nd.length === 11 && nd.charAt(2) === '9')) ? '55' + nd : nd;
+    };
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = [['fn', 'ln', 'phone']];
+    contatos.forEach(c => {
+      const parts = (c.nome || '').trim().split(/\s+/).filter(Boolean);
+      rows.push([parts[0] || '', parts.slice(1).join(' '), toE164(c.telefone)]);
+    });
+    const csv = rows.map(r => r.map(esc).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'contatos.csv'; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = 'contatos-meta-ads.csv'; a.click();
   };
 
   const toggleSelect = (id: string) => {
