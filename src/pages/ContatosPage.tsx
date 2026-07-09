@@ -590,11 +590,15 @@ export default function ContatosPage() {
     setExporting(true);
     try {
       // Busca TODOS os contatos do filtro atual (não só os carregados na tela).
-      // Pagina de 1000 em 1000 (limite do PostgREST). Ordena por id como
-      // desempate pra paginação estável.
+      // PAGE = tamanho de cada requisição. O teto REAL é o "Max Rows" do
+      // Supabase (padrão 1000): mesmo pedindo mais, o servidor devolve no
+      // máximo esse valor. O loop pega tudo somando lote a lote — avança pelo
+      // que REALMENTE veio e só para quando um lote vem vazio. Assim funciona
+      // pra qualquer total e pra qualquer teto (se aumentarem o Max Rows lá,
+      // é só subir o PAGE aqui pra fazer menos requisições).
       const PAGE = 1000;
       const all: any[] = [];
-      for (let from = 0; ; from += PAGE) {
+      for (let from = 0; ; ) {
         let query = supabase.from('contatos')
           .select('nome, telefone')
           .order(sortColumn, { ascending: sortAsc })
@@ -614,7 +618,8 @@ export default function ContatosPage() {
         if (error) { toast.error('Erro ao exportar: ' + error.message); return; }
         const batch = data || [];
         all.push(...batch);
-        if (batch.length < PAGE) break;
+        if (batch.length === 0) break;   // acabou
+        from += batch.length;            // avança pelo que realmente veio
       }
 
       if (all.length === 0) { toast.info('Nenhum contato para exportar'); return; }
