@@ -585,7 +585,12 @@ export default function ContatosPage() {
       if (!nd) return '';
       return (nd.length === 10 || (nd.length === 11 && nd.charAt(2) === '9')) ? '55' + nd : nd;
     };
-    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    // Só coloca aspas quando o campo precisa (vírgula/aspas/quebra de linha).
+    // Telefone é só dígito → sai limpo, sem aspas. Meta aceita os dois jeitos.
+    const esc = (v: any) => {
+      const s = String(v ?? '');
+      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
 
     setExporting(true);
     try {
@@ -632,7 +637,7 @@ export default function ContatosPage() {
       const csv = rows.map(r => r.map(esc).join(',')).join('\n');
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'contatos-meta-ads.csv'; a.click();
+      const a = document.createElement('a'); a.href = url; a.download = 'contatos.csv'; a.click();
       URL.revokeObjectURL(url);
       toast.success(`${all.length.toLocaleString('pt-BR')} contatos exportados`);
     } finally {
