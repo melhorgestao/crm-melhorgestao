@@ -92,11 +92,156 @@ function extractTelefoneFromEvolution(key: Record<string, unknown> | undefined):
   return normalizeTelefoneBr(jid)
 }
 
+/** número no formato Evolution: BR nacional (10 díg. fixo, ou 11 com 9 no 3º)
+ *  → prefixa 55; estrangeiro (já com DDI) → usa como está. */
+function numeroEvolution(telefone: string): string {
+  const nd = String(telefone || '').replace(/\D/g, '')
+  return (nd.length === 10 || (nd.length === 11 && nd.charAt(2) === '9')) ? '55' + nd : nd
+}
+
+/**
+ * Dispara a apresentação/cardápio de /start pra um contato:
+ *   1) reseta pra 1ª interação (zera avanço/bloqueio de follow-up)
+ *   2) chama o edge agent-start (monta os blocos + re-carimba data_start=NOW)
+ *   3) envia os blocos via Evolution e loga o evento.
+ * Usado tanto pelo comando /start no webhook quanto pelo trigger direto do
+ * executa_comando_dono (pg_net).
+ */
+async function dispararStart(
+  supabase: any,
+  p: {
+    cid: string
+    instancia_uuid: string
+    instancia_nome: string
+    evolution_url: string
+    evolution_apikey: string
+    telefone_clean: string
+    from_me?: boolean
+    comando?: string
+  },
+): Promise<{ enviados: any[]; start_error: string | null }> {
+  // volta pra 'start' zerando qualquer avanço/bloqueio de follow-up
+  // (o lead pode já ter ido pra wait_follow_up enquanto o chip estava off).
+  await supabase.from('contatos').update({
+    ultima_interacao:        'start',
+    data_start:              null,
+    follow_up_tentativas:    0,
+    data_wait_follow_up:     null,
+    follow_up_reservado_ate: null,
+    followup_bloqueado:      false,
+    updated_at:              new Date().toISOString(),
+  }).eq('id', p.cid)
+
+  // agent-start monta os blocos da apresentação (mensagens vazias = saudação
+  // padrão) e re-carimba data_start=NOW dentro dele.
+  let respostas: any[] = []
+  let startErr: string | null = null
+  try {
+    const r = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/agent-start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({ contato_id: p.cid, mensagens: '', instancia_id: p.instancia_uuid }),
+    })
+    const rj = await r.json().catch(() => ({}))
+    respostas = Array.isArray(rj?.respostas) ? rj.respostas : []
+    if (!respostas.length) startErr = rj?.error || 'agent-start não retornou apresentação (contato é cliente?)'
+  } catch (e) {
+    startErr = e instanceof Error ? e.message : String(e)
+  }
+
+  // envia os blocos via Evolution (mesmo padrão do router-process)
+  const number = numeroEvolution(p.telefone_clean)
+  const enviados: any[] = []
+  const evoBase = (p.evolution_url || EVOLUTION_BASE_URL_DEFAULT).replace(/\/+$/, '')
+  for (const rp of respostas) {
+    if (rp.delay_ms && rp.delay_ms > 0) {
+      await new Promise(res => setTimeout(res, Math.min(rp.delay_ms, 5000)))
+    }
+    try {
+      let sendRes: Response
+      let bufMsg = ''
+      if (rp.tipo === 'image' && rp.url) {
+        sendRes = await fetch(`${evoBase}/message/sendMedia/${encodeURIComponent(p.instancia_nome)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': p.evolution_apikey },
+          body: JSON.stringify({
+            number, mediatype: 'image', media: rp.url,
+            caption: rp.caption || '', fileName: rp.fileName || 'foto.jpg', delay: 1200,
+          }),
+        })
+        bufMsg = `[image:${rp.url}] ${rp.caption || ''}`.trim()
+      } else {
+        const txt = String(rp.texto || '').trim()
+        if (!txt) continue
+        sendRes = await fetch(`${evoBase}/message/sendText/${encodeURIComponent(p.instancia_nome)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': p.evolution_apikey },
+          body: JSON.stringify({ number, text: txt, delay: 1200 }),
+        })
+        bufMsg = txt
+      }
+      enviados.push({ tipo: rp.tipo, ok: sendRes.ok, status: sendRes.status })
+      await supabase.from('mensagens_buffer').insert({
+        contato_id: p.cid, telefone: p.telefone_clean, mensagem: bufMsg,
+        tipo: rp.tipo === 'image' ? 'image' : 'text', direcao: 'out',
+        instancia_id: p.instancia_uuid, processada_em: new Date().toISOString(),
+      })
+    } catch (e) {
+      enviados.push({ tipo: rp.tipo, ok: false, error: e instanceof Error ? e.message : String(e) })
+    }
+  }
+
+  await supabase.from('eventos_contato').insert({
+    contato_id: p.cid, tipo: 'comando_start_manual', canal: p.instancia_nome,
+    instancia_id: p.instancia_uuid,
+    metadata: { comando: p.comando || '/start', from_me: p.from_me ?? true, enviados, start_error: startErr },
+  }).catch(() => {})
+
+  return { enviados, start_error: startErr }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
     const raw = await req.json()
+
+    // ── Trigger direto (pg_net do executa_comando_dono no comando /start) ────
+    // O router n8n ativo trata "/" via executa_comando_dono, que dispara ISSO
+    // aqui com os IDs. Resolve telefone/instância e roda a apresentação.
+    // body: { trigger:'comando_start', contato_id, instancia_id }
+    if (raw?.trigger === 'comando_start' && raw?.contato_id) {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      )
+      const cid = String(raw.contato_id)
+      const { data: cRow } = await supabase.from('contatos')
+        .select('telefone, instancia_id').eq('id', cid).maybeSingle()
+      const instId = raw.instancia_id || (cRow as any)?.instancia_id
+      if (!(cRow as any)?.telefone || !instId) {
+        return j({ ok: false, motivo: 'start_trigger_sem_dados', contato_id: cid })
+      }
+      const { data: iRow } = await supabase.from('instancias')
+        .select('evolution_instance, evolution_url, evolution_apikey').eq('id', instId).maybeSingle()
+      if (!(iRow as any)?.evolution_instance) {
+        return j({ ok: false, motivo: 'start_trigger_sem_instancia', contato_id: cid })
+      }
+      const res = await dispararStart(supabase, {
+        cid,
+        instancia_uuid:   instId,
+        instancia_nome:   (iRow as any).evolution_instance,
+        evolution_url:    (iRow as any).evolution_url || EVOLUTION_BASE_URL_DEFAULT,
+        evolution_apikey: (iRow as any).evolution_apikey,
+        telefone_clean:   (cRow as any).telefone,
+        comando:          '/start',
+      })
+      return j({ ok: true, motivo: 'start_disparado', contato_id: cid, ...res })
+    }
+
     const ev = raw.body || raw   // n8n às vezes envelopa em body
 
     // 1) extrai campos
@@ -199,88 +344,19 @@ Deno.serve(async (req) => {
       // relógio de 24h→follow-up recomeça a partir de AGORA) e envia via
       // Evolution aqui mesmo.
       if (comando === '/start') {
-        // volta pra 'start' zerando qualquer avanço/bloqueio de follow-up
-        // (o lead pode já ter ido pra wait_follow_up enquanto o chip estava off).
-        await supabase.from('contatos').update({
-          ultima_interacao:        'start',
-          data_start:              null,
-          follow_up_tentativas:    0,
-          data_wait_follow_up:     null,
-          follow_up_reservado_ate: null,
-          followup_bloqueado:      false,
-          updated_at:              new Date().toISOString(),
-        }).eq('id', cid)
-
-        // agent-start monta os blocos da apresentação (mensagens vazias =
-        // saudação padrão) e re-carimba data_start=NOW dentro dele.
-        let respostas: any[] = []
-        let startErr: string | null = null
-        try {
-          const r = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/agent-start`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-            },
-            body: JSON.stringify({ contato_id: cid, mensagens: '', instancia_id: instancia_uuid }),
-          })
-          const rj = await r.json().catch(() => ({}))
-          respostas = Array.isArray(rj?.respostas) ? rj.respostas : []
-          if (!respostas.length) startErr = rj?.error || 'agent-start não retornou apresentação (contato é cliente?)'
-        } catch (e) {
-          startErr = e instanceof Error ? e.message : String(e)
-        }
-
-        // envia os blocos via Evolution (mesmo padrão do router-process)
-        const enviados: any[] = []
-        const evoBase = evolution_url.replace(/\/+$/, '')
-        for (const rp of respostas) {
-          if (rp.delay_ms && rp.delay_ms > 0) {
-            await new Promise(res => setTimeout(res, Math.min(rp.delay_ms, 5000)))
-          }
-          try {
-            let sendRes: Response
-            let bufMsg = ''
-            if (rp.tipo === 'image' && rp.url) {
-              sendRes = await fetch(`${evoBase}/message/sendMedia/${encodeURIComponent(instancia_nome)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': evolution_apikey },
-                body: JSON.stringify({
-                  number: telefone_clean, mediatype: 'image', media: rp.url,
-                  caption: rp.caption || '', fileName: rp.fileName || 'foto.jpg',
-                }),
-              })
-              bufMsg = `[image:${rp.url}] ${rp.caption || ''}`.trim()
-            } else {
-              const txt = String(rp.texto || '').trim()
-              if (!txt) continue
-              sendRes = await fetch(`${evoBase}/message/sendText/${encodeURIComponent(instancia_nome)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': evolution_apikey },
-                body: JSON.stringify({ number: telefone_clean, text: txt }),
-              })
-              bufMsg = txt
-            }
-            enviados.push({ tipo: rp.tipo, ok: sendRes.ok, status: sendRes.status })
-            await supabase.from('mensagens_buffer').insert({
-              contato_id: cid, telefone: telefone_clean, mensagem: bufMsg,
-              tipo: rp.tipo === 'image' ? 'image' : 'text', direcao: 'out',
-              instancia_id: instancia_uuid, processada_em: new Date().toISOString(),
-            })
-          } catch (e) {
-            enviados.push({ tipo: rp.tipo, ok: false, error: e instanceof Error ? e.message : String(e) })
-          }
-        }
-
-        await supabase.from('eventos_contato').insert({
-          contato_id: cid, tipo: 'comando_start_manual', canal: instancia_nome,
-          instancia_id: instancia_uuid,
-          metadata: { comando, from_me, enviados, start_error: startErr },
-        }).catch(() => {})
-
+        const res = await dispararStart(supabase, {
+          cid,
+          instancia_uuid,
+          instancia_nome,
+          evolution_url,
+          evolution_apikey,
+          telefone_clean,
+          from_me,
+          comando,
+        })
         return j({
           ok: true, deve_processar: false, motivo: 'start_disparado',
-          comando, contato_id: cid, enviados, start_error: startErr,
+          comando, contato_id: cid, ...res,
           instancia_uuid, telefone_clean, instancia_nome, evolution_url, evolution_apikey,
         })
       }
