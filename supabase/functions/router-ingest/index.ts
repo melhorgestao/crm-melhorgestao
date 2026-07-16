@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
       if (!(iRow as any)?.evolution_instance) {
         return j({ ok: false, motivo: 'start_trigger_sem_instancia', contato_id: cid })
       }
-      const res = await dispararStart(supabase, {
+      const work = dispararStart(supabase, {
         cid,
         instancia_uuid:   instId,
         instancia_nome:   (iRow as any).evolution_instance,
@@ -238,7 +238,26 @@ Deno.serve(async (req) => {
         evolution_apikey: (iRow as any).evolution_apikey,
         telefone_clean:   (cRow as any).telefone,
         comando:          '/start',
+      }).catch(async (e) => {
+        // garante um evento mesmo se algo estourar (observabilidade)
+        await supabase.from('eventos_contato').insert({
+          contato_id: cid, tipo: 'comando_start_manual', canal: (iRow as any).evolution_instance,
+          instancia_id: instId,
+          metadata: { comando: '/start', erro_fatal: e instanceof Error ? e.message : String(e) },
+        }).catch(() => {})
+        return { enviados: [], start_error: e instanceof Error ? e.message : String(e) }
       })
+
+      // IMPORTANTE: roda em BACKGROUND. O pg_net (quem chama isso) fecha a conexão
+      // assim que recebe a resposta; sem waitUntil o runtime mata a função no meio
+      // do envio (data_start já carimbado, mas blocos + log não completam). Com
+      // waitUntil a função responde rápido e segue viva até terminar tudo.
+      const er = (globalThis as any).EdgeRuntime
+      if (er?.waitUntil) {
+        er.waitUntil(work)
+        return j({ ok: true, motivo: 'start_enfileirado', contato_id: cid })
+      }
+      const res = await work
       return j({ ok: true, motivo: 'start_disparado', contato_id: cid, ...res })
     }
 
