@@ -329,8 +329,10 @@ Deno.serve(async (req) => {
     const evolution_apikey = inst.evolution_apikey
     const instancia_uuid   = inst.id
 
+    // Comandos "/" do dono passam mesmo com o bot globalmente pausado
+    // (igual ao fluxo n8n, que trata comando antes da checagem de bot ativo).
     const botAtivo = (botRes.data?.valor ?? 'true') !== 'false'
-    if (!botAtivo) return j({
+    if (!botAtivo && !isComando) return j({
       ok: true, deve_processar: false, motivo: 'bot_pausado',
       contato_id: null, instancia_uuid, telefone_clean, instancia_nome,
       evolution_url, evolution_apikey,
