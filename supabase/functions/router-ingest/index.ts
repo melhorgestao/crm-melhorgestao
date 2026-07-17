@@ -360,8 +360,10 @@ Deno.serve(async (req) => {
     //    Executa direto e SAI sem rodar o agente.
     if (isComando) {
       const comando = msg_text.trim().split(/\s+/)[0].toLowerCase()
+      // Em mensagem fromMe o pushName é do REMETENTE (nosso chip, ex. "Santa
+      // Flor"), NÃO do lead — nunca usar como nome do contato.
       const { data: contatoCmd, error: contatoCmdErr } = await supabase.rpc('get_or_create_contato', {
-        p_telefone: telefone_clean, p_nome: push_name, p_instancia_id: instancia_uuid,
+        p_telefone: telefone_clean, p_nome: from_me ? '' : push_name, p_instancia_id: instancia_uuid,
         p_canal_origem: ctwa_source_id ? 'ADS' : 'BASE',
         p_mensagem: msg_text.replace(/\n/g, ' '),
         p_metadata: { ctwa_source_id, ctwa_source_url },
