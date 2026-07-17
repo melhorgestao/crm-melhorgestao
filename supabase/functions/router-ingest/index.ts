@@ -122,7 +122,7 @@ async function dispararStart(
 ): Promise<{ enviados: any[]; start_error: string | null }> {
   // volta pra 'start' zerando qualquer avanço/bloqueio de follow-up
   // (o lead pode já ter ido pra wait_follow_up enquanto o chip estava off).
-  await supabase.from('contatos').update({
+  const { error: resetErr } = await supabase.from('contatos').update({
     ultima_interacao:        'start',
     data_start:              null,
     follow_up_tentativas:    0,
@@ -147,7 +147,14 @@ async function dispararStart(
     })
     const rj = await r.json().catch(() => ({}))
     respostas = Array.isArray(rj?.respostas) ? rj.respostas : []
-    if (!respostas.length) startErr = rj?.error || 'agent-start não retornou apresentação (contato é cliente?)'
+    if (!respostas.length) {
+      // devolve o máximo de diagnóstico possível (status HTTP + debug do agent-start)
+      const dbg = rj?.debug
+        ? ` debug=${JSON.stringify({ ja_comprou: rj.debug.ja_comprou, apresentado_em: rj.debug.apresentado_em, primeira: rj.debug.primeira_interacao_rigida, contato_carregado: rj.debug.contato_carregado })}`
+        : ''
+      startErr = `agent-start sem blocos (http ${r.status}) erro=${rj?.error || 'nenhum'}` +
+        (resetErr ? ` reset_error=${resetErr.message}` : '') + dbg
+    }
   } catch (e) {
     startErr = e instanceof Error ? e.message : String(e)
   }
