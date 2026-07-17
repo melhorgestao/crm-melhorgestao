@@ -326,7 +326,12 @@ Deno.serve(async (req) => {
 
     const inst = instRes.data
     if (!inst?.id) return j({ ok: true, deve_processar: false, motivo: 'instancia_nao_encontrada' })
-    if (inst.status !== 'ativo') return j({
+    // Instância pausada/inativa NÃO bloqueia comando "/" do dono: ele precisa
+    // conseguir assumir a conversa (/humano→suporte), reativar (/voltar) etc.
+    // mesmo com o chip pausado no CRM. Só o fluxo normal (mensagem de lead) é
+    // barrado aqui. (Comando "/start" numa instância restrita ainda tenta
+    // enviar via Evolution — o não-entregue fica registrado em enviados.)
+    if (inst.status !== 'ativo' && !isComando) return j({
       ok: true, deve_processar: false,
       motivo: `instancia_${inst.status}`,
       motivo_pausa: inst.motivo_pausa,
