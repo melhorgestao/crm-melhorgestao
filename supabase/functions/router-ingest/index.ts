@@ -361,9 +361,23 @@ Deno.serve(async (req) => {
     if (isComando) {
       const comando = msg_text.trim().split(/\s+/)[0].toLowerCase()
       // Em mensagem fromMe o pushName é do REMETENTE (nosso chip, ex. "Santa
-      // Flor"), NÃO do lead — nunca usar como nome do contato.
+      // Flor"), NÃO do lead. Busca o nome real do lead na Evolution
+      // (fetchProfile); se não vier, get_or_create usa o telefone como
+      // placeholder e o pushName real corrige na 1ª mensagem do lead.
+      let nomeLead = from_me ? '' : push_name
+      if (from_me) {
+        try {
+          const pr = await fetch(`${evolution_url}/chat/fetchProfile/${encodeURIComponent(instancia_nome)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': evolution_apikey },
+            body: JSON.stringify({ number: numeroEvolution(telefone_clean) }),
+          })
+          const pj: any = await pr.json().catch(() => ({}))
+          nomeLead = String(pj?.name || pj?.pushName || pj?.pushname || pj?.verifiedName || '').trim()
+        } catch (_) { /* segue com placeholder */ }
+      }
       const { data: contatoCmd, error: contatoCmdErr } = await supabase.rpc('get_or_create_contato', {
-        p_telefone: telefone_clean, p_nome: from_me ? '' : push_name, p_instancia_id: instancia_uuid,
+        p_telefone: telefone_clean, p_nome: nomeLead, p_instancia_id: instancia_uuid,
         p_canal_origem: ctwa_source_id ? 'ADS' : 'BASE',
         p_mensagem: msg_text.replace(/\n/g, ' '),
         p_metadata: { ctwa_source_id, ctwa_source_url },
