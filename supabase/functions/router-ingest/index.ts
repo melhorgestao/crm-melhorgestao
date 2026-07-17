@@ -122,8 +122,13 @@ async function dispararStart(
 ): Promise<{ enviados: any[]; start_error: string | null }> {
   // volta pra 'start' zerando qualquer avanço/bloqueio de follow-up
   // (o lead pode já ter ido pra wait_follow_up enquanto o chip estava off).
+  // ultima_interacao=NULL (não 'start'!): o trigger trg_data_start_default
+  // re-carimba data_start=NOW() quando ultima_interacao vira 'start' com
+  // data_start nulo — o que fazia o agent-start achar que a apresentação
+  // tinha acabado de sair e responder só a saudação genérica, sem blocos.
+  // Quem seta 'start'+data_start é o próprio agent-start ao montar os blocos.
   const { error: resetErr } = await supabase.from('contatos').update({
-    ultima_interacao:        'start',
+    ultima_interacao:        null,
     data_start:              null,
     follow_up_tentativas:    0,
     data_wait_follow_up:     null,
