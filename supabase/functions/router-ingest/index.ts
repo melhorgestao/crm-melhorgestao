@@ -194,11 +194,14 @@ async function dispararStart(
     }
   }
 
-  await supabase.from('eventos_contato').insert({
-    contato_id: p.cid, tipo: 'comando_start_manual', canal: p.instancia_nome,
-    instancia_id: p.instancia_uuid,
-    metadata: { comando: p.comando || '/start', from_me: p.from_me ?? true, enviados, start_error: startErr },
-  }).catch(() => {})
+  // OBS: o builder do supabase-js não tem .catch() (só .then) — usar try/await.
+  try {
+    await supabase.from('eventos_contato').insert({
+      contato_id: p.cid, tipo: 'comando_start_manual', canal: p.instancia_nome,
+      instancia_id: p.instancia_uuid,
+      metadata: { comando: p.comando || '/start', from_me: p.from_me ?? true, enviados, start_error: startErr },
+    })
+  } catch (_) { /* log é best-effort */ }
 
   return { enviados, start_error: startErr }
 }
@@ -240,11 +243,13 @@ Deno.serve(async (req) => {
         comando:          '/start',
       }).catch(async (e) => {
         // garante um evento mesmo se algo estourar (observabilidade)
-        await supabase.from('eventos_contato').insert({
-          contato_id: cid, tipo: 'comando_start_manual', canal: (iRow as any).evolution_instance,
-          instancia_id: instId,
-          metadata: { comando: '/start', erro_fatal: e instanceof Error ? e.message : String(e) },
-        }).catch(() => {})
+        try {
+          await supabase.from('eventos_contato').insert({
+            contato_id: cid, tipo: 'comando_start_manual', canal: (iRow as any).evolution_instance,
+            instancia_id: instId,
+            metadata: { comando: '/start', erro_fatal: e instanceof Error ? e.message : String(e) },
+          })
+        } catch (_) { /* log é best-effort */ }
         return { enviados: [], start_error: e instanceof Error ? e.message : String(e) }
       })
 
@@ -386,13 +391,15 @@ Deno.serve(async (req) => {
         p_contato_id: cid, p_comando: comando,
       })
       // Log evento pra auditoria
-      await supabase.from('eventos_contato').insert({
-        contato_id: cid,
-        tipo: 'comando_dono',
-        canal: instancia_nome,
-        instancia_id: instancia_uuid,
-        metadata: { comando, from_me, result: cmdResult, error: cmdErr?.message || null },
-      }).catch(() => {})
+      try {
+        await supabase.from('eventos_contato').insert({
+          contato_id: cid,
+          tipo: 'comando_dono',
+          canal: instancia_nome,
+          instancia_id: instancia_uuid,
+          metadata: { comando, from_me, result: cmdResult, error: cmdErr?.message || null },
+        })
+      } catch (_) { /* log é best-effort */ }
       return j({
         ok: true, deve_processar: false, motivo: 'comando_executado',
         comando, contato_id: cid,
