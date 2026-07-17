@@ -143,12 +143,35 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
         if (!r.ok) return { error: `ViaCEP ${r.status}` }
         const j = await r.json()
         if (j.erro) return { error: 'CEP não encontrado' }
+        const rua = j.logradouro || ''
+        const cidade = j.localidade || ''
+        const uf = j.uf || ''
+        // Persiste JÁ no contato pra os dados sobreviverem entre turnos (o
+        // agent recarrega o contexto a cada mensagem). Assim, no ESTADO 3 o
+        // salvar_endereco só completa numero+CPF. numero/cpf vazios NÃO apagam
+        // o que já existe (upsert usa COALESCE-preserva).
+        try {
+          await supabase.rpc('upsert_endereco_contato', {
+            p_contato_id:  contato_id,
+            p_cep:         cepClean,
+            p_rua:         rua,
+            p_numero:      '',
+            p_complemento: '',
+            p_bairro:      j.bairro || '',
+            p_cidade:      cidade,
+            p_uf:          uf,
+            p_cpf:         null,
+          })
+        } catch (_) { /* persistência é best-effort; segue com os dados retornados */ }
+        // cep_de_cidade = ViaCEP não trouxe logradouro (CEP geral de cidade) →
+        // o agent precisa pedir a RUA no ESTADO 3.
         return {
           cep: cepClean,
-          rua: j.logradouro,
-          bairro: j.bairro,
-          cidade: j.localidade,
-          uf: j.uf,
+          rua,
+          bairro: j.bairro || '',
+          cidade,
+          uf,
+          cep_de_cidade: !rua,
         }
       }
 
@@ -166,7 +189,7 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
         if (cpfLimpo && cpfLimpo.length !== 11) {
           return { error: 'CPF inválido (precisa ter 11 dígitos)' }
         }
-        const { error } = await supabase.rpc('upsert_endereco_contato', {
+        const { data, error } = await supabase.rpc('upsert_endereco_contato', {
           p_contato_id:  contato_id,
           p_cep:         String(args.cep || '').replace(/\D/g, ''),
           p_rua:         args.rua || '',
@@ -178,6 +201,7 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
           p_cpf:         cpfLimpo || null,
         })
         if (error) return { error: error.message }
+        if (data && data.ok === false) return { error: data.error || 'falha ao salvar endereço' }
         return { ok: true }
       }
 
