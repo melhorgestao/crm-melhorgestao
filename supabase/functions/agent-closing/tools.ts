@@ -10,6 +10,23 @@ interface ToolCtx {
   contato_id: string
   instancia_id?: string | null
   supabase: SupabaseClient
+  fotosEnviadas?: string[]
+}
+
+// Alias keyword → tag REAL do produto (mesmo mapa do agent-start).
+const TAG_ALIAS: Record<string, string> = {
+  verde: 'verde', cbd: 'verde', cbd4000: 'verde', '4000': 'verde', '4000mg': 'verde',
+  amarelo: 'amarelo', full6k: 'amarelo', '6000': 'amarelo', '6k': 'amarelo', '6000mg': 'amarelo',
+  vermelho: 'vermelho', full10k: 'vermelho', '10000': 'vermelho', '10k': 'vermelho', '10000mg': 'vermelho',
+  gummy: 'gummy', bear: 'gummy', gummybear: 'gummy',
+  pomada: 'pomada', cannaderm: 'pomada',
+  lub: 'lub', lubrificante: 'lub', intimo: 'lub', lubintimo: 'lub',
+}
+
+// Fallback LEGADO (arquivo fixo no bucket Start) se o produto não tiver arte_url.
+const FOTO_LEGACY: Record<string, string> = {
+  verde: 'Cbd.jpg', amarelo: 'Full6k.jpg', vermelho: 'Full10k.jpg',
+  gummy: 'Gummy.jpg', pomada: 'Cannaderm.jpg', lub: 'Lub.jpg',
 }
 
 export const CLOSING_TOOL_SCHEMAS = [
@@ -113,6 +130,20 @@ export const CLOSING_TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'enviar_foto_produto',
+      description: 'Envia a ARTE (imagem) de um produto pro cliente. Chame quando o cliente perguntar/focar num produto específico durante o fechamento, na PRIMEIRA VEZ que ESSE produto aparece — uma vez por PRODUTO. Keywords: verde/cbd/4000 | amarelo/6000 | vermelho/10000 | gummy | pomada/cannaderm | lub. Se já foi enviada, retorna already_sent=true — não tente de novo. NÃO desvie da state machine: responda + foto e siga o passo atual.',
+      parameters: {
+        type: 'object',
+        properties: {
+          produto: { type: 'string', description: 'Keyword ou nome do produto (ex: verde, amarelo, gummy, cannaderm, "6.000 mg").' },
+        },
+        required: ['produto'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'escalar_suporte',
       description: 'Encaminha pro Kanban Suporte. APENAS em casos sérios: reclamação grave, irritação, pediu_atendente. Estado vira "suporte".',
       parameters: {
@@ -125,7 +156,7 @@ export const CLOSING_TOOL_SCHEMAS = [
 ]
 
 export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
-  const { name, args, contato_id, instancia_id, supabase } = ctx
+  const { name, args, contato_id, instancia_id, supabase, fotosEnviadas = [] } = ctx
 
   try {
     switch (name) {
@@ -203,6 +234,38 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
         if (error) return { error: error.message }
         if (data && data.ok === false) return { error: data.error || 'falha ao salvar endereço' }
         return { ok: true }
+      }
+
+      case 'enviar_foto_produto': {
+        const raw = String(args.produto || '').toLowerCase().trim()
+        const nk = raw.replace(/[^a-z0-9]/g, '')
+        const tag = TAG_ALIAS[raw] || TAG_ALIAS[nk] || nk
+        // já enviada pra este contato? (persistido em contatos.fotos_enviadas)
+        if (fotosEnviadas.includes(tag)) return { send: false, already_sent: true, foto_tag: tag }
+
+        // 1) arte cadastrada no produto (Estoque > Cadastro > FotoArte)
+        let arte: string | null = null
+        let prodNome = ''
+        const { data: prodByTag } = await supabase
+          .from('produtos').select('arte_url, nome_oficial')
+          .eq('tag', tag).eq('ativo', true).maybeSingle()
+        if (prodByTag) { arte = (prodByTag as any).arte_url || null; prodNome = (prodByTag as any).nome_oficial || '' }
+
+        // 2) fallback: casa pelo NOME contendo a keyword
+        if (!arte && raw.length >= 3) {
+          const { data: byName } = await supabase
+            .from('produtos').select('arte_url, nome_oficial')
+            .ilike('nome_oficial', `%${raw}%`).eq('ativo', true).limit(1).maybeSingle()
+          if ((byName as any)?.arte_url) { arte = (byName as any).arte_url; prodNome = (byName as any).nome_oficial || '' }
+        }
+
+        // 3) fallback LEGADO: arquivo fixo no bucket Start
+        const base = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '')
+        const legacy = FOTO_LEGACY[tag]
+        const url = arte || (legacy ? `${base}/storage/v1/object/public/Start/${legacy}` : null)
+
+        if (!url) return { send: false, error: `sem arte cadastrada pro produto: ${args.produto}` }
+        return { send: true, url, foto_tag: tag, caption: '', usou_arte: !!arte, produto: prodNome }
       }
 
       case 'calcular_pedido': {

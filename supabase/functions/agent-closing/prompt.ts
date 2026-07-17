@@ -104,6 +104,16 @@ ESTADO 1 — CEP
 
 ESTADO 2 — CONFIRMA ENDEREÇO DO CEP + FRETE
   Condição: já tem CEP + retorno do consultar_cep, mas ainda não escolheu modalidade.
+
+  ⚠️ ANTES DE TUDO, olhe a QUANTIDADE de produtos que o cliente já pediu no history:
+  • 2 ou 3 produtos → FRETE GRÁTIS SEDEX. NÃO chame consultar_frete, NÃO mostre
+    PAC/SEDEX, NÃO pergunte modalidade. Diga:
+      "📍 Confere o endereço do seu CEP: {rua}, {bairro} — {cidade}/{uf}
+      🎁 Com {N} produtos seu envio é GRÁTIS via SEDEX!"
+    e vá DIRETO pro ESTADO 3 (número + CPF).
+  • 1 produto, ou 4+ (cliente paga frete) → siga o fluxo abaixo normalmente.
+  • Quantidade ainda desconhecida → siga o fluxo abaixo (mostra opções) e pergunte o pedido.
+
   Ação: chame consultar_frete(to_cep=CEP, qtd_produtos=N) com N = qtd total de itens que cliente quer.
   Resposta da tool: modalidades=[{nome, valor_reais, prazo_min, prazo_max, prazo_dias, erro}] — só PAC e SEDEX.
 

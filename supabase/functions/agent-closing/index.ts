@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     // 2) carrega contexto em paralelo
     const [contatoRes, pendenciaRes, catalogoRes, historyRes] = await Promise.all([
       supabase.from('contatos')
-        .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,instancia_id,cep,rua,numero,complemento,bairro,cpf')
+        .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,instancia_id,cep,rua,numero,complemento,bairro,cpf,fotos_enviadas')
         .eq('id', contato_id).maybeSingle(),
       supabase.rpc('consultar_pendencia_contato', { p_contato_id: contato_id }).maybeSingle(),
       supabase.from('produtos')
@@ -72,6 +72,7 @@ Deno.serve(async (req) => {
     ])
 
     const contato: ContatoClosing = (contatoRes.data ?? {}) as ContatoClosing
+    const fotosEnviadas: string[] = Array.isArray((contato as any).fotos_enviadas) ? (contato as any).fotos_enviadas : []
     const pendencia = pendenciaRes.data ?? {}
     const catalogo: ProdutoCat[] = (catalogoRes.data ?? []) as ProdutoCat[]
     const history = (historyRes.data ?? []).slice().reverse()
@@ -109,6 +110,7 @@ Deno.serve(async (req) => {
     let resposta = ''
     let iter = 0
     const toolsUsed: string[] = []
+    const fotosNovas: Array<{ url: string; caption?: string; tag: string }> = []
 
     while (iter < MAX_TOOL_ITERATIONS) {
       iter++
@@ -131,7 +133,16 @@ Deno.serve(async (req) => {
           toolsUsed.push(name)
           const toolResult = await executeClosingTool({
             name, args, contato_id, instancia_id: instanciaIdResolvido, supabase,
+            fotosEnviadas,
           })
+          if (name === 'enviar_foto_produto' && (toolResult as any)?.send) {
+            fotosNovas.push({
+              url:     (toolResult as any).url,
+              caption: (toolResult as any).caption,
+              tag:     (toolResult as any).foto_tag,
+            })
+            fotosEnviadas.push((toolResult as any).foto_tag)
+          }
           messages.push({
             role: 'tool',
             tool_call_id: tc.id,
@@ -154,6 +165,21 @@ Deno.serve(async (req) => {
     debug.iterations = iter
     debug.tools_used = toolsUsed
     debug.took_ms = Date.now() - t0
+
+    // Fotos novas solicitadas via enviar_foto_produto → devolve blocos
+    // (texto + imagens) e persiste fotos_enviadas no contato.
+    if (fotosNovas.length > 0) {
+      const out: any[] = [{ tipo: 'text', texto: resposta, delay_ms: 0 }]
+      for (const f of fotosNovas) {
+        out.push({
+          tipo: 'image', url: f.url, caption: f.caption || '',
+          fileName: `${f.tag}.jpg`, delay_ms: 1500,
+        })
+      }
+      await supabase.from('contatos').update({ fotos_enviadas: fotosEnviadas }).eq('id', contato_id)
+      debug.fotos_enviadas_novas = fotosNovas.map(f => f.tag)
+      return j({ resposta_texto: resposta, respostas: out, contato_id, debug })
+    }
 
     return j({ resposta_texto: resposta, contato_id, debug })
 
