@@ -137,12 +137,13 @@ async function dispararStart(
   let respostas: any[] = []
   let startErr: string | null = null
   try {
-    const r = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/agent-start`, {
+    // MESMO agent-start que o fluxo normal do router n8n usa (webhook n8n) —
+    // é o comprovado em produção que devolve os 5 blocos (respostas[]).
+    // O edge function agent-start do Supabase pode estar defasado (foi o caso:
+    // versão antiga sem respostas[] fazia o /start "funcionar" sem enviar nada).
+    const r = await fetch('https://n8n.melhorgestao.online/webhook/agent-start', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contato_id: p.cid, mensagens: '', instancia_id: p.instancia_uuid }),
     })
     const rj = await r.json().catch(() => ({}))
