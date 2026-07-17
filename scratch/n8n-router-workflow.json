@@ -288,28 +288,12 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/get_or_create_contato",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "supabaseApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"p_telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"p_nome\": \"{{ $('EXTRAI CAMPOS').item.json.push_name }}\",\n  \"p_instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\",\n  \"p_canal_origem\": \"{{ $('EXTRAI CAMPOS').item.json.ctwa_source_id ? 'ADS' : 'BASE' }}\",\n  \"p_mensagem\": \"{{ $('EXTRAI CAMPOS').item.json.msg_text.replace(/\\\"/g, '\\\\\\\"').replace(/\\\\n/g, ' ') }}\",\n  \"p_metadata\": {{ JSON.stringify({ctwa_source_id: $('EXTRAI CAMPOS').item.json.ctwa_source_id, ctwa_source_url: $('EXTRAI CAMPOS').item.json.ctwa_source_url}) }}\n}",
-        "options": {}
+        "jsCode": "// Comando \"/\" do dono → delega TUDO pro edge router-ingest, que:\n// - cria o contato se não existir (salvando a instância que RECEBEU o comando)\n// - /start: reset 1ª interação → agent-start → envia os blocos via Evolution (aguarda)\n// - demais comandos: executa_comando_dono + log em eventos_contato\n// Code node de propósito: sem campo \"JSON Body\" (que quebrava com expressão)\n// e sem depender de credencial. Timeout alto: /start envia ~5 blocos (~15-30s).\nconst ANON = \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcmVhYXdwdnhycHFxdGhjY3p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MDIsImV4cCI6MjA5MjY5OTkwMn0.VEQb1fk7JRIB1KXtHZGcmLKKMWJvkpG1fINB3mdPn0E\";\nconst wh = $(\"Webhook Evolution\").item.json;\nconst rawBody = wh.body || wh; // webhook do n8n envelopa o payload em .body\ntry {\n  const res = await this.helpers.httpRequest({\n    method: \"POST\",\n    url: \"https://epreaawpvxrpqqthcczu.supabase.co/functions/v1/router-ingest\",\n    headers: { \"Content-Type\": \"application/json\", apikey: ANON, Authorization: \"Bearer \" + ANON },\n    body: JSON.stringify(rawBody),\n    timeout: 120000,\n    returnFullResponse: true,\n    ignoreHttpStatusErrors: true,\n  });\n  let data = res.body;\n  if (typeof data === \"string\") { try { data = JSON.parse(data); } catch (_) { data = { raw: data.slice(0, 500) }; } }\n  return [{ json: { http_status: res.statusCode, ...data } }];\n} catch (e) {\n  return [{ json: { ok: false, erro: String((e && e.message) || e) } }];\n}"
       },
-      "id": "get-create-contato-cmd",
-      "name": "GET/CREATE Contato (cmd)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "id": "cmd-router-ingest",
+      "name": "COMANDO → router-ingest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         -1100,
         100
@@ -317,44 +301,15 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "=https://epreaawpvxrpqqthcczu.supabase.co/rest/v1/rpc/executa_comando_dono",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "supabaseApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_contato_id: ($json.id ?? $json[0]?.id), p_comando: ($('EXTRAI CAMPOS').item.json.msg_text.trim().split(/\\s+/)[0] || '').toLowerCase() }) }}",
-        "options": {}
-      },
-      "id": "exec-command",
-      "name": "EXECUTA COMANDO",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -880,
-        100
-      ]
-    },
-    {
-      "parameters": {
         "respondWith": "json",
-        "responseBody": "={\"status\":\"command_executed\",\"result\":$json}"
+        "responseBody": "={{ JSON.stringify({ status: \"command_executed\", result: $json }) }}"
       },
       "id": "respond-cmd-done",
       "name": "Respond: comando OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        -660,
+        -880,
         100
       ]
     },
@@ -798,7 +753,7 @@
       "main": [
         [
           {
-            "node": "GET/CREATE Contato (cmd)",
+            "node": "COMANDO → router-ingest",
             "type": "main",
             "index": 0
           }
@@ -812,18 +767,7 @@
         ]
       ]
     },
-    "GET/CREATE Contato (cmd)": {
-      "main": [
-        [
-          {
-            "node": "EXECUTA COMANDO",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "EXECUTA COMANDO": {
+    "COMANDO → router-ingest": {
       "main": [
         [
           {
