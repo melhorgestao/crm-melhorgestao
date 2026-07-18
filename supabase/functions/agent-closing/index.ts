@@ -16,7 +16,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { buildClosingPrompt, type ContatoClosing, type ProdutoCat } from './prompt.ts'
-import { CLOSING_TOOL_SCHEMAS, executeClosingTool } from './tools.ts'
+import { CLOSING_TOOL_SCHEMAS, executeClosingTool, resolverFotoProduto, detectarProdutosNoTexto } from './tools.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -165,6 +165,23 @@ Deno.serve(async (req) => {
     debug.iterations = iter
     debug.tools_used = toolsUsed
     debug.took_ms = Date.now() - t0
+
+    // AUTO-FOTO (determinístico): o LLM nem sempre chama enviar_foto_produto.
+    // Se a resposta cita/indica produto que ainda não teve foto enviada pra
+    // este contato, anexa a arte automaticamente (máx 2 por turno).
+    {
+      const tagsNaResposta = detectarProdutosNoTexto(resposta)
+      for (const tag of tagsNaResposta) {
+        if (fotosNovas.length >= 2) break
+        if (fotosEnviadas.includes(tag)) continue
+        if (fotosNovas.some(f => f.tag === tag)) continue
+        const foto = await resolverFotoProduto(supabase, tag)
+        if (!foto) continue
+        fotosNovas.push({ url: foto.url, caption: '', tag })
+        fotosEnviadas.push(tag)
+        ;(debug.auto_foto ??= []).push(tag)
+      }
+    }
 
     // Fotos novas solicitadas via enviar_foto_produto → devolve blocos
     // (texto + imagens) e persiste fotos_enviadas no contato.

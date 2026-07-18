@@ -185,30 +185,9 @@ export async function executeTool(ctx: ToolCtx): Promise<any> {
         const tag = TAG_ALIAS[raw] || TAG_ALIAS[nk] || nk
         // já enviada pra este contato? (persistido em contatos.fotos_enviadas)
         if (fotosEnviadas.includes(tag)) return { send: false, already_sent: true, foto_tag: tag }
-
-        // 1) busca a ARTE do produto por tag
-        let arte: string | null = null
-        let prodNome = ''
-        const { data: prodByTag } = await supabase
-          .from('produtos').select('arte_url, foto_url, nome_oficial, emoji')
-          .eq('tag', tag).eq('ativo', true).maybeSingle()
-        if (prodByTag) { arte = (prodByTag as any).arte_url || null; prodNome = (prodByTag as any).nome_oficial || '' }
-
-        // 2) fallback: casa pelo NOME do produto contendo a keyword
-        if (!arte && raw.length >= 3) {
-          const { data: byName } = await supabase
-            .from('produtos').select('arte_url, tag, nome_oficial')
-            .ilike('nome_oficial', `%${raw}%`).eq('ativo', true).limit(1).maybeSingle()
-          if ((byName as any)?.arte_url) { arte = (byName as any).arte_url; prodNome = (byName as any).nome_oficial || '' }
-        }
-
-        // 3) fallback LEGADO: arquivo fixo no bucket (só se não tiver arte cadastrada)
-        const base = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '')
-        const legacy = FOTO_LEGACY[tag]
-        const url = arte || (legacy ? `${base}/storage/v1/object/public/Start/${legacy}` : null)
-
-        if (!url) return { send: false, error: `sem arte cadastrada pro produto: ${args.produto}` }
-        return { send: true, url, foto_tag: tag, caption: '', usou_arte: !!arte, produto: prodNome }
+        const foto = await resolverFotoProduto(supabase, tag, raw)
+        if (!foto) return { send: false, error: `sem arte cadastrada pro produto: ${args.produto}` }
+        return { send: true, ...foto, caption: '' }
       }
 
       case 'iniciar_fechamento': {
@@ -227,6 +206,57 @@ export async function executeTool(ctx: ToolCtx): Promise<any> {
     const msg = err instanceof Error ? err.message : String(err)
     return { error: msg }
   }
+}
+
+// ---- FOTOS DE PRODUTO (determinístico) -------------------------------------
+
+/** Resolve a URL da arte de um produto: arte_url do cadastro (Estoque >
+ *  Editar Produto > ArteProduto) → match por nome → arquivo legado no bucket Start. */
+export async function resolverFotoProduto(
+  supabase: SupabaseClient, tag: string, rawKeyword = '',
+): Promise<{ url: string; foto_tag: string; usou_arte: boolean; produto: string } | null> {
+  let arte: string | null = null
+  let prodNome = ''
+  const { data: prodByTag } = await supabase
+    .from('produtos').select('arte_url, nome_oficial')
+    .eq('tag', tag).eq('ativo', true).maybeSingle()
+  if (prodByTag) { arte = (prodByTag as any).arte_url || null; prodNome = (prodByTag as any).nome_oficial || '' }
+
+  if (!arte && rawKeyword.length >= 3) {
+    const { data: byName } = await supabase
+      .from('produtos').select('arte_url, nome_oficial')
+      .ilike('nome_oficial', `%${rawKeyword}%`).eq('ativo', true).limit(1).maybeSingle()
+    if ((byName as any)?.arte_url) { arte = (byName as any).arte_url; prodNome = (byName as any).nome_oficial || '' }
+  }
+
+  const base = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '')
+  const legacy = FOTO_LEGACY[tag]
+  const url = arte || (legacy ? `${base}/storage/v1/object/public/Start/${legacy}` : null)
+  if (!url) return null
+  return { url, foto_tag: tag, usou_arte: !!arte, produto: prodNome }
+}
+
+/** Detecta quais produtos estão EM FOCO num texto (resposta do agente).
+ *  Retorna tags na ordem de aparição. Usado pra anexar foto automaticamente
+ *  quando o LLM esquece de chamar enviar_foto_produto. */
+export function detectarProdutosNoTexto(texto: string): string[] {
+  const t = String(texto || '').toLowerCase()
+  const found: Array<{ tag: string; idx: number }> = []
+  const addFirst = (tag: string, patterns: RegExp[]) => {
+    let best = -1
+    for (const p of patterns) {
+      const m = t.match(p)
+      if (m && m.index !== undefined && (best === -1 || m.index < best)) best = m.index
+    }
+    if (best >= 0) found.push({ tag, idx: best })
+  }
+  addFirst('vermelho', [/vermelho/, /10[.\s]?000\s?mg/, /\b1\s?:\s?2\b/])
+  addFirst('amarelo',  [/amarelo/, /6[.\s]?000\s?mg/, /\b1\s?:\s?1\b/])
+  addFirst('verde',    [/\bverde\b/, /4[.\s]?000\s?mg/])
+  addFirst('gummy',    [/gummy/, /\bgomi\b/, /jujuba/])
+  addFirst('pomada',   [/cannaderm/, /pomada/])
+  addFirst('lub',      [/lubrificante/])
+  return found.sort((a, b) => a.idx - b.idx).map(f => f.tag)
 }
 
 // Chama outra Edge Function usando fetch interno (mais confiável que supabase.functions.invoke).

@@ -17,7 +17,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { buildSystemPrompt, type Contato } from './prompt.ts'
-import { TOOL_SCHEMAS, executeTool } from './tools.ts'
+import { TOOL_SCHEMAS, executeTool, resolverFotoProduto, detectarProdutosNoTexto } from './tools.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -407,6 +407,24 @@ Pergunta: ${mensagens || '(vazio)'}`
         debug.tabela_oficial_enviada = true
         debug.apresentacao_marcada = true
         return j({ resposta_texto: out[0].texto, respostas: out, contato_id, debug })
+      }
+    }
+
+    // AUTO-FOTO (determinístico): o LLM nem sempre chama enviar_foto_produto.
+    // Se a RESPOSTA cita/indica um produto que ainda não teve foto enviada
+    // pra este contato, anexa a arte automaticamente (máx 2 por turno).
+    // Não roda na 1ª interação (cardápio cita todos — viraria spam de fotos).
+    if (!chainToClosing) {
+      const tagsNaResposta = detectarProdutosNoTexto(resposta)
+      for (const tag of tagsNaResposta) {
+        if (fotosNovas.length >= 2) break
+        if (fotosEnviadas.includes(tag)) continue
+        if (fotosNovas.some(f => f.tag === tag)) continue
+        const foto = await resolverFotoProduto(supabase, tag)
+        if (!foto) continue
+        fotosNovas.push({ url: foto.url, caption: '', tag })
+        fotosEnviadas.push(tag)
+        ;(debug.auto_foto ??= []).push(tag)
       }
     }
 
