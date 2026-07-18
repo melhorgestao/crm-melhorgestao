@@ -130,6 +130,7 @@ async function dispararStart(
   const { error: resetErr } = await supabase.from('contatos').update({
     ultima_interacao:        null,
     data_start:              null,
+    bot_pausado_ate:         null,  // /start REATIVA o bot: lead deve ser atendido nas próximas interações
     follow_up_tentativas:    0,
     data_wait_follow_up:     null,
     follow_up_reservado_ate: null,
