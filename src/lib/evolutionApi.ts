@@ -134,6 +134,29 @@ export async function connectChatwoot(params: {
   return evoFetch(url, params.inst.evolution_apikey, { method: 'POST', body: JSON.stringify(body) });
 }
 
+/** URL do webhook do router (n8n) que recebe os eventos da Evolution. */
+const ROUTER_WEBHOOK_URL = 'https://n8n.melhorgestao.online/webhook/router-evolution';
+
+/**
+ * POST /webhook/set/<instance> — assina o webhook do router.
+ * Eventos: MESSAGES_UPSERT (mensagens recebidas) + SEND_MESSAGE (mensagens
+ * enviadas via API/Chatwoot — SEM ele, comandos "/" digitados no Chatwoot não
+ * chegam no router). Idempotente: pode chamar de novo sem efeito colateral.
+ */
+export async function setWebhook(inst: EvolutionInstance): Promise<ApiResponse> {
+  const url = `${inst.evolution_url || DEFAULT_BASE_URL}/webhook/set/${encodeURIComponent(inst.evolution_instance)}`;
+  const body = {
+    webhook: {
+      enabled: true,
+      url: ROUTER_WEBHOOK_URL,
+      webhookByEvents: false,
+      webhookBase64: false,
+      events: ['MESSAGES_UPSERT', 'SEND_MESSAGE'],
+    },
+  };
+  return evoFetch(url, inst.evolution_apikey, { method: 'POST', body: JSON.stringify(body) });
+}
+
 /**
  * POST /instance/create — cria instância no Evolution.
  * Retorna apikey (per-instance) e qrcode base64 quando disponível.

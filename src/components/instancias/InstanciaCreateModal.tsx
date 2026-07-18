@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Loader2, QrCode, ArrowRight } from 'lucide-react';
-import { createInstance, fetchQrCode, getConnectionState, getMasterApiKey, connectChatwoot } from '@/lib/evolutionApi';
+import { createInstance, fetchQrCode, getConnectionState, getMasterApiKey, connectChatwoot, setWebhook } from '@/lib/evolutionApi';
 import { getChatwootConfig, findInboxByName } from '@/lib/chatwootApi';
 
 interface Props {
@@ -82,6 +82,14 @@ export function InstanciaCreateModal({ open, onClose }: Props) {
       return;
     }
     setApikey(created.apikey);
+
+    // 1.5) Assina o webhook do router (MESSAGES_UPSERT + SEND_MESSAGE).
+    // Sem SEND_MESSAGE, comandos "/" via Chatwoot não chegam no router.
+    // Best-effort: não bloqueia o fluxo, mas avisa se falhar.
+    const whRes = await setWebhook({ evolution_url: url, evolution_instance: nomeEvo.trim(), evolution_apikey: created.apikey });
+    if (!whRes.ok) {
+      toast.warning('Instância criada, mas o webhook falhou — comandos podem não funcionar. Erro: ' + (whRes.error || 'desconhecido'));
+    }
 
     // 2) Insert no banco
     const { data: row, error: insErr } = await supabase
