@@ -32,9 +32,12 @@ const TAG_ALIAS: Record<string, string> = {
 
 // Fallback LEGADO (arquivo fixo no bucket Start) SÓ se o produto não tiver
 // arte_url cadastrada. Keyed pela tag real do produto.
+// ATENÇÃO: nomes EXATOS (case-sensitive!) dos arquivos que existem no bucket.
+// Os antigos .jpg (Cbd.jpg, Full6k.jpg, Lub.jpg...) NÃO existem → Evolution
+// recebia 404 e descartava a imagem em silêncio (texto ia, foto não).
 const FOTO_LEGACY: Record<string, string> = {
-  verde: 'Cbd.jpg', amarelo: 'Full6k.jpg', vermelho: 'Full10k.jpg',
-  gummy: 'Gummy.jpg', pomada: 'Cannaderm.jpg', lub: 'Lub.jpg',
+  verde: 'Cbd.png', amarelo: 'Full6k.png', vermelho: 'Full10k.png',
+  gummy: 'Gummy.png', pomada: 'cannaderm.png', lub: 'lub.png',
 }
 
 // ---- SCHEMAS pro OpenRouter (formato OpenAI tools v1) ----------------------
@@ -231,9 +234,23 @@ export async function resolverFotoProduto(
 
   const base = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '')
   const legacy = FOTO_LEGACY[tag]
-  const url = arte || (legacy ? `${base}/storage/v1/object/public/Start/${legacy}` : null)
-  if (!url) return null
-  return { url, foto_tag: tag, usou_arte: !!arte, produto: prodNome }
+  const legacyUrl = legacy ? `${base}/storage/v1/object/public/Start/${legacy}` : null
+
+  // Valida a URL ANTES de anexar: a Evolution descarta imagem com link morto
+  // EM SILÊNCIO (texto vai, foto não) e a tag ficaria marcada sem entrega.
+  const urlViva = async (u: string | null): Promise<boolean> => {
+    if (!u) return false
+    try {
+      const r = await fetch(u, { method: 'HEAD', signal: AbortSignal.timeout(4000) })
+      return r.ok
+    } catch (_) { return false }
+  }
+  for (const cand of [arte, legacyUrl]) {
+    if (cand && await urlViva(cand)) {
+      return { url: cand, foto_tag: tag, usou_arte: cand === arte, produto: prodNome }
+    }
+  }
+  return null
 }
 
 /** Detecta quais produtos estão EM FOCO num texto (resposta do agente).
