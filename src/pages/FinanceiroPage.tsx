@@ -1681,18 +1681,21 @@ export default function FinanceiroPage() {
                     <span className="text-muted-foreground">Criado por:</span>
                     <span className="font-medium">{resolveCriadoPor(detailItem.criado_por)}</span>
                   </div>
-                  <div className="flex justify-between border-b pb-1"><span className="text-muted-foreground">Valor abatido:</span><span className="font-medium text-destructive">{formatBRL(Math.abs(detailItem.valor))}</span></div>
+                  <div className="flex justify-between border-b pb-1"><span className="text-muted-foreground">{detailItem.valor >= 0 ? 'Valor abatido:' : 'Valor realizado:'}</span><span className="font-medium text-destructive">{formatBRL(Math.abs(detailItem.valor))}</span></div>
                   {(detailItem.snapshot_saldo_v != null || detailItem.snapshot_saldo_a != null) && (
                     <div className="border-b pb-1 pt-1">
                       <span className="text-muted-foreground text-xs block mb-1">Saldos (antes → depois):</span>
                       {socios.map(s => {
                         const snap = s.key === 'V' ? detailItem.snapshot_saldo_v : detailItem.snapshot_saldo_a;
                         if (snap == null) return null;
-                        const depois = snap - Math.abs(detailItem.valor);
+                        // valor do lançamento é SINALIZADO: abate = +val (soma,
+                        // aproxima de zero), lucro normal = -val (subtrai).
+                        const depois = snap + detailItem.valor;
+                        const op = detailItem.valor >= 0 ? '+' : '-';
                         return (
                           <div key={s.key} className="flex justify-between text-sm">
                             <span>{s.nome}:</span>
-                            <span className="font-medium">{formatBRL(snap)} - {formatBRL(Math.abs(detailItem.valor))} = {formatBRL(depois)}</span>
+                            <span className="font-medium">{formatBRL(snap)} {op} {formatBRL(Math.abs(detailItem.valor))} = {formatBRL(depois)}</span>
                           </div>
                         );
                       })}
