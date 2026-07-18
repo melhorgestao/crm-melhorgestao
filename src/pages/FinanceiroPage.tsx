@@ -470,12 +470,20 @@ export default function FinanceiroPage() {
       const timestamp = new Date().toISOString();
       const socioNames = socios.map(s => s.nome).join('/');
 
-      // Insert one negative entry per socio (all lose the value)
+      // Sinal depende do cenário:
+      // - Todos POSITIVOS → lucro sai da empresa pros sócios: lançamento -val
+      //   (saldo do sócio diminui, ele "sacou" o lucro).
+      // - Todos NEGATIVOS → realizar lucro ABATE a dívida: lançamento +val
+      //   (aproxima o saldo de zero). maxVal = menor |saldo| garante que
+      //   ninguém passa de zero — é o limite máximo de abatimento.
+      const sinal = allNegative ? 1 : -1;
       const inserts = socios.map(s => ({
         socio: s.key,
         tipo: 'LUCRO' as const,
-        valor: -val,
-        descricao: `Lucro: ${socioNames} -${formatBRL(val)}`,
+        valor: sinal * val,
+        descricao: allNegative
+          ? `Abate de saldo: ${socioNames} +${formatBRL(val)}`
+          : `Lucro: ${socioNames} -${formatBRL(val)}`,
         realizado: true,
         realizado_em: timestamp,
         snapshot_saldo_v: socioBalances['V'] ?? 0,
@@ -511,9 +519,13 @@ export default function FinanceiroPage() {
         profile?.nome ||
         user?.email?.split('@')[0] ||
         'sistema';
-      const fromSocio = socios.find(s => s.key === transferFrom);
-      const toSocio = socios.find(s => s.key === transferTo);
-      const direction = `${fromSocio?.nome}→${toSocio?.nome}`;
+      // Origem/destino podem ser sócio OU caixa (ex: DeFlow) — resolve o label
+      // nos dois mapas (antes só olhava socios → caixa virava "undefined→A").
+      const resolveLabel = (key: string) =>
+        socios.find(s => s.key === key)?.nome
+        || caixas.find(c => c.codigo === key)?.apelido
+        || key;
+      const direction = `${resolveLabel(transferFrom)}→${resolveLabel(transferTo)}`;
 
       // Negative for sender
       const { error: errorFrom } = await supabase.from('lancamentos_socios').insert({
