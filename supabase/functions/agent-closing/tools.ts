@@ -325,21 +325,32 @@ export async function resolverFotoProduto(
 /** Detecta quais produtos estão EM FOCO num texto (resposta do agente). */
 export function detectarProdutosNoTexto(texto: string): string[] {
   const t = String(texto || '').toLowerCase()
-  const found: Array<{ tag: string; idx: number }> = []
-  const addFirst = (tag: string, patterns: RegExp[]) => {
+  const firstIdx = (patterns: RegExp[]) => {
     let best = -1
     for (const p of patterns) {
       const m = t.match(p)
       if (m && m.index !== undefined && (best === -1 || m.index < best)) best = m.index
     }
-    if (best >= 0) found.push({ tag, idx: best })
+    return best
   }
-  addFirst('vermelho', [/vermelho/, /10[.\s]?000\s?mg/, /\b1\s?:\s?2\b/])
-  addFirst('amarelo',  [/amarelo/, /6[.\s]?000\s?mg/, /\b1\s?:\s?1\b/])
-  addFirst('verde',    [/\bverde\b/, /4[.\s]?000\s?mg/])
-  addFirst('gummy',    [/gummy/, /\bgomi\b/, /jujuba/])
-  addFirst('pomada',   [/cannaderm/, /pomada/])
-  addFirst('lub',      [/lubrificante/])
+  const found: Array<{ tag: string; idx: number }> = []
+  const gummyIdx = firstIdx([/gummy/, /\bgomi\b/, /jujuba/])
+  if (gummyIdx >= 0) found.push({ tag: 'gummy', idx: gummyIdx })
+  const vermIdx = firstIdx([/vermelho/, /10[.\s]?000\s?mg/, /\b1\s?:\s?2\b/])
+  if (vermIdx >= 0) found.push({ tag: 'vermelho', idx: vermIdx })
+  // AMARELO: o nome oficial do Gummy contém "CBD 1:1 THC 6.000 mg" — se gummy
+  // foi detectado, "1:1"/"6.000 mg" NÃO contam como amarelo (evita anexar a
+  // foto do óleo errado junto). Só a PALAVRA "amarelo" conta nesse caso.
+  const amareloWord = firstIdx([/amarelo/])
+  const amareloNum  = firstIdx([/6[.\s]?000\s?mg/, /\b1\s?:\s?1\b/])
+  const amareloIdx  = amareloWord >= 0 ? amareloWord : (gummyIdx === -1 ? amareloNum : -1)
+  if (amareloIdx >= 0) found.push({ tag: 'amarelo', idx: amareloIdx })
+  const verdeIdx = firstIdx([/\bverde\b/, /4[.\s]?000\s?mg/])
+  if (verdeIdx >= 0) found.push({ tag: 'verde', idx: verdeIdx })
+  const pomadaIdx = firstIdx([/cannaderm/, /pomada/])
+  if (pomadaIdx >= 0) found.push({ tag: 'pomada', idx: pomadaIdx })
+  const lubIdx = firstIdx([/lubrificante/])
+  if (lubIdx >= 0) found.push({ tag: 'lub', idx: lubIdx })
   return found.sort((a, b) => a.idx - b.idx).map(f => f.tag)
 }
 
