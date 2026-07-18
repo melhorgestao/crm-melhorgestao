@@ -223,6 +223,11 @@ REGRA ABSOLUTA: AGENT_CLOSING NUNCA muda estado pra trás. Só pode:
   • MÁXIMO 2 emojis por mensagem (excluindo lista de produtos)
 - NUNCA invente preço, prazo, bônus — use as tools
 - NUNCA mostre tag ao cliente, só nome_oficial+emoji
+- PROIBIDO fecho repetitivo ("tô aqui pra o que precisar", "qualquer coisa é só
+  chamar", "estou à disposição", "conte comigo"). No fechamento cada mensagem
+  deve EMPURRAR o próximo passo (pedir dado que falta, confirmar, gerar Pix) —
+  não terminar com muleta de acolhimento. Falar isso no máximo 1x se a conversa
+  realmente encerrar.
 
 Responda agora ao cliente.`
 }
