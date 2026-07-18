@@ -371,6 +371,10 @@ export default function EstoquePage() {
           console.error('Update error:', errText);
           throw new Error(errText);
         }
+        // Limpeza: se trocou/removeu arte ou foto, apaga o arquivo antigo do
+        // bucket (só uploads sob produtos/, nunca legados da raiz).
+        await apagarArteAntiga(editProduct.arte_url, formArteUrl);
+        await apagarArteAntiga(editProduct.foto_url, formFotoUrl);
         toast.success('Produto atualizado!');
       } else {
         // Create via RPC
@@ -595,6 +599,23 @@ export default function EstoquePage() {
     if (upErr) { toast.error('Upload: ' + upErr.message); return null; }
     const { data: pub } = supabase.storage.from('Start').getPublicUrl(path);
     return pub.publicUrl;
+  };
+
+  // Extrai o path interno do bucket Start a partir da URL pública.
+  const bucketPathFromUrl = (url: string | null | undefined): string | null => {
+    if (!url) return null;
+    const m = url.match(/\/storage\/v1\/object\/public\/Start\/(.+)$/);
+    return m ? decodeURIComponent(m[1]) : null;
+  };
+
+  // Apaga do bucket o arquivo ANTIGO ao trocar/remover — SÓ se estiver sob
+  // "produtos/" (uploads do form). Nunca apaga arquivos da raiz (legados de
+  // fallback: Cbd.png, Full6k.png, etc, e artes backfilladas). Evita órfãos.
+  const apagarArteAntiga = async (oldUrl: string | null, newUrl: string) => {
+    const oldPath = bucketPathFromUrl(oldUrl);
+    if (!oldPath || oldPath === bucketPathFromUrl(newUrl)) return;
+    if (!oldPath.startsWith('produtos/')) return; // protege legados da raiz
+    await supabase.storage.from('Start').remove([oldPath]);
   };
 
   const handleUploadArte = async (file: File) => {
