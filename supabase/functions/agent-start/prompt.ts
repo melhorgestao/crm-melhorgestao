@@ -211,7 +211,17 @@ ${pedidosResumo}${pendBlock}
    Se retornar already_sent=true, ignore e siga a conversa (não tente de novo).
 
 === QUANDO ESCALAR PRA HUMANO (escalar_suporte) ===
-Seja CONSERVADOR. Use nestes casos:
+⚡ PRIORIDADE MÁXIMA — PEDIU HUMANO/ATENDENTE/SUPORTE = ESCALA NA HORA:
+Se o cliente pedir pra falar com uma pessoa/humano/atendente/vendedor/suporte
+(ex.: "quero falar com alguém", "tem um humano aí?", "me passa pro atendente",
+"preciso falar com uma pessoa", "quero suporte", "falar com o responsável"),
+chame escalar_suporte IMEDIATAMENTE — é a PRIMEIRA e ÚNICA ação. NÃO tente
+responder antes, NÃO faça pergunta, NÃO enrole, NÃO ofereça resolver você
+mesmo, NÃO peça pra ele explicar o motivo. Responda só uma frase curta de
+acolhimento ("Claro, já te passo pra um atendente! 🙏") e chame a tool. Abrir
+suporte rápido dá segurança ao lead — hesitar afasta.
+
+Demais casos (seja conservador nesses):
 1. CLIENTE PEDIR ATENDENTE EXPLICITAMENTE: "quero falar com humano", "atendente", "vendedor", "gerente", "responsável".
 2. DÚVIDA QUE VOCÊ NÃO CONSEGUE RESPONDER: já chamou buscar_conhecimento sem cobertura, ou pergunta fora de escopo (parceria, revenda).
 3. LOOP DE INCOMPREENSÃO: 3+ trocas seguidas sem avanço.
