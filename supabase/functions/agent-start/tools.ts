@@ -239,7 +239,7 @@ export async function resolverFotoProduto(
 /** Detecta quais produtos estão EM FOCO num texto (resposta do agente).
  *  Retorna tags na ordem de aparição. Usado pra anexar foto automaticamente
  *  quando o LLM esquece de chamar enviar_foto_produto. */
-export function detectarProdutosNoTexto(texto: string): string[] {
+export function detectarProdutosNoTexto(texto: string, incluirCbdGenerico = false): string[] {
   const t = String(texto || '').toLowerCase()
   const firstIdx = (patterns: RegExp[]) => {
     let best = -1
@@ -261,7 +261,13 @@ export function detectarProdutosNoTexto(texto: string): string[] {
   const amareloNum  = firstIdx([/6[.\s]?000\s?mg/, /\b1\s?:\s?1\b/])
   const amareloIdx  = amareloWord >= 0 ? amareloWord : (gummyIdx === -1 ? amareloNum : -1)
   if (amareloIdx >= 0) found.push({ tag: 'amarelo', idx: amareloIdx })
-  const verdeIdx = firstIdx([/\bverde\b/, /4[.\s]?000\s?mg/])
+  let verdeIdx = firstIdx([/\bverde\b/, /4[.\s]?000\s?mg/])
+  // "cbd" genérico → verde (apelido oficial do produto), mas SÓ quando nenhum
+  // outro óleo/gummy foi citado (CBD aparece no nome de todos). Usado na
+  // PERGUNTA do lead ("me fala do cbd"), onde a intenção é o Verde.
+  if (verdeIdx === -1 && incluirCbdGenerico && found.length === 0) {
+    verdeIdx = firstIdx([/\bcbd\b/, /canabidiol/])
+  }
   if (verdeIdx >= 0) found.push({ tag: 'verde', idx: verdeIdx })
   const pomadaIdx = firstIdx([/cannaderm/, /pomada/])
   if (pomadaIdx >= 0) found.push({ tag: 'pomada', idx: pomadaIdx })

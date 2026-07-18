@@ -415,7 +415,12 @@ Pergunta: ${mensagens || '(vazio)'}`
     // pra este contato, anexa a arte automaticamente (máx 2 por turno).
     // Não roda na 1ª interação (cardápio cita todos — viraria spam de fotos).
     if (!chainToClosing) {
-      const tagsNaResposta = detectarProdutosNoTexto(resposta)
+      // Detecta na PERGUNTA do lead (com apelidos, ex. "cbd"→verde) E na
+      // resposta — cobre o LLM responder genérico sem citar nome/mg.
+      const tagsNaResposta = [
+        ...detectarProdutosNoTexto(String(mensagens || ''), true),
+        ...detectarProdutosNoTexto(resposta),
+      ]
       for (const tag of tagsNaResposta) {
         if (fotosNovas.length >= 2) break
         if (fotosEnviadas.includes(tag)) continue
