@@ -441,13 +441,18 @@ export default function KanbanPage() {
   // Abre conversa no Chatwoot via Edge Function (evita CORS).
   const openChatwoot = async (telefone: string) => {
     if (!telefone) { toast.error('Sem telefone'); return; }
+    // Abre a aba SINCRONAMENTE dentro do gesto do clique — mobile (Safari/Chrome)
+    // bloqueia window.open chamado depois de um await (fora do gesto).
+    const win = window.open('', '_blank');
     const found = await findConversationByPhone({ url: '', accountId: '', apiToken: '' }, telefone);
     if (!found?.url) {
+      win?.close();
       toast.error('Chatwoot indisponível — veja console (F12)');
       return;
     }
     if (found.fallback) toast.info('Conversa não encontrada — abrindo busca');
-    window.open(found.url, '_blank');
+    if (win) win.location.href = found.url;
+    else window.open(found.url, '_blank'); // fallback se o open síncrono foi bloqueado
   };
 
   // Estados que aparecem em alguma coluna do Kanban.
