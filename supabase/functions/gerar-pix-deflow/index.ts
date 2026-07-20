@@ -4,18 +4,22 @@
 // Modo "exact": cliente paga o valor BRUTO do pedido. DeFlow desconta taxa
 // do crédito. Recebemos LÍQUIDO (netAmountCents) — esse vai pra caixa.
 //
-// RESILIÊNCIA (v3): SEMPRE conclusivo, NUNCA background.
-// A v2 tentava retries em EdgeRuntime.waitUntil (~100s) — o isolate era
-// derrubado antes de terminar e o cliente ficava no vácuo depois do
-// "tô gerando seu Pix". Agora são 3 tentativas SÍNCRONAS e curtas (0s, 5s,
-// 8s) que cabem no turno do agente: ou volta o Pix, ou volta erro claro
-// (pix_indisponivel) pro agent-closing avisar o cliente + acionar suporte
-// deterministicamente. Sem promessa que não se cumpre.
+// RESILIÊNCIA (v4): SEMPRE conclusivo, NUNCA background, e RESPEITANDO a
+// antifraude da DeFlow.
 //
-// X-DF-Idempotency-Key é novo A CADA TENTATIVA: chave fixa por pedido fazia
-// a DeFlow repetir eternamente o estado de falha da 1ª tentativa.
+// Changelog DeFlow v1.7 (06/07/2026): janela de velocidade de 30min, bloqueio
+// de VALOR REPETIDO e cooldown de 30s são aplicados POR CPF DO PAGADOR.
+// Retry rápido (5s/8s) era falha garantida e ainda queimava a janela daquele
+// CPF — piorava o problema. Agora: 1 tentativa + no máximo 1 retry após 32s.
+// Se falhar, é conclusivo: o agent-closing avisa o cliente e aciona suporte.
 //
-// Erro PERMANENTE (CPF inválido/bloqueado) → retorna na hora, sem retry.
+// v1.8: 'mode' virou opcional e IGNORADO (sempre modo bruto: o pagador paga
+// exatamente amountInCents, taxa sai do líquido) — removido do payload.
+// v1.5: X-DF-Idempotency-Key é obrigatório (enviamos, novo a cada tentativa —
+// chave fixa por pedido fazia a DeFlow repetir o estado de falha pra sempre).
+//
+// PERMANENTE (sem retry): CPF malformado OU bloqueio antifraude — insistir
+// não resolve e só piora.
 //
 // Linkagem pedido_em_aberto.pix_id = deposit.id (lookup reverso no webhook).
 //
@@ -42,9 +46,11 @@ type TentativaErr = { ok: false; permanente: boolean; error: string }
 async function tentarDeposito(
   cfg: Record<string, string>, amountCents: number, cpf: string, seed: string,
 ): Promise<TentativaOk | TentativaErr> {
+  // v1.8 da API: 'mode' é opcional e IGNORADO (depósito sempre no modo bruto —
+  // o pagador paga exatamente amountInCents e a taxa sai do líquido em DePix).
+  // Não enviamos mais pra não induzir erro.
   const body: Record<string, unknown> = {
     amountInCents: amountCents,
-    mode: 'exact',
     payerTaxNumber: cpf,
   }
   if (cfg['deflow_wallet_id']) body.walletId = cfg['deflow_wallet_id']
@@ -68,10 +74,17 @@ async function tentarDeposito(
 
   if (!r.ok) {
     const errBody = await r.text()
-    // CPF/CNPJ inválido e afins = erro PERMANENTE (retry não resolve)
-    const permanente = /cpf|cnpj|payerTaxNumber|inválido|invalido/i.test(errBody) && r.status === 400
-      && !/aguarde|tente novamente|não foi possível gerar/i.test(errBody)
-    return { ok: false, permanente, error: `DeFlow ${r.status}: ${errBody.slice(0, 400)}` }
+    // ANTIFRAUDE (v1.7): janela de 30min, bloqueio de valor repetido e cooldown
+    // de 30s são POR CPF do pagador. Insistir NÃO resolve — só queima mais a
+    // janela daquele CPF. Tratamos como permanente pra escalar pro humano.
+    const antifraude = /este cpf|valor repetido|velocidade|bloqueio|cooldown|processar pagamentos/i.test(errBody)
+    // CPF/CNPJ malformado = permanente também (o agente pede o CPF certo)
+    const cpfInvalido = /cpf|cnpj|payerTaxNumber/i.test(errBody) && /inválido|invalido|must be/i.test(errBody)
+    return {
+      ok: false,
+      permanente: antifraude || cpfInvalido,
+      error: `DeFlow ${r.status}: ${errBody.slice(0, 400)}`,
+    }
   }
 
   const resp = await r.json()
@@ -183,8 +196,11 @@ Deno.serve(async (req) => {
     // (o isolate é derrubado antes) — resultado era silêncio total pro cliente.
     // 3 tentativas curtas cabem no turno do agente (router aguarda 150s), e o
     // retorno é SEMPRE conclusivo: Pix na mão OU erro claro pra escalar.
+    // ANTIFRAUDE DeFlow (v1.7): cooldown de 30s POR CPF do pagador. Retry
+    // antes disso é falha garantida E queima a janela de velocidade de 30min
+    // daquele CPF. Então: 1 tentativa + no máximo 1 retry após o cooldown.
     const startedAt = Date.now()
-    const DELAYS = [0, 5000, 8000]
+    const DELAYS = [0, 32000]
     let ultimoErro = ''
     for (let i = 0; i < DELAYS.length; i++) {
       if (DELAYS[i] > 0) await new Promise(res => setTimeout(res, DELAYS[i]))
