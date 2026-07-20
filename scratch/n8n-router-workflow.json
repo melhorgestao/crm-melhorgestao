@@ -330,7 +330,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"p_nome\": \"{{ $('EXTRAI CAMPOS').item.json.push_name }}\",\n  \"p_instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\",\n  \"p_canal_origem\": \"{{ $('EXTRAI CAMPOS').item.json.ctwa_source_id ? 'ADS' : 'BASE' }}\",\n  \"p_mensagem\": \"{{ $('EXTRAI CAMPOS').item.json.msg_text.replace(/\\\"/g, '\\\\\\\"').replace(/\\\\n/g, ' ') }}\",\n  \"p_metadata\": {{ JSON.stringify({ctwa_source_id: $('EXTRAI CAMPOS').item.json.ctwa_source_id, ctwa_source_url: $('EXTRAI CAMPOS').item.json.ctwa_source_url}) }}\n}",
+        "jsonBody": "={{ JSON.stringify({ p_telefone: $('EXTRAI CAMPOS').item.json.telefone_clean, p_nome: $('EXTRAI CAMPOS').item.json.push_name, p_instancia_id: $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid, p_canal_origem: $('EXTRAI CAMPOS').item.json.ctwa_source_id ? 'ADS' : 'BASE', p_mensagem: String($('EXTRAI CAMPOS').item.json.msg_text || '').replace(/\\n/g, ' '), p_metadata: { ctwa_source_id: $('EXTRAI CAMPOS').item.json.ctwa_source_id, ctwa_source_url: $('EXTRAI CAMPOS').item.json.ctwa_source_url } }) }}",
         "options": {}
       },
       "id": "get-create-contato",
@@ -363,7 +363,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"mensagem\": \"{{ $('PREP TEXTO (transcreve áudio)').item.json.texto_final.replace(/\\\"/g, '\\\\\\\"') }}\",\n  \"tipo\": \"{{ $('EXTRAI CAMPOS').item.json.message_type === 'audioMessage' ? 'audio' : 'text' }}\",\n  \"direcao\": \"in\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ contato_id: $('GET/CREATE Contato').item.json.id, telefone: $('EXTRAI CAMPOS').item.json.telefone_clean, mensagem: $('PREP TEXTO (transcreve áudio)').item.json.texto_final, tipo: $('EXTRAI CAMPOS').item.json.message_type === 'audioMessage' ? 'audio' : 'text', direcao: 'in', instancia_id: $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }) }}",
         "options": {}
       },
       "id": "insert-buffer-in",
@@ -464,7 +464,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"p_minha_recebida_em\": \"{{ $('SAVE Buffer (in)').item.json.recebida_em || $('SAVE Buffer (in)').item.json[0]?.recebida_em }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ p_contato_id: $('GET/CREATE Contato').item.json.id, p_minha_recebida_em: ($('SAVE Buffer (in)').item.json.recebida_em || $('SAVE Buffer (in)').item.json[0]?.recebida_em) }) }}",
         "options": {}
       },
       "id": "process-batch",
@@ -586,7 +586,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"telefone\": \"{{ $('EXTRAI CAMPOS').item.json.telefone_clean }}\",\n  \"mensagem\": {{ JSON.stringify($('AGENT_START (call)').item.json.resposta_texto || '') }},\n  \"tipo\": \"text\",\n  \"direcao\": \"out\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\",\n  \"processada_em\": \"{{ $now.toISO() }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ contato_id: $('GET/CREATE Contato').item.json.id, telefone: $('EXTRAI CAMPOS').item.json.telefone_clean, mensagem: $('AGENT_START (call)').item.json.resposta_texto || '', tipo: 'text', direcao: 'out', instancia_id: $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid, processada_em: $now.toISO() }) }}",
         "options": {}
       },
       "id": "save-buffer-out",
@@ -615,7 +615,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contato_id\": \"{{ $('GET/CREATE Contato').item.json.id }}\",\n  \"tipo\": \"router_turn\",\n  \"canal\": \"{{ $('EXTRAI CAMPOS').item.json.instancia_nome }}\",\n  \"instancia_id\": \"{{ $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid }}\",\n  \"metadata\": {{ JSON.stringify({msg_in: ($('PROCESS BATCH').item.json.mensagens_concat || ''), msg_in_count: ($('PROCESS BATCH').item.json.count_msgs || 0), msg_out: (($('AGENT_START (call)').item.json.resposta_texto || '') + '').substring(0, 200)}) }}\n}",
+        "jsonBody": "={{ JSON.stringify({ contato_id: $('GET/CREATE Contato').item.json.id, tipo: 'router_turn', canal: $('EXTRAI CAMPOS').item.json.instancia_nome, instancia_id: $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid, metadata: { msg_in: ($('PROCESS BATCH').item.json.mensagens_concat || ''), msg_in_count: ($('PROCESS BATCH').item.json.count_msgs || 0), msg_out: (($('AGENT_START (call)').item.json.resposta_texto || '') + '').substring(0, 200) } }) }}",
         "options": {}
       },
       "id": "log-event",
@@ -630,7 +630,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "{\"status\":\"processed\",\"contato\":\"{{ $('GET/CREATE Contato').item.json.id }}\"}"
+        "responseBody": "={{ JSON.stringify({ status: 'processed', contato: $('GET/CREATE Contato').item.json.id }) }}"
       },
       "id": "respond-done",
       "name": "Respond: processed",
