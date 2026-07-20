@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
     const toolsUsed: string[] = []
     const fotosNovas: Array<{ url: string; caption?: string; tag: string }> = []
     let pixGerado: any = null
-    let pixBackground = false
+    let pixFalhou: string | null = null
 
     while (iter < MAX_TOOL_ITERATIONS) {
       iter++
@@ -151,8 +151,9 @@ Deno.serve(async (req) => {
           if ((name === 'gerar_pix_deflow' || name === 'gerar_pix_saldo_devedor') && (toolResult as any)?.pix_copia_cola) {
             pixGerado = toolResult
           }
-          if ((name === 'gerar_pix_deflow' || name === 'gerar_pix_saldo_devedor') && (toolResult as any)?.background) {
-            pixBackground = true
+          if ((name === 'gerar_pix_deflow' || name === 'gerar_pix_saldo_devedor')
+              && ((toolResult as any)?.pix_indisponivel || ((toolResult as any)?.error && !(toolResult as any)?.pix_copia_cola))) {
+            pixFalhou = String((toolResult as any).error || 'pix indisponível')
           }
           if (name === 'enviar_foto_produto' && (toolResult as any)?.send) {
             fotosNovas.push({
@@ -201,13 +202,22 @@ Deno.serve(async (req) => {
       return j({ resposta_texto: out[0].texto, respostas: out, contato_id, debug })
     }
 
-    // PIX em BACKGROUND: DeFlow oscilou, o edge segue tentando sozinho e
-    // envia as bolhas via Evolution quando sair. Resposta deterministica —
-    // NUNCA escala suporte nem fica mudo por causa disso.
-    if (pixBackground) {
-      debug.pix_background = true
+    // PIX FALHOU (DeFlow indisponível ou CPF bloqueado): resposta DETERMINÍSTICA
+    // + suporte acionado NO CÓDIGO. Nunca fica mudo, nunca promete um Pix que
+    // não vem, e o humano recebe o lead pra concluir manualmente.
+    if (pixFalhou && !pixGerado) {
+      try {
+        await supabase.rpc('marcar_contato_suporte', {
+          p_contato_id: contato_id, p_motivo: 'pix_indisponivel',
+        })
+        await supabase.from('eventos_contato').insert({
+          contato_id, tipo: 'pix_indisponivel', instancia_id: instanciaIdResolvido,
+          metadata: { erro: pixFalhou.slice(0, 400) },
+        })
+      } catch (_) { /* best-effort */ }
+      debug.pix_falhou = pixFalhou.slice(0, 200)
       return j({
-        resposta_texto: 'Fechado! Tô gerando seu Pix agora — te mando o código aqui em instantes 💚',
+        resposta_texto: 'Opa, o sistema de pagamento tá instável agora 🙏 Já chamei um atendente pra te enviar o Pix manualmente — é rapidinho, seu pedido está guardado!',
         contato_id, debug,
       })
     }

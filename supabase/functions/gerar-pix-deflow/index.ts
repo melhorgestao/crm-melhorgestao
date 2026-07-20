@@ -4,22 +4,23 @@
 // Modo "exact": cliente paga o valor BRUTO do pedido. DeFlow desconta taxa
 // do crédito. Recebemos LÍQUIDO (netAmountCents) — esse vai pra caixa.
 //
-// RESILIÊNCIA (v2): a DeFlow às vezes falha transitório ("Aguarde 1 minuto e
-// tente novamente"). Nesses casos o edge NÃO devolve erro pro agente (que
-// escalava suporte/ficava mudo): responde { ok:true, background:true } e segue
-// tentando em BACKGROUND (EdgeRuntime.waitUntil, ~4 tentativas com pausa).
-// Quando conseguir, ENVIA as bolhas do Pix DIRETO via Evolution (independe do
-// turno do LLM) + grava no buffer + evento. Se esgotar, avisa o cliente e
-// marca suporte.
+// RESILIÊNCIA (v3): SEMPRE conclusivo, NUNCA background.
+// A v2 tentava retries em EdgeRuntime.waitUntil (~100s) — o isolate era
+// derrubado antes de terminar e o cliente ficava no vácuo depois do
+// "tô gerando seu Pix". Agora são 3 tentativas SÍNCRONAS e curtas (0s, 5s,
+// 8s) que cabem no turno do agente: ou volta o Pix, ou volta erro claro
+// (pix_indisponivel) pro agent-closing avisar o cliente + acionar suporte
+// deterministicamente. Sem promessa que não se cumpre.
 //
-// Erro PERMANENTE (CPF inválido etc) → retorna erro na hora (o agente pede
-// o CPF certo).
+// X-DF-Idempotency-Key é novo A CADA TENTATIVA: chave fixa por pedido fazia
+// a DeFlow repetir eternamente o estado de falha da 1ª tentativa.
+//
+// Erro PERMANENTE (CPF inválido/bloqueado) → retorna na hora, sem retry.
 //
 // Linkagem pedido_em_aberto.pix_id = deposit.id (lookup reverso no webhook).
-// X-DF-Idempotency-Key determinístico por (pedido + tentativa).
 //
 // INPUT:  { pedido_em_aberto_id: uuid }
-// OUTPUT: { ok, pix_id, pix_copia_cola, ... } | { ok, background:true } | { error }
+// OUTPUT: { ok, pix_id, pix_copia_cola, ... } | { error, pix_indisponivel }
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -30,15 +31,6 @@ const corsHeaders = {
 }
 
 const DEFLOW_BASE = 'https://api.deflow.exchange'
-const EVOLUTION_BASE_URL_DEFAULT = 'https://evo.melhorgestao.online'
-const RETRIES_BG = 4          // tentativas em background
-const RETRY_DELAY_MS = 25000  // pausa entre tentativas (DeFlow pede ~1 min)
-
-/** número no formato Evolution: BR nacional → prefixa 55; DDI estrangeiro passa. */
-function numeroEvolution(telefone: string): string {
-  const nd = String(telefone || '').replace(/\D/g, '')
-  return (nd.length === 10 || (nd.length === 11 && nd.charAt(2) === '9')) ? '55' + nd : nd
-}
 
 type TentativaOk = {
   ok: true; depositId: string; qrCopyPaste: string; qrImageUrl: string;
@@ -109,26 +101,6 @@ async function persistirPix(supabase: any, pedidoId: string, amountCents: number
   }).eq('id', pedidoId)
 }
 
-/** Envia texto via Evolution + grava no buffer (best-effort). */
-async function enviarTexto(
-  supabase: any,
-  evo: { url: string; apikey: string; instance: string },
-  contato: { id: string; telefone: string; instancia_id: string | null },
-  texto: string,
-) {
-  try {
-    await fetch(`${evo.url}/message/sendText/${encodeURIComponent(evo.instance)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': evo.apikey },
-      body: JSON.stringify({ number: numeroEvolution(contato.telefone), text: texto, delay: 1200 }),
-    })
-    await supabase.from('mensagens_buffer').insert({
-      contato_id: contato.id, telefone: contato.telefone, mensagem: texto,
-      tipo: 'text', direcao: 'out', instancia_id: contato.instancia_id,
-      processada_em: new Date().toISOString(),
-    })
-  } catch (_) { /* best-effort */ }
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -206,87 +178,37 @@ Deno.serve(async (req) => {
       return j({ error: 'CPF do cliente ausente/inválido — necessário pra gerar o Pix (peça o CPF e salve antes)' }, 400)
     }
 
-    // ── 1ª tentativa (síncrona) ─────────────────────────────────────────────
-    const t1 = await tentarDeposito(cfg, amountCents, cpfPagador, `${pedido.id}:1`)
-    if (t1.ok) {
-      await persistirPix(supabase, pedido.id, amountCents, t1)
-      return j({
-        ok: true, modo: 'real',
-        pix_id: t1.depositId, pix_copia_cola: t1.qrCopyPaste,
-        pix_qr_image_url: t1.qrImageUrl, pix_expira_em: t1.expiresAt,
-        valor_bruto: valorBruto,
-        valor_liquido: t1.netAmountCents ? t1.netAmountCents / 100 : null,
-        taxa: t1.feeCents ? t1.feeCents / 100 : null,
-      })
-    }
-    if (t1.permanente) return j({ error: t1.error }, 400)
-
-    // ── Transitório: retry em BACKGROUND + envio direto via Evolution ───────
-    // Resolve a instância AGORA (pra falhar cedo se não der)
-    const instId = (pedido as any).instancia_id || (contatoRow as any)?.instancia_id
-    const { data: iRow } = await supabase.from('instancias')
-      .select('evolution_instance, evolution_url, evolution_apikey')
-      .eq('id', instId).maybeSingle()
-    const evo = {
-      url:      String((iRow as any)?.evolution_url || EVOLUTION_BASE_URL_DEFAULT).replace(/\/+$/, ''),
-      apikey:   String((iRow as any)?.evolution_apikey || ''),
-      instance: String((iRow as any)?.evolution_instance || ''),
-    }
-    const contato = {
-      id: (contatoRow as any).id, telefone: String((contatoRow as any).telefone || ''),
-      instancia_id: instId || null,
-    }
-    if (!evo.instance || !evo.apikey || !contato.telefone) {
-      // sem como enviar em background — devolve o erro original mesmo
-      return j({ error: t1.error }, 502)
-    }
-
-    const work = (async () => {
-      let ultimoErro = t1.error
-      for (let i = 2; i <= RETRIES_BG + 1; i++) {
-        await new Promise(res => setTimeout(res, RETRY_DELAY_MS))
-        const t = await tentarDeposito(cfg, amountCents, cpfPagador, `${pedido.id}:${i}`)
-        if (t.ok) {
-          await persistirPix(supabase, pedido.id, amountCents, t)
-          const valorTxt = valorBruto > 0 ? ` de R$ ${valorBruto.toFixed(2).replace('.', ',')}` : ''
-          await enviarTexto(supabase, evo, contato, `Prontinho! Aqui está seu PIX${valorTxt} 💚 É só copiar o código abaixo e colar no app do seu banco 👇`)
-          await enviarTexto(supabase, evo, contato, String(t.qrCopyPaste))
-          await enviarTexto(supabase, evo, contato, '⏱ O código expira em 15 minutos. Assim que o pagamento cair eu te aviso e já preparo seu envio!')
-          try {
-            await supabase.from('eventos_contato').insert({
-              contato_id: contato.id, tipo: 'pix_gerado_background', canal: evo.instance,
-              instancia_id: contato.instancia_id,
-              metadata: { pedido_em_aberto_id: pedido.id, tentativa: i, valor_bruto: valorBruto },
-            })
-          } catch (_) { /* best-effort */ }
-          return
-        }
-        ultimoErro = t.error
-        if (t.permanente) break
+    // ── Tentativas SÍNCRONAS e rápidas ──────────────────────────────────────
+    // NADA de background: EdgeRuntime.waitUntil NÃO sustenta ~100s de retries
+    // (o isolate é derrubado antes) — resultado era silêncio total pro cliente.
+    // 3 tentativas curtas cabem no turno do agente (router aguarda 150s), e o
+    // retorno é SEMPRE conclusivo: Pix na mão OU erro claro pra escalar.
+    const startedAt = Date.now()
+    const DELAYS = [0, 5000, 8000]
+    let ultimoErro = ''
+    for (let i = 0; i < DELAYS.length; i++) {
+      if (DELAYS[i] > 0) await new Promise(res => setTimeout(res, DELAYS[i]))
+      // key nova por tentativa: chave fixa por pedido travava o erro pra sempre
+      const t = await tentarDeposito(cfg, amountCents, cpfPagador, `${pedido.id}:${startedAt}:${i}`)
+      if (t.ok) {
+        await persistirPix(supabase, pedido.id, amountCents, t)
+        return j({
+          ok: true, modo: 'real', tentativas: i + 1,
+          pix_id: t.depositId, pix_copia_cola: t.qrCopyPaste,
+          pix_qr_image_url: t.qrImageUrl, pix_expira_em: t.expiresAt,
+          valor_bruto: valorBruto,
+          valor_liquido: t.netAmountCents ? t.netAmountCents / 100 : null,
+          taxa: t.feeCents ? t.feeCents / 100 : null,
+        })
       }
-      // esgotou: avisa o cliente e marca suporte
-      await enviarTexto(supabase, evo, contato, 'Opa, o sistema de pagamento tá com uma instabilidade agora 🙏 Já chamei um atendente pra te mandar o Pix manualmente — só um instante!')
-      try {
-        await supabase.rpc('marcar_contato_suporte', {
-          p_contato_id: contato.id, p_motivo: 'pix_deflow_falhou_retries',
-        })
-        await supabase.from('eventos_contato').insert({
-          contato_id: contato.id, tipo: 'pix_falhou_background', canal: evo.instance,
-          instancia_id: contato.instancia_id,
-          metadata: { pedido_em_aberto_id: pedido.id, erro: ultimoErro },
-        })
-      } catch (_) { /* best-effort */ }
-    })()
-
-    const er = (globalThis as any).EdgeRuntime
-    if (er?.waitUntil) er.waitUntil(work)
-    else work.catch(() => {})
-
-    return j({
-      ok: true, background: true,
-      motivo: 'deflow_instavel_retry_background',
-      aviso: 'Pix sendo gerado em background — as bolhas serão enviadas automaticamente via Evolution quando sair.',
-    })
+      ultimoErro = t.error
+      if (t.permanente) {
+        return j({ error: t.error, pix_indisponivel: true, permanente: true }, 400)
+      }
+    }
+    // Esgotou: erro conclusivo. O agent-closing avisa o cliente e chama suporte
+    // de forma determinística (nunca fica mudo).
+    return j({ error: ultimoErro, pix_indisponivel: true, tentativas: DELAYS.length }, 502)
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
