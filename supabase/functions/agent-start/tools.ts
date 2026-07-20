@@ -30,8 +30,17 @@ const TAG_ALIAS: Record<string, string> = {
   lub: 'lub', lubrificante: 'lub', intimo: 'lub', lubintimo: 'lub',
 }
 
+// Tag interna (usada em contatos.fotos_enviadas) → TAG REAL do cadastro de
+// produtos (Estoque > Cadastro). As tags reais têm maiúscula e espaço
+// ("Full 6k", "Pomada"), então a busca por 'amarelo'/'pomada' NUNCA casava e
+// a arte_url cadastrada era ignorada — caía sempre no fallback do bucket.
+const TAG_DB: Record<string, string> = {
+  verde: 'CBD', amarelo: 'Full 6k', vermelho: 'Full 10k',
+  gummy: 'Gummy', pomada: 'Pomada', lub: 'Lub',
+}
+
 // Fallback LEGADO (arquivo fixo no bucket Start) SÓ se o produto não tiver
-// arte_url cadastrada. Keyed pela tag real do produto.
+// arte_url cadastrada. Keyed pela tag interna.
 // ATENÇÃO: nomes EXATOS (case-sensitive!) dos arquivos que existem no bucket.
 // Os antigos .jpg (Cbd.jpg, Full6k.jpg, Lub.jpg...) NÃO existem → Evolution
 // recebia 404 e descartava a imagem em silêncio (texto ia, foto não).
@@ -220,9 +229,11 @@ export async function resolverFotoProduto(
 ): Promise<{ url: string; foto_tag: string; usou_arte: boolean; produto: string } | null> {
   let arte: string | null = null
   let prodNome = ''
+  // ilike + TAG_DB: casa a tag real do cadastro ("Full 6k") de forma
+  // case-insensitive, sem depender de como o LLM escreveu.
   const { data: prodByTag } = await supabase
     .from('produtos').select('arte_url, nome_oficial')
-    .eq('tag', tag).eq('ativo', true).maybeSingle()
+    .ilike('tag', TAG_DB[tag] || tag).eq('ativo', true).maybeSingle()
   if (prodByTag) { arte = (prodByTag as any).arte_url || null; prodNome = (prodByTag as any).nome_oficial || '' }
 
   if (!arte && rawKeyword.length >= 3) {

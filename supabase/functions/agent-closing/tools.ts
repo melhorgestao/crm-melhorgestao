@@ -38,6 +38,14 @@ const TAG_ALIAS: Record<string, string> = {
   lub: 'lub', lubrificante: 'lub', intimo: 'lub', lubintimo: 'lub',
 }
 
+// Tag interna (contatos.fotos_enviadas) → TAG REAL do cadastro de produtos.
+// As reais têm maiúscula/espaço ("Full 6k", "Pomada"): buscar por
+// 'amarelo'/'pomada' nunca casava e a arte cadastrada era ignorada.
+const TAG_DB: Record<string, string> = {
+  verde: 'CBD', amarelo: 'Full 6k', vermelho: 'Full 10k',
+  gummy: 'Gummy', pomada: 'Pomada', lub: 'Lub',
+}
+
 // Fallback LEGADO (arquivo fixo no bucket Start) se o produto não tiver arte_url.
 // ATENÇÃO: nomes EXATOS (case-sensitive!) dos arquivos que existem no bucket.
 // Os antigos .jpg (Cbd.jpg, Full6k.jpg, Lub.jpg...) NÃO existem → Evolution
@@ -351,9 +359,10 @@ export async function resolverFotoProduto(
 ): Promise<{ url: string; foto_tag: string; usou_arte: boolean; produto: string } | null> {
   let arte: string | null = null
   let prodNome = ''
+  // ilike + TAG_DB: casa a tag real do cadastro, case-insensitive.
   const { data: prodByTag } = await supabase
     .from('produtos').select('arte_url, nome_oficial')
-    .eq('tag', tag).eq('ativo', true).maybeSingle()
+    .ilike('tag', TAG_DB[tag] || tag).eq('ativo', true).maybeSingle()
   if (prodByTag) { arte = (prodByTag as any).arte_url || null; prodNome = (prodByTag as any).nome_oficial || '' }
 
   if (!arte && rawKeyword.length >= 3) {
