@@ -122,6 +122,7 @@ Deno.serve(async (req) => {
     let iter = 0
     const toolsUsed: string[] = []
     const fotosNovas: Array<{ url: string; caption?: string; tag: string }> = []
+    let pixGerado: any = null
 
     while (iter < MAX_TOOL_ITERATIONS) {
       iter++
@@ -146,6 +147,9 @@ Deno.serve(async (req) => {
             name, args, contato_id, instancia_id: instanciaIdResolvido, supabase,
             fotosEnviadas, mensagemAtual: String(mensagens || ''),
           })
+          if ((name === 'gerar_pix_deflow' || name === 'gerar_pix_saldo_devedor') && (toolResult as any)?.pix_copia_cola) {
+            pixGerado = toolResult
+          }
           if (name === 'enviar_foto_produto' && (toolResult as any)?.send) {
             fotosNovas.push({
               url:     (toolResult as any).url,
@@ -176,6 +180,22 @@ Deno.serve(async (req) => {
     debug.iterations = iter
     debug.tools_used = toolsUsed
     debug.took_ms = Date.now() - t0
+
+    // PIX DETERMINÍSTICO: o LLM copiava o placeholder "[copia-cola]" do
+    // prompt LITERALMENTE em vez de substituir pela chave da tool. Quando
+    // gerar_pix_* devolveu chave, a mensagem é montada AQUI no código:
+    // intro + chave SOZINHA num bloco (fácil de copiar no WhatsApp) + aviso.
+    if (pixGerado?.pix_copia_cola) {
+      const valor = Number(pixGerado.valor_bruto || 0)
+      const valorTxt = valor > 0 ? ` de R$ ${valor.toFixed(2).replace('.', ',')}` : ''
+      const out = [
+        { tipo: 'text', texto: `Aqui está seu PIX${valorTxt} 💚 É só copiar o código abaixo e colar no app do seu banco 👇`, delay_ms: 0 },
+        { tipo: 'text', texto: String(pixGerado.pix_copia_cola), delay_ms: 1200 },
+        { tipo: 'text', texto: '⏱ O código expira em 15 minutos. Assim que o pagamento cair eu te aviso e já preparo seu envio!', delay_ms: 1200 },
+      ]
+      debug.pix_enviado_deterministico = true
+      return j({ resposta_texto: out[0].texto, respostas: out, contato_id, debug })
+    }
 
     // AUTO-FOTO (determinístico): o LLM nem sempre chama enviar_foto_produto.
     // Se a resposta cita/indica produto que ainda não teve foto enviada pra
