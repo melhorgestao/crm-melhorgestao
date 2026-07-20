@@ -108,11 +108,22 @@ Deno.serve(async (req) => {
       })
     }
 
+    // CPF do pagador: a API DeFlow EXIGE payerTaxNumber (erro 400 sem ele).
+    // O fluxo de fechamento já garante CPF salvo antes de criar o pedido.
+    const { data: contatoRow } = await supabase
+      .from('contatos').select('cpf').eq('id', pedido.contato_id).maybeSingle()
+    const cpfPagador = String((contatoRow as any)?.cpf || '').replace(/\D/g, '')
+    if (cpfPagador.length !== 11) {
+      return j({ error: 'CPF do cliente ausente/inválido — necessário pra gerar o Pix (peça o CPF e salve antes)' }, 400)
+    }
+
     // DeFlow real: UUID v4 determinístico baseado no pedido pra idempotência
+    // Payload conforme a API: amountInCents (não amountCents) + payerTaxNumber.
     const idempotencyKey = uuidv4FromSeed(pedido.id)
     const body: Record<string, unknown> = {
-      amountCents,
+      amountInCents: amountCents,
       mode: 'exact',  // cliente paga cheio, taxa deduzida do crédito → recebemos líquido
+      payerTaxNumber: cpfPagador,
     }
     if (walletId) body.walletId = walletId
 
