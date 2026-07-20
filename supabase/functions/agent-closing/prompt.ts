@@ -50,9 +50,29 @@ export function buildClosingPrompt({ contato, pendencia, catalogo, contato_id, i
   const cpfFormat = temCpf
     ? (contato.cpf || '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
     : '(não cadastrado)'
+  // Estado do endereço CAMPO A CAMPO (calculado no código, não deixar o LLM
+  // inferir): endereço parcial (CEP+rua salvos pelo consultar_cep, faltando
+  // número/CPF) NÃO É "sem endereço" — dizer isso fazia o LLM regredir pro
+  // ESTADO 1 e tratar o número da casa como CEP.
+  const temCep = !!contato.cep
+  const temRua = !!contato.rua
+  const faltas: string[] = []
+  if (!temCep) faltas.push('CEP')
+  if (!temRua) faltas.push('rua')
+  if (!contato.numero) faltas.push('número (e complemento)')
+  if (!temCpf) faltas.push('CPF')
   const endFormat = temEndereco
     ? `📮 CEP: ${contato.cep}\n🏠 ${contato.rua}, ${contato.numero}${contato.complemento ? ' — ' + contato.complemento : ''}\n🏘 ${contato.bairro || ''} — ${contato.cidade}/${contato.uf}\n📄 CPF: ${cpfFormat}`
-    : '(endereço NÃO cadastrado — precisa coletar)'
+    : [
+        `CEP: ${contato.cep ? contato.cep + ' ✅ JÁ SALVO' : '❌ falta'}`,
+        `Rua: ${contato.rua ? contato.rua + ' ✅ JÁ SALVA' : '❌ falta'}`,
+        `Bairro/Cidade: ${contato.cidade ? `${contato.bairro || ''} — ${contato.cidade}/${contato.uf} ✅` : '❌ falta'}`,
+        `Número: ${contato.numero ? contato.numero + ' ✅' : '❌ falta'}`,
+        `CPF: ${temCpf ? cpfFormat + ' ✅' : '❌ falta'}`,
+        '',
+        `➡️ O QUE FALTA COLETAR: ${faltas.join(' + ') || 'nada'}.`,
+        temCep ? '⚠️ CEP JÁ FOI CONSULTADO E SALVO — NUNCA chame consultar_cep de novo nem peça o CEP. Número de casa NÃO é CEP. Se o cliente mandar número+CPF, chame salvar_endereco DIRETO com esses dados.' : '',
+      ].filter(Boolean).join('\n')
 
   const pendBlock = temPendencia ? `
 ⚠️ PENDÊNCIA DE PAGAMENTO ATIVA:
