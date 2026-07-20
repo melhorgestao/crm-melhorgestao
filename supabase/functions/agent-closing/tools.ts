@@ -132,11 +132,11 @@ export const CLOSING_TOOL_SCHEMAS = [
     type: 'function',
     function: {
       name: 'gerar_pix_deflow',
-      description: 'Gera o Pix DeFlow pro pedido_em_aberto criado por calcular_pedido. Chame APÓS cliente confirmar resumo. Retorna copia-cola pronto.',
+      description: 'Gera o Pix DeFlow pro pedido em aberto do cliente. Chame APÓS cliente confirmar o resumo (respondeu "1"/"pagar"). NÃO precisa passar id — o sistema acha o pedido aberto do contato automaticamente. Retorna copia-cola pronto.',
       parameters: {
         type: 'object',
-        properties: { pedido_em_aberto_id: { type: 'string', description: 'UUID retornado por calcular_pedido.' } },
-        required: ['pedido_em_aberto_id'],
+        properties: { pedido_em_aberto_id: { type: 'string', description: 'Opcional. UUID do pedido se você tiver (retornado por calcular_pedido neste turno). Se não tiver, deixe vazio — o sistema resolve.' } },
+        required: [],
       },
     },
   },
@@ -290,10 +290,29 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
       }
 
       case 'gerar_pix_deflow': {
-        if (!args.pedido_em_aberto_id) return { error: 'pedido_em_aberto_id obrigatório' }
-        const r = await invokeFunction('gerar-pix-deflow', {
-          pedido_em_aberto_id: args.pedido_em_aberto_id,
-        })
+        // Resolve o pedido NO CÓDIGO: o id vinha de tool result de turno
+        // anterior, que NÃO persiste no history (só textos) → o LLM chutava
+        // um UUID e o edge devolvia "pedido não encontrado" → escalava suporte.
+        // Regra: usa o id passado SE existir e for do contato; senão pega o
+        // pedido aguardando_pagamento mais recente do contato.
+        let pedidoId: string | null = null
+        if (args.pedido_em_aberto_id && /^[0-9a-f-]{36}$/i.test(String(args.pedido_em_aberto_id))) {
+          const { data: p } = await supabase.from('pedido_em_aberto')
+            .select('id').eq('id', args.pedido_em_aberto_id)
+            .eq('contato_id', contato_id).maybeSingle()
+          if (p?.id) pedidoId = p.id
+        }
+        if (!pedidoId) {
+          const { data: p } = await supabase.from('pedido_em_aberto')
+            .select('id').eq('contato_id', contato_id)
+            .eq('status', 'aguardando_pagamento')
+            .order('created_at', { ascending: false }).limit(1).maybeSingle()
+          if (p?.id) pedidoId = p.id
+        }
+        if (!pedidoId) {
+          return { error: 'nenhum pedido em aberto pra este cliente — chame calcular_pedido primeiro (confirme itens do pedido)' }
+        }
+        const r = await invokeFunction('gerar-pix-deflow', { pedido_em_aberto_id: pedidoId })
         return r
       }
 

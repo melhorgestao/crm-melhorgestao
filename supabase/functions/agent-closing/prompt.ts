@@ -33,9 +33,10 @@ interface BuildArgs {
   contato_id: string
   instancia_id: string | null
   entrouAgora: boolean
+  pedidoAberto?: { id: string; total: number; is_parcelado?: boolean; valor_primeira_parcela?: number | null; pix_copia_cola?: string | null } | null
 }
 
-export function buildClosingPrompt({ contato, pendencia, catalogo, contato_id, instancia_id, entrouAgora }: BuildArgs): string {
+export function buildClosingPrompt({ contato, pendencia, catalogo, contato_id, instancia_id, entrouAgora, pedidoAberto }: BuildArgs): string {
   const nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)'
   const temPendencia = !!pendencia?.tem_pendencia
   const saldoDevedor = Number(pendencia?.saldo_devedor_total || 0)
@@ -74,6 +75,16 @@ export function buildClosingPrompt({ contato, pendencia, catalogo, contato_id, i
         temCep ? '⚠️ CEP JÁ FOI CONSULTADO E SALVO — NUNCA chame consultar_cep de novo nem peça o CEP. Número de casa NÃO é CEP. Se o cliente mandar número+CPF, chame salvar_endereco DIRETO com esses dados.' : '',
       ].filter(Boolean).join('\n')
 
+  const pedidoBlock = pedidoAberto ? `
+🧾 PEDIDO EM ABERTO (aguardando pagamento) — JÁ EXISTE:
+  • Total: R$ ${Number(pedidoAberto.total || 0).toFixed(2).replace('.', ',')}${pedidoAberto.is_parcelado ? ` (parcelado — 1ª parcela R$ ${Number(pedidoAberto.valor_primeira_parcela || 0).toFixed(2).replace('.', ',')})` : ''}
+  • ${pedidoAberto.pix_copia_cola ? 'Pix JÁ GERADO — se cliente pedir de novo, chame gerar_pix_deflow (retorna o mesmo copia-cola).' : 'Pix ainda NÃO gerado.'}
+  ⚡ Se o cliente CONFIRMAR o pagamento ("1", "pagar", "sim", "confirmo", "fechou"):
+  chame gerar_pix_deflow IMEDIATAMENTE (sem passar id — o sistema acha o pedido).
+  NÃO peça CEP, NÃO refaça o pedido, NÃO chame calcular_pedido de novo
+  (só recalcule se o cliente pedir MUDANÇA nos itens).
+` : ''
+
   const pendBlock = temPendencia ? `
 ⚠️ PENDÊNCIA DE PAGAMENTO ATIVA:
   • ${qtdPedPend} pedido(s) com saldo devedor — total R$ ${saldoDevedor.toFixed(2).replace('.',',')}
@@ -102,7 +113,7 @@ ${entrouAgoraBlock}
 • Estado atual: ${contato.ultima_interacao || 'novo'}
 • contato_id: ${contato_id}
 • instancia_id: ${instancia_id || '(desconhecida)'}
-${pendBlock}
+${pendBlock}${pedidoBlock}
 === ENDEREÇO ATUAL ===
 ${endFormat}
 
@@ -177,8 +188,10 @@ ESTADO 3 — COMPLETAR ENDEREÇO + CPF + CRIAR PEDIDO
   Quando NÃO houver pendencias → mostre resumo_formatado + "Confirma? 1 = pagar | 2 = ajustar"
 
 ESTADO 4 — PAGAMENTO
-  Quando cliente confirmar (1), chame gerar_pix_deflow(pedido_em_aberto_id).
+  Condição: existe PEDIDO EM ABERTO (veja bloco 🧾 acima) e cliente confirmou (1/pagar/sim).
+  Ação: chame gerar_pix_deflow (NÃO precisa de id — o sistema acha o pedido do cliente).
   Envie: "Aqui está seu PIX 💚\n\n[copia-cola]\n\n⏱ Expira em 15 minutos. Te aviso assim que cair!"
+  Se a tool retornar erro, NÃO escale direto: tente 1x de novo; só escale se falhar 2x.
 
 REGRAS DE AVANÇO (críticas, evitam loop):
   • NUNCA repita pergunta de campo já recebido. Olhe o history.

@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     }
 
     // 2) carrega contexto em paralelo
-    const [contatoRes, pendenciaRes, catalogoRes, historyRes] = await Promise.all([
+    const [contatoRes, pendenciaRes, catalogoRes, historyRes, pedidoAbertoRes] = await Promise.all([
       supabase.from('contatos')
         .select('id,nome,ja_comprou,cidade,uf,ultima_interacao,instancia_id,cep,rua,numero,complemento,bairro,cpf,fotos_enviadas')
         .eq('id', contato_id).maybeSingle(),
@@ -69,6 +69,14 @@ Deno.serve(async (req) => {
         .select('direcao,mensagem,recebida_em')
         .eq('contato_id', contato_id)
         .order('recebida_em', { ascending: false }).limit(20),
+      // pedido em aberto do contato (aguardando pagamento): entra no prompt
+      // pra o turno "1 = pagar" saber que EXISTE pedido e ir direto pro Pix
+      // (tool results de turnos anteriores NÃO sobrevivem no history).
+      supabase.from('pedido_em_aberto')
+        .select('id,total,is_parcelado,valor_primeira_parcela,pix_copia_cola,created_at')
+        .eq('contato_id', contato_id)
+        .eq('status', 'aguardando_pagamento')
+        .order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ])
 
     const contato: ContatoClosing = (contatoRes.data ?? {}) as ContatoClosing
@@ -76,6 +84,7 @@ Deno.serve(async (req) => {
     const pendencia = pendenciaRes.data ?? {}
     const catalogo: ProdutoCat[] = (catalogoRes.data ?? []) as ProdutoCat[]
     const history = (historyRes.data ?? []).slice().reverse()
+    const pedidoAberto = pedidoAbertoRes.data ?? null
 
     const instanciaIdResolvido = instancia_id || (contato as any).instancia_id || null
     const entrouAgora = !!body.entrou_agora
@@ -87,11 +96,13 @@ Deno.serve(async (req) => {
     debug.history_len = history.length
     debug.entrou_agora = entrouAgora
 
+    debug.pedido_aberto = pedidoAberto ? (pedidoAberto as any).id : null
+
     // 3) prompts
     const systemPrompt = buildClosingPrompt({
       contato, pendencia, catalogo,
       contato_id, instancia_id: instanciaIdResolvido,
-      entrouAgora,
+      entrouAgora, pedidoAberto,
     })
     const userMessage = entrouAgora
       ? `[O cliente acabou de demonstrar intenção de compra. Última mensagem dele:\n${mensagens || '(vazio)'}\n\nAja imediatamente seguindo o ESTADO atual da state machine.]`

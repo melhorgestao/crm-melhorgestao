@@ -88,12 +88,18 @@ Deno.serve(async (req) => {
     // 1) Carrega contato + endereço
     const { data: contato, error: cErr } = await supabase
       .from('contatos')
-      .select('id, cep, rua, numero, complemento, bairro, cidade, uf')
+      .select('id, cep, rua, numero, complemento, bairro, cidade, uf, cpf')
       .eq('id', contato_id).single()
     if (cErr || !contato) return j({ error: 'contato não encontrado' }, 404)
     if (!contato.cep || !contato.rua || !contato.numero || !contato.uf) {
       return j({ ok: false, pendencias: ['endereco'],
                  error: 'endereço incompleto — peça CEP, número, etc antes de calcular' }, 200)
+    }
+    // CPF é obrigatório pra etiqueta de envio — trava ANTES de criar o pedido
+    // (pedido sem CPF quebra a geração de etiqueta lá na frente).
+    if (!contato.cpf || String(contato.cpf).replace(/\D/g, '').length !== 11) {
+      return j({ ok: false, pendencias: ['endereco'],
+                 error: 'CPF ausente ou inválido — peça o CPF do destinatário (obrigatório pra etiqueta) antes de calcular' }, 200)
     }
 
     // 2) Carrega catálogo
