@@ -4,16 +4,22 @@
 // Modo "exact": cliente paga o valor BRUTO do pedido. DeFlow desconta taxa
 // do crédito. Recebemos LÍQUIDO (netAmountCents) — esse vai pra caixa.
 //
+// RESILIÊNCIA (v2): a DeFlow às vezes falha transitório ("Aguarde 1 minuto e
+// tente novamente"). Nesses casos o edge NÃO devolve erro pro agente (que
+// escalava suporte/ficava mudo): responde { ok:true, background:true } e segue
+// tentando em BACKGROUND (EdgeRuntime.waitUntil, ~4 tentativas com pausa).
+// Quando conseguir, ENVIA as bolhas do Pix DIRETO via Evolution (independe do
+// turno do LLM) + grava no buffer + evento. Se esgotar, avisa o cliente e
+// marca suporte.
+//
+// Erro PERMANENTE (CPF inválido etc) → retorna erro na hora (o agente pede
+// o CPF certo).
+//
 // Linkagem pedido_em_aberto.pix_id = deposit.id (lookup reverso no webhook).
-// X-DF-Idempotency-Key é UUID determinístico baseado no pedido_em_aberto_id
-// pra evitar criar 2 depósitos diferentes pro mesmo pedido em retry.
+// X-DF-Idempotency-Key determinístico por (pedido + tentativa).
 //
 // INPUT:  { pedido_em_aberto_id: uuid }
-// OUTPUT: { ok, pix_id, pix_copia_cola, pix_qr_image_url, pix_expira_em,
-//           valor_bruto, valor_liquido, taxa, modo }
-//
-// Fallback STUB: se faltar credencial DeFlow em configuracoes, retorna
-// QR placeholder pra ainda permitir testes do fluxo n8n.
+// OUTPUT: { ok, pix_id, pix_copia_cola, ... } | { ok, background:true } | { error }
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -24,6 +30,105 @@ const corsHeaders = {
 }
 
 const DEFLOW_BASE = 'https://api.deflow.exchange'
+const EVOLUTION_BASE_URL_DEFAULT = 'https://evo.melhorgestao.online'
+const RETRIES_BG = 4          // tentativas em background
+const RETRY_DELAY_MS = 25000  // pausa entre tentativas (DeFlow pede ~1 min)
+
+/** número no formato Evolution: BR nacional → prefixa 55; DDI estrangeiro passa. */
+function numeroEvolution(telefone: string): string {
+  const nd = String(telefone || '').replace(/\D/g, '')
+  return (nd.length === 10 || (nd.length === 11 && nd.charAt(2) === '9')) ? '55' + nd : nd
+}
+
+type TentativaOk = {
+  ok: true; depositId: string; qrCopyPaste: string; qrImageUrl: string;
+  feeCents: number | null; netAmountCents: number | null; expiresAt: string
+}
+type TentativaErr = { ok: false; permanente: boolean; error: string }
+
+/** Uma tentativa de criar o depósito na DeFlow. */
+async function tentarDeposito(
+  cfg: Record<string, string>, amountCents: number, cpf: string, seed: string,
+): Promise<TentativaOk | TentativaErr> {
+  const body: Record<string, unknown> = {
+    amountInCents: amountCents,
+    mode: 'exact',
+    payerTaxNumber: cpf,
+  }
+  if (cfg['deflow_wallet_id']) body.walletId = cfg['deflow_wallet_id']
+
+  let r: Response
+  try {
+    r = await fetch(`${DEFLOW_BASE}/v1/deposit/create`, {
+      method: 'POST',
+      headers: {
+        'Authorization':        `Bearer ${cfg['deflow_api_key']}`,
+        'X-DF-Secret':          cfg['deflow_secret'],
+        'X-DF-Passphrase':      cfg['deflow_passphrase'],
+        'X-DF-Idempotency-Key': uuidv4FromSeed(seed),
+        'Content-Type':         'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+  } catch (e) {
+    return { ok: false, permanente: false, error: `rede: ${e instanceof Error ? e.message : String(e)}` }
+  }
+
+  if (!r.ok) {
+    const errBody = await r.text()
+    // CPF/CNPJ inválido e afins = erro PERMANENTE (retry não resolve)
+    const permanente = /cpf|cnpj|payerTaxNumber|inválido|invalido/i.test(errBody) && r.status === 400
+      && !/aguarde|tente novamente|não foi possível gerar/i.test(errBody)
+    return { ok: false, permanente, error: `DeFlow ${r.status}: ${errBody.slice(0, 400)}` }
+  }
+
+  const resp = await r.json()
+  const d = resp.data || resp
+  if (!d.id || !d.qrCopyPaste) {
+    return { ok: false, permanente: false, error: `resposta DeFlow malformada: ${JSON.stringify(d).slice(0, 200)}` }
+  }
+  return {
+    ok: true, depositId: d.id, qrCopyPaste: d.qrCopyPaste,
+    qrImageUrl: d.qrImageUrl || '', feeCents: d.feeCents ?? null,
+    netAmountCents: d.netAmountCents ?? null,
+    expiresAt: d.expiresAt || new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+  }
+}
+
+/** Persiste o Pix no pedido. */
+async function persistirPix(supabase: any, pedidoId: string, amountCents: number, t: TentativaOk) {
+  await supabase.from('pedido_em_aberto').update({
+    pix_id: t.depositId,
+    pix_copia_cola: t.qrCopyPaste,
+    pix_qr_image_url: t.qrImageUrl,
+    pix_expira_em: t.expiresAt,
+    pix_bruto_cents: amountCents,
+    pix_taxa_cents: t.feeCents,
+    pix_liquido_cents: t.netAmountCents,
+    updated_at: new Date().toISOString(),
+  }).eq('id', pedidoId)
+}
+
+/** Envia texto via Evolution + grava no buffer (best-effort). */
+async function enviarTexto(
+  supabase: any,
+  evo: { url: string; apikey: string; instance: string },
+  contato: { id: string; telefone: string; instancia_id: string | null },
+  texto: string,
+) {
+  try {
+    await fetch(`${evo.url}/message/sendText/${encodeURIComponent(evo.instance)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': evo.apikey },
+      body: JSON.stringify({ number: numeroEvolution(contato.telefone), text: texto, delay: 1200 }),
+    })
+    await supabase.from('mensagens_buffer').insert({
+      contato_id: contato.id, telefone: contato.telefone, mensagem: texto,
+      tipo: 'text', direcao: 'out', instancia_id: contato.instancia_id,
+      processada_em: new Date().toISOString(),
+    })
+  } catch (_) { /* best-effort */ }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -39,7 +144,7 @@ Deno.serve(async (req) => {
 
     const { data: pedido, error: pErr } = await supabase
       .from('pedido_em_aberto')
-      .select('id, contato_id, total, status, valor_primeira_parcela, is_parcelado, is_cobranca_saldo, pix_id, pix_copia_cola, pix_qr_image_url, pix_expira_em, pix_liquido_cents, pix_taxa_cents')
+      .select('id, contato_id, instancia_id, total, status, valor_primeira_parcela, is_parcelado, is_cobranca_saldo, pix_id, pix_copia_cola, pix_qr_image_url, pix_expira_em, pix_liquido_cents, pix_taxa_cents')
       .eq('id', pedido_em_aberto_id).single()
     if (pErr || !pedido) return j({ error: 'pedido não encontrado' }, 404)
     if (pedido.status !== 'aguardando_pagamento') {
@@ -74,109 +179,113 @@ Deno.serve(async (req) => {
     const cfg: Record<string,string> = {}
     for (const c of (configs || []) as any[]) cfg[c.chave] = (c.valor as string || '').trim()
 
-    const apiKey     = cfg['deflow_api_key']
-    const secret     = cfg['deflow_secret']
-    const passphrase = cfg['deflow_passphrase']
-    const walletId   = cfg['deflow_wallet_id']
-
     // STUB se faltar credencial — permite testar fluxo sem DeFlow real
-    if (!apiKey || !secret || !passphrase) {
+    if (!cfg['deflow_api_key'] || !cfg['deflow_secret'] || !cfg['deflow_passphrase']) {
       const stubId   = `STUB-${pedido.id}`
       const stubCola = `00020126360014BR.GOV.BCB.PIX0114STUB${pedido.id.slice(0,8)}520400005303986540${valorBruto.toFixed(2)}5802BR5910SANTA FLOR6009SAO PAULO62070503***6304STUB`
       const expira   = new Date(Date.now() + 15 * 60 * 1000).toISOString()
-
       await supabase.from('pedido_em_aberto').update({
-        pix_id: stubId,
-        pix_copia_cola: stubCola,
-        pix_qr_base64: '',
-        pix_qr_image_url: '',
-        pix_expira_em: expira,
-        pix_bruto_cents: amountCents,
+        pix_id: stubId, pix_copia_cola: stubCola, pix_qr_base64: '',
+        pix_qr_image_url: '', pix_expira_em: expira, pix_bruto_cents: amountCents,
         updated_at: new Date().toISOString(),
       }).eq('id', pedido_em_aberto_id)
-
       return j({
         ok: true, modo: 'stub',
         aviso: 'credenciais DeFlow não configuradas — Pix retornado é placeholder',
-        pix_id: stubId,
-        pix_copia_cola: stubCola,
-        pix_qr_image_url: '',
-        pix_expira_em: expira,
-        valor_bruto: valorBruto,
-        valor_liquido: null,
-        taxa: null,
+        pix_id: stubId, pix_copia_cola: stubCola, pix_qr_image_url: '',
+        pix_expira_em: expira, valor_bruto: valorBruto, valor_liquido: null, taxa: null,
       })
     }
 
-    // CPF do pagador: a API DeFlow EXIGE payerTaxNumber (erro 400 sem ele).
-    // O fluxo de fechamento já garante CPF salvo antes de criar o pedido.
+    // CPF do pagador: a API DeFlow EXIGE payerTaxNumber
     const { data: contatoRow } = await supabase
-      .from('contatos').select('cpf').eq('id', pedido.contato_id).maybeSingle()
+      .from('contatos').select('id, telefone, nome, instancia_id, cpf')
+      .eq('id', pedido.contato_id).maybeSingle()
     const cpfPagador = String((contatoRow as any)?.cpf || '').replace(/\D/g, '')
     if (cpfPagador.length !== 11) {
       return j({ error: 'CPF do cliente ausente/inválido — necessário pra gerar o Pix (peça o CPF e salve antes)' }, 400)
     }
 
-    // DeFlow real: UUID v4 determinístico baseado no pedido pra idempotência
-    // Payload conforme a API: amountInCents (não amountCents) + payerTaxNumber.
-    const idempotencyKey = uuidv4FromSeed(pedido.id)
-    const body: Record<string, unknown> = {
-      amountInCents: amountCents,
-      mode: 'exact',  // cliente paga cheio, taxa deduzida do crédito → recebemos líquido
-      payerTaxNumber: cpfPagador,
+    // ── 1ª tentativa (síncrona) ─────────────────────────────────────────────
+    const t1 = await tentarDeposito(cfg, amountCents, cpfPagador, `${pedido.id}:1`)
+    if (t1.ok) {
+      await persistirPix(supabase, pedido.id, amountCents, t1)
+      return j({
+        ok: true, modo: 'real',
+        pix_id: t1.depositId, pix_copia_cola: t1.qrCopyPaste,
+        pix_qr_image_url: t1.qrImageUrl, pix_expira_em: t1.expiresAt,
+        valor_bruto: valorBruto,
+        valor_liquido: t1.netAmountCents ? t1.netAmountCents / 100 : null,
+        taxa: t1.feeCents ? t1.feeCents / 100 : null,
+      })
     }
-    if (walletId) body.walletId = walletId
+    if (t1.permanente) return j({ error: t1.error }, 400)
 
-    const r = await fetch(`${DEFLOW_BASE}/v1/deposit/create`, {
-      method: 'POST',
-      headers: {
-        'Authorization':         `Bearer ${apiKey}`,
-        'X-DF-Secret':           secret,
-        'X-DF-Passphrase':       passphrase,
-        'X-DF-Idempotency-Key':  idempotencyKey,
-        'Content-Type':          'application/json',
-      },
-      body: JSON.stringify(body),
-    })
-
-    if (!r.ok) {
-      const errBody = await r.text()
-      return j({ error: `DeFlow ${r.status}: ${errBody.slice(0, 500)}` }, 502)
+    // ── Transitório: retry em BACKGROUND + envio direto via Evolution ───────
+    // Resolve a instância AGORA (pra falhar cedo se não der)
+    const instId = (pedido as any).instancia_id || (contatoRow as any)?.instancia_id
+    const { data: iRow } = await supabase.from('instancias')
+      .select('evolution_instance, evolution_url, evolution_apikey')
+      .eq('id', instId).maybeSingle()
+    const evo = {
+      url:      String((iRow as any)?.evolution_url || EVOLUTION_BASE_URL_DEFAULT).replace(/\/+$/, ''),
+      apikey:   String((iRow as any)?.evolution_apikey || ''),
+      instance: String((iRow as any)?.evolution_instance || ''),
     }
-
-    const resp = await r.json()
-    const d = resp.data || resp
-    const depositId   = d.id
-    const qrCopyPaste = d.qrCopyPaste
-    const qrImageUrl  = d.qrImageUrl || ''
-    const feeCents    = d.feeCents ?? null
-    const netAmountCents = d.netAmountCents ?? null
-    const expiresAt   = d.expiresAt || new Date(Date.now() + 15 * 60 * 1000).toISOString()
-
-    if (!depositId || !qrCopyPaste) {
-      return j({ error: 'resposta DeFlow malformada', details: JSON.stringify(d).slice(0, 300) }, 502)
+    const contato = {
+      id: (contatoRow as any).id, telefone: String((contatoRow as any).telefone || ''),
+      instancia_id: instId || null,
+    }
+    if (!evo.instance || !evo.apikey || !contato.telefone) {
+      // sem como enviar em background — devolve o erro original mesmo
+      return j({ error: t1.error }, 502)
     }
 
-    await supabase.from('pedido_em_aberto').update({
-      pix_id: depositId,
-      pix_copia_cola: qrCopyPaste,
-      pix_qr_image_url: qrImageUrl,
-      pix_expira_em: expiresAt,
-      pix_bruto_cents: amountCents,
-      pix_taxa_cents: feeCents,
-      pix_liquido_cents: netAmountCents,
-      updated_at: new Date().toISOString(),
-    }).eq('id', pedido_em_aberto_id)
+    const work = (async () => {
+      let ultimoErro = t1.error
+      for (let i = 2; i <= RETRIES_BG + 1; i++) {
+        await new Promise(res => setTimeout(res, RETRY_DELAY_MS))
+        const t = await tentarDeposito(cfg, amountCents, cpfPagador, `${pedido.id}:${i}`)
+        if (t.ok) {
+          await persistirPix(supabase, pedido.id, amountCents, t)
+          const valorTxt = valorBruto > 0 ? ` de R$ ${valorBruto.toFixed(2).replace('.', ',')}` : ''
+          await enviarTexto(supabase, evo, contato, `Prontinho! Aqui está seu PIX${valorTxt} 💚 É só copiar o código abaixo e colar no app do seu banco 👇`)
+          await enviarTexto(supabase, evo, contato, String(t.qrCopyPaste))
+          await enviarTexto(supabase, evo, contato, '⏱ O código expira em 15 minutos. Assim que o pagamento cair eu te aviso e já preparo seu envio!')
+          try {
+            await supabase.from('eventos_contato').insert({
+              contato_id: contato.id, tipo: 'pix_gerado_background', canal: evo.instance,
+              instancia_id: contato.instancia_id,
+              metadata: { pedido_em_aberto_id: pedido.id, tentativa: i, valor_bruto: valorBruto },
+            })
+          } catch (_) { /* best-effort */ }
+          return
+        }
+        ultimoErro = t.error
+        if (t.permanente) break
+      }
+      // esgotou: avisa o cliente e marca suporte
+      await enviarTexto(supabase, evo, contato, 'Opa, o sistema de pagamento tá com uma instabilidade agora 🙏 Já chamei um atendente pra te mandar o Pix manualmente — só um instante!')
+      try {
+        await supabase.rpc('marcar_contato_suporte', {
+          p_contato_id: contato.id, p_motivo: 'pix_deflow_falhou_retries',
+        })
+        await supabase.from('eventos_contato').insert({
+          contato_id: contato.id, tipo: 'pix_falhou_background', canal: evo.instance,
+          instancia_id: contato.instancia_id,
+          metadata: { pedido_em_aberto_id: pedido.id, erro: ultimoErro },
+        })
+      } catch (_) { /* best-effort */ }
+    })()
+
+    const er = (globalThis as any).EdgeRuntime
+    if (er?.waitUntil) er.waitUntil(work)
+    else work.catch(() => {})
 
     return j({
-      ok: true, modo: 'real',
-      pix_id: depositId,
-      pix_copia_cola: qrCopyPaste,
-      pix_qr_image_url: qrImageUrl,
-      pix_expira_em: expiresAt,
-      valor_bruto: valorBruto,
-      valor_liquido: netAmountCents ? netAmountCents / 100 : null,
-      taxa: feeCents ? feeCents / 100 : null,
+      ok: true, background: true,
+      motivo: 'deflow_instavel_retry_background',
+      aviso: 'Pix sendo gerado em background — as bolhas serão enviadas automaticamente via Evolution quando sair.',
     })
 
   } catch (err) {
@@ -185,14 +294,12 @@ Deno.serve(async (req) => {
   }
 })
 
-// UUID v4 determinístico a partir do pedido_em_aberto_id pra X-DF-Idempotency-Key
-// Mesmo pedido tentando gerar Pix de novo (retry) usa MESMO idempotency-key
-// e o DeFlow retorna o depósito já criado em vez de duplicar.
+// UUID v4 determinístico a partir de um seed (pedido:tentativa).
+// Tentativas diferentes usam chaves diferentes (a mesma chave numa criação
+// que falhou poderia replay o erro); a MESMA tentativa em retry HTTP replay
+// a mesma chave (não duplica depósito).
 function uuidv4FromSeed(seed: string): string {
-  // Simple deterministic UUID v4-shaped string from seed
-  // Use SHA via TextEncoder + crypto.subtle would be async; doing simple hash
   const hash = simpleHash(seed)
-  // Format as UUID v4: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
   const h = (hash + hash + hash).slice(0, 32)
   return `${h.slice(0,8)}-${h.slice(8,12)}-4${h.slice(13,16)}-8${h.slice(17,20)}-${h.slice(20,32)}`
 }
