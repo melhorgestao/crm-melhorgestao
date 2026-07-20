@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
           toolsUsed.push(name)
           const toolResult = await executeClosingTool({
             name, args, contato_id, instancia_id: instanciaIdResolvido, supabase,
-            fotosEnviadas,
+            fotosEnviadas, mensagemAtual: String(mensagens || ''),
           })
           if (name === 'enviar_foto_produto' && (toolResult as any)?.send) {
             fotosNovas.push({

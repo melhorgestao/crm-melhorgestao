@@ -11,6 +11,21 @@ interface ToolCtx {
   instancia_id?: string | null
   supabase: SupabaseClient
   fotosEnviadas?: string[]
+  mensagemAtual?: string
+}
+
+/** Extrai CPF (11 díg) da mensagem do cliente. Retorna '' se não achar. */
+function extrairCpf(texto: string): string {
+  const m = String(texto || '').match(/\d{3}\D?\d{3}\D?\d{3}\D?\d{2}/)
+  const d = m ? m[0].replace(/\D/g, '') : ''
+  return d.length === 11 ? d : ''
+}
+
+/** Extrai o número da casa: 1º número curto (1-6 díg) que NÃO faz parte do CPF. */
+function extrairNumeroCasa(texto: string): string {
+  const semCpf = String(texto || '').replace(/\d{3}\D?\d{3}\D?\d{3}\D?\d{2}/g, ' ')
+  const m = semCpf.match(/\b(\d{1,6}[a-zA-Z]?)\b/)
+  return m ? m[1] : ''
 }
 
 // Alias keyword → tag REAL do produto (mesmo mapa do agent-start).
@@ -89,7 +104,10 @@ export const CLOSING_TOOL_SCHEMAS = [
           uf:          { type: 'string', description: 'UF 2 letras.' },
           cpf:         { type: 'string', description: 'CPF do cliente (11 dígitos, com ou sem máscara). Obrigatório pra etiqueta.' },
         },
-        required: ['cep', 'rua', 'numero', 'bairro', 'cidade', 'uf', 'cpf'],
+        // rua/bairro/cidade/uf/cep já foram salvos pelo consultar_cep — só
+        // numero+cpf vêm da mensagem do ESTADO 3. Menos campos obrigatórios =
+        // LLM mais confiável. (rua só é necessária se foi CEP de cidade.)
+        required: ['numero', 'cpf'],
       },
     },
   },
@@ -219,15 +237,22 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
       }
 
       case 'salvar_endereco': {
-        const cpfLimpo = String(args.cpf || '').replace(/\D/g, '')
+        // Fallback DETERMINÍSTICO: gpt-4o-mini às vezes chama salvar_endereco
+        // com numero/cpf vazios mesmo estando na mensagem do cliente. Extrai
+        // do texto quando o LLM não passou. rua/cidade/etc já foram salvos
+        // pelo consultar_cep (upsert COALESCE-preserva), então aqui o que
+        // importa garantir é numero + cpf.
+        let cpfLimpo = String(args.cpf || '').replace(/\D/g, '')
+        if (cpfLimpo.length !== 11) cpfLimpo = extrairCpf(mensagemAtual)
         if (cpfLimpo && cpfLimpo.length !== 11) {
           return { error: 'CPF inválido (precisa ter 11 dígitos)' }
         }
+        const numero = String(args.numero || '').trim() || extrairNumeroCasa(mensagemAtual)
         const { data, error } = await supabase.rpc('upsert_endereco_contato', {
           p_contato_id:  contato_id,
           p_cep:         String(args.cep || '').replace(/\D/g, ''),
           p_rua:         args.rua || '',
-          p_numero:      args.numero || '',
+          p_numero:      numero,
           p_complemento: args.complemento || '',
           p_bairro:      args.bairro || '',
           p_cidade:      args.cidade || '',
@@ -236,7 +261,8 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
         })
         if (error) return { error: error.message }
         if (data && data.ok === false) return { error: data.error || 'falha ao salvar endereço' }
-        return { ok: true }
+        // Devolve o que foi efetivamente gravado pra o LLM não "achar" que salvou vazio.
+        return { ok: true, numero_salvo: numero || null, cpf_salvo: cpfLimpo || null }
       }
 
       case 'enviar_foto_produto': {
