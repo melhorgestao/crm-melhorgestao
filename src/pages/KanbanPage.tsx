@@ -256,7 +256,9 @@ const KanbanCard = memo(({
               ) : (
                 activeTag === 'BUYER' && column !== 'rmkt' && <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0 font-bold">BUYER</Badge>
               )}
-              {activeTag === 'ADS' && <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">ADS</Badge>}
+              {/* ADS só na coluna FECHAMENTO — é onde a origem do lead importa
+                  pra decisão de venda. Nas outras colunas polui o card. */}
+              {activeTag === 'ADS' && column === 'em_fechamento' && <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">ADS</Badge>}
               <p className="font-bold text-sm truncate">{contact.nome}</p>
             </div>
 
