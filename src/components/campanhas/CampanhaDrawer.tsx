@@ -41,6 +41,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
   const [editCoffeeFim, setEditCoffeeFim] = useState<string>('');
   const [editSkipRate, setEditSkipRate] = useState<string>('');
   const [editIntervalo, setEditIntervalo] = useState<string>('');
+  const [editJitter, setEditJitter] = useState<string>('');
   const [limiteInstLocal, setLimiteInstLocal] = useState<Record<string, string>>({});
   const [tplModalOpen, setTplModalOpen] = useState(false);
   const [tplEdit, setTplEdit] = useState<TemplateRow | null>(null);
@@ -66,6 +67,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     setEditCoffeeFim(campanha.coffee_break_fim?.slice(0, 5) || '');
     setEditSkipRate(campanha.skip_rate != null ? (campanha.skip_rate * 100).toString() : '0');
     setEditIntervalo(campanha.intervalo_minutos?.toString() || '5');
+    setEditJitter((campanha as any).intervalo_jitter_pct != null ? Math.round((campanha as any).intervalo_jitter_pct * 100).toString() : '40');
   }, [campanha]);
 
   // Templates da campanha
@@ -155,6 +157,8 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     if (Math.abs(skip - (campanha.skip_rate || 0)) > 0.001) changes.skip_rate = skip;
     const intervalo = Math.max(1, Math.min(1440, parseInt(editIntervalo, 10) || 5));
     if (intervalo !== campanha.intervalo_minutos) changes.intervalo_minutos = intervalo;
+    const jitter = Math.max(0, Math.min(90, parseFloat(editJitter) || 0)) / 100;
+    if (Math.abs(jitter - ((campanha as any).intervalo_jitter_pct ?? 0.4)) > 0.001) changes.intervalo_jitter_pct = jitter;
     if (Object.keys(changes).length === 0) { setSaving(false); toast.info('Sem alterações'); return; }
     changes.updated_at = new Date().toISOString();
     const { error } = await supabase.from('campanhas').update(changes).eq('id', campanha.id);
@@ -403,14 +407,40 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                   placeholder="5"
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Workflow roda a cada 1 min mas só processa se passou pelo menos N min desde o último.
-                  <strong> Ativação: 5min</strong> recomendado. <strong>RMKT/Follow-up: 30min</strong>. Pode ir de 1 a 1440 (24h).
+                  Base do intervalo entre envios (o sistema aplica a variação abaixo).
+                  <strong> Ativação: 5min</strong>. <strong>RMKT/Follow-up: 30min</strong> recomendado. Pode ir de 1 a 1440 (24h).
                 </p>
                 {campanha.ultima_execucao_em && (
                   <p className="text-[10px] text-muted-foreground">
                     Última execução: <span className="font-mono">{new Date(campanha.ultima_execucao_em).toLocaleString('pt-BR')}</span>
                   </p>
                 )}
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Variação do intervalo — jitter (%)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="90"
+                  value={editJitter}
+                  onChange={e => setEditJitter(e.target.value)}
+                  placeholder="40"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Aleatoriza cada envio em torno do intervalo, pra fugir do padrão fixo (anti-ban).
+                  Ex.: 30 min com <strong>40%</strong> → cada gap cai entre <strong>18 e 42 min</strong>.
+                  {(() => {
+                    const base = parseInt(editIntervalo, 10) || 0;
+                    const j = (parseFloat(editJitter) || 0) / 100;
+                    if (base > 0 && j > 0) {
+                      const lo = Math.max(0.5, base * (1 - j)).toFixed(0);
+                      const hi = (base * (1 + j)).toFixed(0);
+                      return <> Agora: <strong>{lo}–{hi} min</strong>.</>;
+                    }
+                    return <> 0% = intervalo fixo (não recomendado).</>;
+                  })()}
+                </p>
               </div>
 
               <div className="space-y-1">

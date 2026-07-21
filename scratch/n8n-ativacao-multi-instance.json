@@ -222,9 +222,9 @@
       "position": [-200, 480]
     },
     {
-      "parameters": { "amount": "={{ Math.floor(Math.random() * 60) + 30 }}", "unit": "seconds" },
+      "parameters": { "amount": "={{ Math.floor(Math.random() * 150) + 20 }}", "unit": "seconds" },
       "id": "wait-jitter",
-      "name": "JITTER 30-90s",
+      "name": "JITTER 20-170s",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [20, 480]
@@ -405,11 +405,11 @@
     "ESCOLHE TEMPLATE v2": { "main": [[ { "node": "Template liberado?", "type": "main", "index": 0 } ]] },
     "Template liberado?": {
       "main": [
-        [ { "node": "JITTER 30-90s", "type": "main", "index": 0 } ],
+        [ { "node": "JITTER 20-170s", "type": "main", "index": 0 } ],
         [ { "node": "Split por Instância", "type": "main", "index": 0 } ]
       ]
     },
-    "JITTER 30-90s":    { "main": [[ { "node": "Tem anexo?", "type": "main", "index": 0 } ]] },
+    "JITTER 20-170s":    { "main": [[ { "node": "Tem anexo?", "type": "main", "index": 0 } ]] },
     "Tem anexo?": {
       "main": [
         [ { "node": "SEND MEDIA EVO", "type": "main", "index": 0 } ],

@@ -459,11 +459,11 @@
     },
     {
       "parameters": {
-        "amount": "={{ Math.floor(Math.random() * 60) + 30 }}",
+        "amount": "={{ Math.floor(Math.random() * 150) + 20 }}",
         "unit": "seconds"
       },
       "id": "wait-jitter",
-      "name": "JITTER 30-90s",
+      "name": "JITTER 20-170s",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
@@ -1063,7 +1063,7 @@
       "main": [
         [
           {
-            "node": "JITTER 30-90s",
+            "node": "JITTER 20-170s",
             "type": "main",
             "index": 0
           }
@@ -1077,7 +1077,7 @@
         ]
       ]
     },
-    "JITTER 30-90s": {
+    "JITTER 20-170s": {
       "main": [
         [
           {
