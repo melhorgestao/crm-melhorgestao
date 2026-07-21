@@ -129,7 +129,12 @@ const KanbanCard = memo(({
     ? contact.tag_kanban : null;
   // Representante: detectado pelo canal (fonte real) OU pela tag. REP prevalece
   // sobre BUYER — um representante nunca deve exibir tag de comprador.
-  const isRep = contact.canal_atual === 'REP' || contact.canal_origem === 'REP' || activeTag === 'REP';
+  // Etiquetas de CANAL saem do canal_atual (situação vigente do contato),
+  // não de canal_origem nem de tag_kanban (tag expira e origem é histórica).
+  const isRep  = contact.canal_atual === 'REP' || contact.canal_atual === 'C-REP';
+  const isAds  = contact.canal_atual === 'ADS';
+  // BUYER não é canal: vem do fato de já ter comprado (mais confiável que tag).
+  const isBuyer = contact.ja_comprou === true;
 
   // Determina tempo "no estado" e tentativa pra exibir.
   // Coluna 'follow_up' cobre 2 estados internos — checa ultima_interacao.
@@ -254,11 +259,11 @@ const KanbanCard = memo(({
               {isRep ? (
                 <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">REP</Badge>
               ) : (
-                activeTag === 'BUYER' && column !== 'rmkt' && <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0 font-bold">BUYER</Badge>
+                isBuyer && column !== 'rmkt' && <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0 font-bold">BUYER</Badge>
               )}
               {/* ADS só na coluna FECHAMENTO — é onde a origem do lead importa
                   pra decisão de venda. Nas outras colunas polui o card. */}
-              {activeTag === 'ADS' && column === 'em_fechamento' && <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">ADS</Badge>}
+              {isAds && column === 'em_fechamento' && <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">ADS</Badge>}
               <p className="font-bold text-sm truncate">{contact.nome}</p>
             </div>
 
