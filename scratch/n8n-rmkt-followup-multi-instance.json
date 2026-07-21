@@ -215,7 +215,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_tipo\": \"followup\"\n}",
+        "jsonBody": "={\n  \"p_tipo\": \"followup\",\n  \"p_instancia_id\": \"{{ $('Split por Instância').item.json.id }}\"\n}",
         "options": {}
       },
       "id": "anti-ban",
@@ -808,7 +808,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_tipo\": \"rmkt\"\n}",
+        "jsonBody": "={\n  \"p_tipo\": \"rmkt\",\n  \"p_instancia_id\": \"{{ $('Split por Instância').item.json.id }}\"\n}",
         "options": {}
       },
       "id": "anti-ban-rmkt",
