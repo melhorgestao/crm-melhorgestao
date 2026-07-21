@@ -21,10 +21,16 @@ interface Cupom {
   desconto_pct: number;
   estados_cliente: string[];
   canais_cliente: string[];
+  /** Estágios de RMKT em que vale (1,2,3). Vazio = qualquer estágio. */
+  rmkt_estagios: number[];
+  /** Estágios de follow-up em que vale (1,2,3). Vazio = qualquer estágio. */
+  followup_estagios: number[];
   expira_em: string | null;
   ativo: boolean;
   observacao: string | null;
 }
+
+const ESTAGIOS = [1, 2, 3];
 
 const ESTADOS_OPTS: Array<{ key: string; label: string; hint?: string }> = [
   { key: '*',                 label: 'Todos' },
@@ -62,6 +68,7 @@ export function CuponsManager() {
     setEditing({
       id: '', nome: '', desconto_pct: 10,
       estados_cliente: ['*'], canais_cliente: ['*'],
+      rmkt_estagios: [], followup_estagios: [],
       expira_em: null, ativo: true, observacao: null,
     });
     setOpen(true);
@@ -118,6 +125,8 @@ export function CuponsManager() {
               </div>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 Estado: {c.estados_cliente.map(e => labelEstado(e)).join(', ')} · Canal: {c.canais_cliente.map(k => labelCanal(k)).join(', ')}
+                {c.rmkt_estagios?.length > 0 && ` · RMKT ${c.rmkt_estagios.join('/')}`}
+                {c.followup_estagios?.length > 0 && ` · Follow-up ${c.followup_estagios.join('/')}`}
               </p>
             </div>
             <Switch checked={c.ativo} onCheckedChange={() => toggleAtivo(c)} />
@@ -152,6 +161,8 @@ function CupomModal({ open, onClose, cupom }: { open: boolean; onClose: () => vo
   const [pct, setPct] = useState(10);
   const [estados, setEstados] = useState<string[]>(['*']);
   const [canais, setCanais] = useState<string[]>(['*']);
+  const [rmktEst, setRmktEst] = useState<number[]>([]);
+  const [fupEst, setFupEst] = useState<number[]>([]);
   const [expira, setExpira] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
@@ -162,6 +173,8 @@ function CupomModal({ open, onClose, cupom }: { open: boolean; onClose: () => vo
       setPct(cupom.desconto_pct);
       setEstados(cupom.estados_cliente);
       setCanais(cupom.canais_cliente);
+      setRmktEst(cupom.rmkt_estagios || []);
+      setFupEst(cupom.followup_estagios || []);
       setExpira(cupom.expira_em ? cupom.expira_em.slice(0, 10) : '');
     }
   });
@@ -186,6 +199,10 @@ function CupomModal({ open, onClose, cupom }: { open: boolean; onClose: () => vo
       desconto_pct: pct,
       estados_cliente: estados,
       canais_cliente: canais,
+      // Estágio só faz sentido se o cupom mira aquele grupo (ou 'Todos').
+      // Fora disso salva vazio = qualquer estágio.
+      rmkt_estagios:     (estados.includes('rmkt')     || estados.includes('*')) ? rmktEst : [],
+      followup_estagios: (estados.includes('followup') || estados.includes('*')) ? fupEst  : [],
       expira_em: expira ? new Date(expira).toISOString() : null,
       ativo: true,
     };
@@ -231,6 +248,45 @@ function CupomModal({ open, onClose, cupom }: { open: boolean; onClose: () => vo
               ))}
             </div>
           </div>
+
+          {/* Estágio de RMKT / Follow-up: permite cupom agressivo só no último
+              disparo (ex: 40% no Follow-up 3 pra não perder o lead). */}
+          {(['rmkt', 'followup'] as const).map(grupo => {
+            const ativo = estados.includes(grupo) || estados.includes('*');
+            if (!ativo) return null;
+            const isRmkt = grupo === 'rmkt';
+            const sel = isRmkt ? rmktEst : fupEst;
+            const setSel = isRmkt ? setRmktEst : setFupEst;
+            const nome = isRmkt ? 'RMKT' : 'Follow-up';
+            const toggle = (n: number) =>
+              setSel(sel.includes(n) ? sel.filter(x => x !== n) : [...sel, n].sort());
+            return (
+              <div key={grupo} className="space-y-1">
+                <Label className="text-xs">
+                  Estágio do {nome}
+                  <span className="text-muted-foreground text-[10px] font-normal">
+                    {' '}— quantas mensagens o lead já recebeu (vazio = qualquer estágio)
+                  </span>
+                </Label>
+                <div className="flex gap-1.5">
+                  {ESTAGIOS.map(n => (
+                    <label
+                      key={n}
+                      className="flex items-center gap-1.5 cursor-pointer text-xs border rounded px-3 py-1.5 bg-muted/20"
+                    >
+                      <input type="checkbox" checked={sel.includes(n)} onChange={() => toggle(n)} />
+                      <span>{nome} {n}</span>
+                    </label>
+                  ))}
+                </div>
+                {sel.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Só vale pra quem está {sel.length === 1 ? 'no' : 'nos'} {nome} {sel.join(', ')}.
+                  </p>
+                )}
+              </div>
+            );
+          })}
 
           <div className="space-y-1">
             <Label className="text-xs">Canal atual do cliente</Label>
