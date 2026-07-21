@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "Router (Evolution Webhook)",
   "nodes": [
     {
@@ -73,13 +73,13 @@
             {
               "id": "9",
               "name": "ctwa_source_id",
-              "value": "={{ $json.body?.data?.message?.messageContextInfo?.ctwaContext?.sourceId || $json.data?.message?.messageContextInfo?.ctwaContext?.sourceId || null }}",
+              "value": "={{ (() => { const m = $json.body?.data?.message || $json.data?.message || {}; const inner = m.deviceSentMessage?.message || m.ephemeralMessage?.message || m.viewOnceMessage?.message || m; const cis = []; for (const k of Object.keys(inner)) { const ci = inner[k]?.contextInfo; if (ci) cis.push(ci); } if (inner.contextInfo) cis.push(inner.contextInfo); if (m.messageContextInfo) cis.push(m.messageContextInfo); for (const ci of cis) { const ad = ci.externalAdReply; const ctw = ci.ctwaContext; const id = ad?.sourceId || ctw?.sourceId || null; const url = ad?.sourceUrl || ctw?.sourceUrl || null; const entry = String(ci.entryPointConversionSource || ''); if (id || url || /ctwa|ad/i.test(entry) || ad) return (id || 'ctwa'); } return null; })() }}",
               "type": "string"
             },
             {
               "id": "10",
               "name": "ctwa_source_url",
-              "value": "={{ $json.body?.data?.message?.messageContextInfo?.ctwaContext?.sourceUrl || $json.data?.message?.messageContextInfo?.ctwaContext?.sourceUrl || null }}",
+              "value": "={{ (() => { const m = $json.body?.data?.message || $json.data?.message || {}; const inner = m.deviceSentMessage?.message || m.ephemeralMessage?.message || m.viewOnceMessage?.message || m; const cis = []; for (const k of Object.keys(inner)) { const ci = inner[k]?.contextInfo; if (ci) cis.push(ci); } if (inner.contextInfo) cis.push(inner.contextInfo); if (m.messageContextInfo) cis.push(m.messageContextInfo); for (const ci of cis) { const ad = ci.externalAdReply; const ctw = ci.ctwaContext; const id = ad?.sourceId || ctw?.sourceId || null; const url = ad?.sourceUrl || ctw?.sourceUrl || null; const entry = String(ci.entryPointConversionSource || ''); if (id || url || /ctwa|ad/i.test(entry) || ad) return (url || null); } return null; })() }}",
               "type": "string"
             },
             {

@@ -61,6 +61,47 @@ function detectMessageType(msg: Record<string, unknown>): string {
   return keys[0] || 'unknown'
 }
 
+/**
+ * Detecta CLIQUE EM ANÚNCIO (Click-to-WhatsApp: Meta/Instagram/Facebook e,
+ * futuramente, Google). O contexto do anúncio vem dentro do contextInfo de
+ * CADA tipo de mensagem — NÃO em message.messageContextInfo (esse guarda
+ * deviceListMetadata). Ler no lugar errado fazia todo lead de anúncio ser
+ * salvo como BASE.
+ *
+ * Caminhos reais (Baileys/Evolution):
+ *   message.<tipo>.contextInfo.externalAdReply.{sourceId,sourceUrl,sourceType}
+ *   message.<tipo>.contextInfo.ctwaContext.{sourceId,sourceUrl}
+ *   message.<tipo>.contextInfo.entryPointConversionSource = 'ctwa_ad'
+ */
+function extractCtwa(msg: Record<string, unknown>): {
+  sourceId: string | null; sourceUrl: string | null; isAd: boolean
+} {
+  const inner = unwrapMessage(msg)
+  const candidatos: any[] = []
+
+  // contextInfo de qualquer tipo de mensagem (texto, imagem, vídeo...)
+  for (const k of Object.keys(inner)) {
+    const ci = (inner as any)[k]?.contextInfo
+    if (ci && typeof ci === 'object') candidatos.push(ci)
+  }
+  // legado / variantes: contextInfo solto e messageContextInfo
+  if ((inner as any).contextInfo) candidatos.push((inner as any).contextInfo)
+  if ((msg as any).messageContextInfo) candidatos.push((msg as any).messageContextInfo)
+
+  for (const ci of candidatos) {
+    const ad  = ci.externalAdReply || ci.external_ad_reply
+    const ctw = ci.ctwaContext     || ci.ctwa_context
+    const sourceId  = ad?.sourceId  || ad?.source_id  || ctw?.sourceId  || ctw?.source_id  || null
+    const sourceUrl = ad?.sourceUrl || ad?.source_url || ctw?.sourceUrl || ctw?.source_url || null
+    const entry     = String(ci.entryPointConversionSource || ci.entry_point_conversion_source || '')
+    // isAd: veio id/url de anúncio, OU o WhatsApp marcou a origem como ctwa,
+    // OU existe bloco de anúncio (externalAdReply) mesmo sem sourceId.
+    const isAd = !!(sourceId || sourceUrl || /ctwa|ad/i.test(entry) || ad)
+    if (isAd) return { sourceId, sourceUrl, isAd: true }
+  }
+  return { sourceId: null, sourceUrl: null, isAd: false }
+}
+
 function extractContatoId(data: unknown): string | null {
   if (!data || typeof data !== 'object') return null
   if (Array.isArray(data)) return (data[0] as { id?: string })?.id ?? null
@@ -291,8 +332,11 @@ Deno.serve(async (req) => {
     const message_type = detectMessageType(msg)
     const push_name = ev.data?.pushName || ''
     const msg_id = ev.data?.key?.id || ''
-    const ctwa_source_id  = msg.messageContextInfo?.ctwaContext?.sourceId  || null
-    const ctwa_source_url = msg.messageContextInfo?.ctwaContext?.sourceUrl || null
+    const ctwa = extractCtwa(msg)
+    const ctwa_source_id  = ctwa.sourceId
+    const ctwa_source_url = ctwa.sourceUrl
+    // isAd cobre o caso de anúncio SEM sourceId (só externalAdReply/entryPoint)
+    const veio_de_anuncio = ctwa.isAd
 
     // 2) filtros baratos antes de bater no banco.
     // ATENÇÃO: comandos "/" são digitados PELO DONO no WhatsApp (fromMe=true,
@@ -384,7 +428,7 @@ Deno.serve(async (req) => {
       }
       const { data: contatoCmd, error: contatoCmdErr } = await supabase.rpc('get_or_create_contato', {
         p_telefone: telefone_clean, p_nome: nomeLead, p_instancia_id: instancia_uuid,
-        p_canal_origem: ctwa_source_id ? 'ADS' : 'BASE',
+        p_canal_origem: veio_de_anuncio ? 'ADS' : 'BASE',
         p_mensagem: msg_text.replace(/\n/g, ' '),
         p_metadata: { ctwa_source_id, ctwa_source_url },
       })
@@ -448,7 +492,7 @@ Deno.serve(async (req) => {
     // 5) GET/CREATE contato
     const { data: contato, error: cErr } = await supabase.rpc('get_or_create_contato', {
       p_telefone: telefone_clean, p_nome: push_name, p_instancia_id: instancia_uuid,
-      p_canal_origem: ctwa_source_id ? 'ADS' : 'BASE',
+      p_canal_origem: veio_de_anuncio ? 'ADS' : 'BASE',
       p_mensagem: msg_text.replace(/\n/g, ' '),
       p_metadata: { ctwa_source_id, ctwa_source_url },
     })
