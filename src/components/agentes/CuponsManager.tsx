@@ -3,7 +3,7 @@
  * Regras: estado do cliente (anterior ao em_fechamento) + canal atual.
  * NUNCA aplica em C-REP (regra hardcoded no RPC cupom_para_contato).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -166,18 +166,20 @@ function CupomModal({ open, onClose, cupom }: { open: boolean; onClose: () => vo
   const [expira, setExpira] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
-  // sincroniza form quando abre
-  useState(() => {
-    if (cupom) {
-      setNome(cupom.nome);
-      setPct(cupom.desconto_pct);
-      setEstados(cupom.estados_cliente);
-      setCanais(cupom.canais_cliente);
-      setRmktEst(cupom.rmkt_estagios || []);
-      setFupEst(cupom.followup_estagios || []);
-      setExpira(cupom.expira_em ? cupom.expira_em.slice(0, 10) : '');
-    }
-  });
+  // Sincroniza o form toda vez que abre / troca de cupom.
+  // ERA useState(fn): inicializador preguiçoso roda UMA vez só — como o modal
+  // fica sempre montado, "Editar" abria com os campos em branco e salvar
+  // sobrescrevia o cupom com os valores padrão.
+  useEffect(() => {
+    if (!open || !cupom) return;
+    setNome(cupom.nome);
+    setPct(cupom.desconto_pct);
+    setEstados(cupom.estados_cliente?.length ? cupom.estados_cliente : ['*']);
+    setCanais(cupom.canais_cliente?.length ? cupom.canais_cliente : ['*']);
+    setRmktEst(cupom.rmkt_estagios || []);
+    setFupEst(cupom.followup_estagios || []);
+    setExpira(cupom.expira_em ? cupom.expira_em.slice(0, 10) : '');
+  }, [open, cupom]);
 
   if (!open || !cupom) return null;
 
@@ -237,10 +239,11 @@ function CupomModal({ open, onClose, cupom }: { open: boolean; onClose: () => vo
             <div className="grid grid-cols-2 gap-1.5">
               {ESTADOS_OPTS.map(o => (
                 <label key={o.key} className="flex items-center gap-2 cursor-pointer text-xs border rounded p-1.5 bg-muted/20">
+                  {/* Sem 'disabled': marcar um estado específico desliga o
+                      'Todos' automaticamente (toggleArr remove o '*'). */}
                   <input
                     type="checkbox"
-                    checked={estados.includes(o.key) || (estados.includes('*') && o.key !== '*')}
-                    disabled={estados.includes('*') && o.key !== '*'}
+                    checked={estados.includes(o.key)}
                     onChange={() => toggleArr(estados, o.key, setEstados)}
                   />
                   <span>{o.label}{o.hint && <span className="text-muted-foreground text-[10px]"> ({o.hint})</span>}</span>
@@ -293,10 +296,10 @@ function CupomModal({ open, onClose, cupom }: { open: boolean; onClose: () => vo
             <div className="grid grid-cols-2 gap-1.5">
               {CANAIS_OPTS.map(o => (
                 <label key={o.key} className="flex items-center gap-2 cursor-pointer text-xs border rounded p-1.5 bg-muted/20">
+                  {/* Sem 'disabled' — mesmo motivo do bloco de estados. */}
                   <input
                     type="checkbox"
-                    checked={canais.includes(o.key) || (canais.includes('*') && o.key !== '*')}
-                    disabled={canais.includes('*') && o.key !== '*'}
+                    checked={canais.includes(o.key)}
                     onChange={() => toggleArr(canais, o.key, setCanais)}
                   />
                   <span>{o.label}{o.hint && <span className="text-muted-foreground text-[10px]"> ({o.hint})</span>}</span>
