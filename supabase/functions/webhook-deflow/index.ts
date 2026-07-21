@@ -102,11 +102,21 @@ Deno.serve(async (req) => {
     // 3) EXTRAÇÃO DEFENSIVA dos campos (camelCase + snake_case)
     // -----------------------------------------------------------------------
     const status = data.status ?? null
-    const amount = Number(data.amountCents ?? data.amount_cents ?? data.amount ?? 0)
+    // ATENÇÃO: a partir da v1.8 da API o campo do valor é 'amountInCents'
+    // (o create passou a usar esse nome). Aceitamos todas as variantes —
+    // se o nome não casar, amount vira 0 e a VENDA entraria com valor ERRADO
+    // na caixa. Ordem: nome novo → nomes legados.
+    const amount = Number(
+      data.amountInCents ?? data.amount_in_cents ??
+      data.amountCents ?? data.amount_cents ?? data.amount ?? 0
+    )
     const fee    = Number(data.feeCents ?? data.fee_cents ?? data.fee ?? 0)
-    const net    = Number(data.netAmountCents ?? data.net_amount_cents ?? data.netAmount ?? (amount - fee))
+    const net    = Number(
+      data.netAmountCents ?? data.net_amount_cents ?? data.netAmount ??
+      data.netInCents ?? (amount - fee)
+    )
 
-    // Log do payload (auditoria + dedup)
+    // Log do payload (auditoria + dedup). O evento normalizado tambem entra.
     try {
       await supabase.from('eventos_contato').insert({
         contato_id: null,
@@ -118,8 +128,21 @@ Deno.serve(async (req) => {
     // -----------------------------------------------------------------------
     // 4) PROCESSA via RPC atômica
     // -----------------------------------------------------------------------
+    // NORMALIZAÇÃO DE EVENTO: a RPC só conhece deposit.completed/approved/
+    // expired. Se a DeFlow mandar outro nome (ex: deposit.paid) ou só o
+    // status, um pagamento REAL passaria batido e o pedido nunca fecharia.
+    // Blindagem: se o status indica pago, tratamos como completed.
+    const statusPago = /^(paid|completed|approved|confirmed|success|succeeded)$/i
+      .test(String(status || ''))
+    const statusExpirado = /^(expired|canceled|cancelled)$/i.test(String(status || ''))
+    let eventoNormalizado = String(event)
+    if (!/^deposit\.(completed|approved|expired)$/.test(eventoNormalizado)) {
+      if (statusPago)          eventoNormalizado = 'deposit.completed'
+      else if (statusExpirado) eventoNormalizado = 'deposit.expired'
+    }
+
     const { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_webhook_deflow', {
-      p_event:        event,
+      p_event:        eventoNormalizado,
       p_deposit_id:   String(depositId),
       p_status:       status,
       p_amount_cents: amount,
