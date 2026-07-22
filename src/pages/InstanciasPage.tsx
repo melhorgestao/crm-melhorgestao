@@ -49,8 +49,9 @@ export default function InstanciasPage() {
   // fromMe, mas o bot para de enviar. Uso com o chip restrito pelo WhatsApp.
   const handleToggleMudo = async (i: InstanciaRow) => {
     const novo = !i.agente_mudo;
+    // NÃO setar updated_at: a tabela instancias não tem essa coluna.
     const { error } = await supabase.from('instancias')
-      .update({ agente_mudo: novo, updated_at: new Date().toISOString() })
+      .update({ agente_mudo: novo })
       .eq('id', i.id);
     if (error) { toast.error(error.message); return; }
     toast.success(novo
