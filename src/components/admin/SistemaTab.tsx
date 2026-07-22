@@ -332,9 +332,9 @@ const CRON_DOCS: Record<string, CronDoc> = {
       {
         titulo: '📋 Lead / Follow-up',
         transicoes: [
-          { from: 'start', to: 'wait_follow_up', when: '+24h sem resposta (data_start)' },
-          { from: 'wait_follow_up', to: 'follow_up', when: 'gap por tentativa: 24h (1ª) · 3d (2ª) · 7d (3ª)' },
-          { from: 'follow_up', to: 'wait_follow_up', when: '+24h no estado follow_up (não-REP)' },
+          { from: 'start', to: 'wait_follow_up', when: '+4h de silêncio do lead (GREATEST(data_start, data_ultima_entrada))' },
+          { from: 'wait_follow_up', to: 'follow_up', when: 'gap por tentativa: ~4h (1ª, in-window) · 3d (2ª) · 7d (3ª) — do último envio' },
+          { from: 'follow_up', to: 'wait_follow_up', when: '+24h no estado follow_up (não-REP) — volta pro pool de claim' },
           { from: 'em_fechamento', to: 'wait_follow_up', when: '+48h sem venda (data_em_fechamento)' },
         ],
       },

@@ -20,7 +20,7 @@ interface Props {
   campanha: CampanhaRow | null;
 }
 
-const FOLLOWUP_SUBS = ['24h', '3d', '7d'] as const;
+const FOLLOWUP_SUBS = ['4h', '3d', '7d'] as const;
 
 export function CampanhaDrawer({ open, onClose, campanha }: Props) {
   const qc = useQueryClient();
@@ -211,11 +211,12 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     if (campanha.tipo !== 'followup') return null;
     const t = (templates || []).find(x => x.subcategoria);
     if (t?.subcategoria) return t.subcategoria;
-    const m = campanha.nome.match(/24h|3d|7d|3\s*dias?|7\s*dias?/i)?.[0];
-    if (!m) return '24h';
+    // aceita nomes antigos ("24h") mas mapeia pra 1ª tentativa = '4h'
+    const m = campanha.nome.match(/4h|24h|3d|7d|3\s*dias?|7\s*dias?/i)?.[0];
+    if (!m) return '4h';
     if (/3/.test(m)) return '3d';
     if (/7/.test(m)) return '7d';
-    return '24h';
+    return '4h';
   })();
 
   // Agrupa templates — pra followup, mostra só a subcategoria principal dessa campanha
@@ -301,9 +302,9 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                     Contatos com <code className="font-mono">ultima_interacao = wait_follow_up</code> e tempo desde <code className="font-mono">data_wait_follow_up</code> ≥ ao gap da tentativa:
                   </p>
                   <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
-                    <li><strong>Follow-up 24h</strong>: 1ª tentativa após 24h sem resposta</li>
-                    <li><strong>Follow-up 3 dias</strong>: 2ª tentativa após 3 dias</li>
-                    <li><strong>Follow-up 7 dias</strong>: 3ª tentativa após 7 dias</li>
+                    <li><strong>Follow-up 4h</strong>: 1ª tentativa após ~4h de silêncio do lead (in-window)</li>
+                    <li><strong>Follow-up 3 dias</strong>: 2ª tentativa 3 dias após o 1º toque</li>
+                    <li><strong>Follow-up 7 dias</strong>: 3ª tentativa 7 dias após o 2º toque</li>
                   </ul>
                   <p className="text-muted-foreground pt-1">Limite total: 3 tentativas (controlado por <code className="font-mono">follow_up_tentativas</code>).</p>
                 </div>
