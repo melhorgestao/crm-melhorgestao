@@ -140,6 +140,79 @@ function numeroEvolution(telefone: string): string {
   return (nd.length === 10 || (nd.length === 11 && nd.charAt(2) === '9')) ? '55' + nd : nd
 }
 
+/** nome "de verdade"? descarta vazio, 1 caractere e qualquer coisa que seja
+ *  só o telefone — inclusive o placeholder que já vazou pro banco antes. */
+function nomeValido(n: unknown): boolean {
+  const s = String(n || '').trim()
+  if (s.length < 2) return false
+  if (/^\+?\d[\d\s().+-]*$/.test(s)) return false   // "5545991082763", "+55 45 9108-2763"
+  return true
+}
+
+/**
+ * Descobre o NOME do lead quando o pushName do payload não serve.
+ *
+ * Em mensagem fromMe (comando digitado pelo dono) o data.pushName é do NOSSO
+ * chip — usar ele grava "Santa Flor" no contato. E em alguns eventos do lead o
+ * pushName simplesmente não vem. Nos dois casos o nome real está no store da
+ * Evolution, que já tem o pushName do lead porque a conversa existe no chip.
+ *
+ * Tenta várias rotas e formatos de corpo porque isso muda entre versões da
+ * Evolution; devolve '' se nenhuma responder — aí o get_or_create corrige
+ * sozinho assim que o lead escrever.
+ */
+async function resolverNomeLead(
+  evolution_url: string, apikey: string, instancia: string, telefone: string,
+): Promise<string> {
+  if (!evolution_url || !apikey || !instancia) return ''
+  const num  = numeroEvolution(telefone)
+  const jid  = `${num}@s.whatsapp.net`
+  const inst = encodeURIComponent(instancia)
+
+  const post = async (path: string, body: unknown): Promise<unknown> => {
+    try {
+      const r = await fetch(`${evolution_url}/chat/${path}/${inst}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': apikey },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(5000),   // chip restrito pode travar
+      })
+      if (!r.ok) return null
+      return await r.json().catch(() => null)
+    } catch (_) { return null }
+  }
+
+  // primeiro nome plausível de qualquer formato de resposta (array, {records}, objeto)
+  const pick = (data: any): string => {
+    const arr = Array.isArray(data) ? data
+      : Array.isArray(data?.records) ? data.records
+      : Array.isArray(data?.data)    ? data.data
+      : [data]
+    for (const it of arr) {
+      for (const k of ['pushName', 'pushname', 'name', 'verifiedName', 'notify', 'subject']) {
+        if (nomeValido(it?.[k])) return String(it[k]).trim()
+      }
+    }
+    return ''
+  }
+
+  const tentativas: Array<[string, unknown]> = [
+    // store de contatos — é onde o pushName do lead realmente fica (v2 / v1)
+    ['findContacts',    { where: { remoteJid: jid } }],
+    ['findContacts',    { where: { id: jid } }],
+    // perfil: bom em conta business, costuma vir vazio em conta pessoal
+    ['fetchProfile',    { number: num }],
+    // último recurso: validação de número, que em algumas versões traz o nome
+    ['whatsappNumbers', { numbers: [num] }],
+  ]
+
+  for (const [path, body] of tentativas) {
+    const nome = pick(await post(path, body))
+    if (nome) return nome
+  }
+  return ''
+}
+
 /**
  * Dispara a apresentação/cardápio de /start pra um contato:
  *   1) reseta pra 1ª interação (zera avanço/bloqueio de follow-up)
@@ -428,17 +501,8 @@ Deno.serve(async (req) => {
       // (chip restrito), salva o telefone como placeholder — e o get_or_create
       // troca pelo nome real automaticamente quando o lead escrever.
       let nomeLead = from_me ? '' : String(push_name || '').trim()
-      if (!nomeLead && from_me) {
-        try {
-          const pr = await fetch(`${evolution_url}/chat/fetchProfile/${encodeURIComponent(instancia_nome)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'apikey': evolution_apikey },
-            body: JSON.stringify({ number: numeroEvolution(telefone_clean) }),
-            signal: AbortSignal.timeout(4000),  // instância restrita pode travar
-          })
-          const pj: any = await pr.json().catch(() => ({}))
-          nomeLead = String(pj?.name || pj?.pushName || pj?.pushname || pj?.verifiedName || '').trim()
-        } catch (_) { /* segue com placeholder */ }
+      if (!nomeValido(nomeLead)) {
+        nomeLead = await resolverNomeLead(evolution_url, evolution_apikey, instancia_nome, telefone_clean)
       }
 
       // ── /saveads e /savebase ─────────────────────────────────────────────
@@ -548,8 +612,15 @@ Deno.serve(async (req) => {
     }
 
     // 5) GET/CREATE contato
+    // salvamento nativo: normalmente o pushName do lead vem no payload, mas em
+    // alguns eventos ele vem vazio — e aí o contato nascia com o telefone no
+    // lugar do nome. Nesse caso busca o nome no store da Evolution.
+    let nomeIn = String(push_name || '').trim()
+    if (!nomeValido(nomeIn)) {
+      nomeIn = await resolverNomeLead(evolution_url, evolution_apikey, instancia_nome, telefone_clean)
+    }
     const { data: contato, error: cErr } = await supabase.rpc('get_or_create_contato', {
-      p_telefone: telefone_clean, p_nome: push_name, p_instancia_id: instancia_uuid,
+      p_telefone: telefone_clean, p_nome: nomeIn, p_instancia_id: instancia_uuid,
       p_canal_origem: veio_de_anuncio ? 'ADS' : 'BASE',
       p_mensagem: msg_text.replace(/\n/g, ' '),
       p_metadata: { ctwa_source_id, ctwa_source_url },
