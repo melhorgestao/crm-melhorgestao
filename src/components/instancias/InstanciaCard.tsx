@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Crown, Settings, Pause, Play, MessageCircleMore, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { getConnectionState } from '@/lib/evolutionApi';
 
@@ -20,12 +21,14 @@ export interface InstanciaRow {
   chatwoot_inbox_id: string | null;
   chatwoot_integrated: boolean;
   numero: string | null;
+  agente_mudo: boolean;
 }
 
 interface Props {
   instancia: InstanciaRow;
   onOpenDetails: (i: InstanciaRow) => void;
   onTogglePause: (i: InstanciaRow) => void;
+  onToggleMudo: (i: InstanciaRow) => void;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -35,7 +38,7 @@ const STATUS_LABEL: Record<string, string> = {
   pausado_admin: 'Pausada (admin)',
 };
 
-export function InstanciaCard({ instancia, onOpenDetails, onTogglePause }: Props) {
+export function InstanciaCard({ instancia, onOpenDetails, onTogglePause, onToggleMudo }: Props) {
   const i = instancia;
 
   // métricas
@@ -133,6 +136,27 @@ export function InstanciaCard({ instancia, onOpenDetails, onTogglePause }: Props
         <div className="flex gap-3 font-semibold tabular-nums">
           <span title="recebidas">{metricas?.conv_in ?? '—'} ↙</span>
           <span title="enviadas">{metricas?.conv_out ?? '—'} ↗</span>
+        </div>
+      </div>
+
+      {/* Agente Mudo — chip restrito: escuta comandos, não envia nada */}
+      <div className={cn(
+        'rounded-lg px-3 py-2 mb-3 border',
+        i.agente_mudo ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30' : 'bg-muted/30'
+      )}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-medium flex items-center gap-1.5">
+              🤫 Agente Mudo
+              {i.agente_mudo && (
+                <span className="text-[10px] font-bold uppercase bg-amber-500 text-white rounded px-1.5 py-0.5">ativo</span>
+              )}
+            </p>
+            <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
+              Escuta e salva tudo + executa comandos <span className="font-mono">/</span> — mas <strong>não envia nada</strong>.
+            </p>
+          </div>
+          <Switch checked={!!i.agente_mudo} onCheckedChange={() => onToggleMudo(i)} />
         </div>
       </div>
 

@@ -24,7 +24,7 @@ export default function InstanciasPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('instancias')
-        .select('id, nome, evolution_instance, evolution_url, evolution_apikey, status, pausado_ate, motivo_pausa, alerta_admin, alerta_telefone, ativo, chatwoot_inbox_id, chatwoot_integrated, numero')
+        .select('id, nome, evolution_instance, evolution_url, evolution_apikey, status, pausado_ate, motivo_pausa, alerta_admin, alerta_telefone, ativo, chatwoot_inbox_id, chatwoot_integrated, numero, agente_mudo')
         .order('nome');
       if (error) throw error;
       return ((data || []) as any[])
@@ -44,6 +44,20 @@ export default function InstanciasPage() {
 
   const ativas = instancias?.filter(i => i.status === 'ativo').length || 0;
   const pausadas = (instancias?.length || 0) - ativas;
+
+  // Agente Mudo: instância continua escutando/salvando e executando comandos
+  // fromMe, mas o bot para de enviar. Uso com o chip restrito pelo WhatsApp.
+  const handleToggleMudo = async (i: InstanciaRow) => {
+    const novo = !i.agente_mudo;
+    const { error } = await supabase.from('instancias')
+      .update({ agente_mudo: novo, updated_at: new Date().toISOString() })
+      .eq('id', i.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(novo
+      ? `Instância ${i.nome}: MODO MUDO ligado — não envia nada, só escuta e obedece comandos.`
+      : `Instância ${i.nome}: modo mudo desligado — bot voltou a responder.`);
+    qc.invalidateQueries({ queryKey: ['instancias_list'] });
+  };
 
   const handleTogglePause = async (i: InstanciaRow) => {
     if (i.status === 'ativo') {
@@ -97,6 +111,7 @@ export default function InstanciasPage() {
               instancia={i}
               onOpenDetails={handleOpenDetails}
               onTogglePause={handleTogglePause}
+              onToggleMudo={handleToggleMudo}
             />
           ))}
         </div>

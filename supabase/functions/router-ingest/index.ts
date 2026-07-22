@@ -360,7 +360,7 @@ Deno.serve(async (req) => {
     //    números). Mensagem de número INTERNO é ignorada como fromMe.
     const [instRes, botRes, internoRes] = await Promise.all([
       supabase.from('instancias')
-        .select('id,evolution_url,evolution_apikey,evolution_instance,status,ativo,pausado_ate,motivo_pausa')
+        .select('id,evolution_url,evolution_apikey,evolution_instance,status,ativo,pausado_ate,motivo_pausa,agente_mudo')
         .eq('evolution_instance', instancia_nome)
         .eq('ativo', true).maybeSingle(),
       supabase.from('configuracoes')
@@ -396,6 +396,9 @@ Deno.serve(async (req) => {
     const evolution_url    = inst.evolution_url    || EVOLUTION_BASE_URL_DEFAULT
     const evolution_apikey = inst.evolution_apikey
     const instancia_uuid   = inst.id
+    // MODO MUDO: chip restrito. Continua recebendo/salvando tudo e executando
+    // comandos do dono, mas o bot NÃO envia nada por esta instância.
+    const agenteMudo       = !!(inst as any).agente_mudo
 
     // Comandos "/" do dono passam mesmo com o bot globalmente pausado
     // (igual ao fluxo n8n, que trata comando antes da checagem de bot ativo).
@@ -483,6 +486,17 @@ Deno.serve(async (req) => {
       // relógio de 24h→follow-up recomeça a partir de AGORA) e envia via
       // Evolution aqui mesmo.
       if (comando === '/start') {
+        // MODO MUDO: /start envia os blocos — bloqueado. O contato já foi
+        // criado/atualizado acima; use /saveads ou /savebase e mande a
+        // apresentação à mão.
+        if (agenteMudo) {
+          return j({
+            ok: true, deve_processar: false, motivo: 'agente_mudo_sem_envio',
+            comando, contato_id: cid,
+            aviso: 'Instância em MODO MUDO: contato salvo, mas nada foi enviado. Encaminhe a apresentação manualmente.',
+            instancia_uuid, telefone_clean, instancia_nome,
+          })
+        }
         const res = await dispararStart(supabase, {
           cid,
           instancia_uuid,
@@ -575,6 +589,21 @@ Deno.serve(async (req) => {
         .update({ data_ultima_entrada: recebida_em })
         .eq('id', contato_id)
     } catch (_) { /* não bloqueia o fluxo */ }
+
+    // MODO MUDO: mensagem do lead fica SALVA (contato + buffer + silêncio),
+    // mas o agente não roda → nada é enviado por esta instância.
+    if (agenteMudo) {
+      return j({
+        ok: true,
+        deve_processar: false,
+        motivo: 'agente_mudo',
+        contato_id,
+        instancia_uuid,
+        telefone_clean,
+        instancia_nome,
+        recebida_em,
+      })
+    }
 
     if (isBotPausado(bot_pausado_ate)) {
       return j({
