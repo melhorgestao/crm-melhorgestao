@@ -428,12 +428,37 @@ Deno.serve(async (req) => {
         } catch (_) { /* segue com placeholder */ }
       }
 
-      // CANAL por comando: /start e /saveads salvam ADS; /savebase salva BASE;
+      // ── /saveads e /savebase ─────────────────────────────────────────────
+      // SÓ salvam o contato SE FOR NOVO (com ultima_interacao='start' pra o
+      // cron rodar normal), SEM enviar nada e SEM tocar em contato existente.
+      // Uso: instância restrita — o dono cadastra o lead e encaminha a
+      // apresentação manualmente. /saveads = ADS, /savebase = BASE.
+      if (comando === '/saveads' || comando === '/savebase') {
+        const canalSave = comando === '/saveads' ? 'ADS' : 'BASE'
+        const { data: rSave } = await supabase.rpc('salvar_contato_se_novo', {
+          p_telefone: telefone_clean, p_nome: nomeLead,
+          p_instancia_id: instancia_uuid, p_canal: canalSave,
+        })
+        const jaExiste = !!(rSave as any)?.ja_existe
+        try {
+          await supabase.from('eventos_contato').insert({
+            contato_id: (rSave as any)?.contato_id ?? null, tipo: 'comando_save',
+            canal: instancia_nome, instancia_id: instancia_uuid,
+            metadata: { comando, canal_salvo: canalSave, nome: nomeLead, ja_existe: jaExiste, from_me },
+          })
+        } catch (_) { /* log é best-effort */ }
+        return j({
+          ok: true, deve_processar: false,
+          motivo: jaExiste ? 'contato_ja_existe' : 'contato_salvo',
+          comando, canal_salvo: canalSave, ja_existe: jaExiste,
+          contato_id: (rSave as any)?.contato_id ?? null, nome: nomeLead,
+          instancia_uuid, telefone_clean, instancia_nome, evolution_url, evolution_apikey,
+        })
+      }
+
+      // CANAL por comando: /start salva ADS (lead de anúncio que não recebeu);
       // demais comandos mantêm a detecção padrão (anúncio → ADS, senão BASE).
-      const canalCmd =
-        (comando === '/start' || comando === '/saveads') ? 'ADS'
-        : comando === '/savebase' ? 'BASE'
-        : (veio_de_anuncio ? 'ADS' : 'BASE')
+      const canalCmd = comando === '/start' ? 'ADS' : (veio_de_anuncio ? 'ADS' : 'BASE')
 
       const { data: contatoCmd, error: contatoCmdErr } = await supabase.rpc('get_or_create_contato', {
         p_telefone: telefone_clean, p_nome: nomeLead, p_instancia_id: instancia_uuid,
@@ -448,25 +473,6 @@ Deno.serve(async (req) => {
           comando, cmd_error: contatoCmdErr?.message || 'contato_id ausente',
           instancia_uuid, telefone_clean, instancia_nome, evolution_url, evolution_apikey,
         }, 500)
-      }
-
-      // ── /saveads e /savebase ─────────────────────────────────────────────
-      // SÓ salvam o contato no banco (canal já aplicado no get_or_create acima),
-      // SEM enviar nada. Uso: instância restrita — o dono cadastra o lead e
-      // encaminha a apresentação manualmente. /saveads = ADS, /savebase = BASE.
-      if (comando === '/saveads' || comando === '/savebase') {
-        try {
-          await supabase.from('eventos_contato').insert({
-            contato_id: cid, tipo: 'comando_save', canal: instancia_nome,
-            instancia_id: instancia_uuid,
-            metadata: { comando, canal_salvo: canalCmd, nome: nomeLead, from_me },
-          })
-        } catch (_) { /* log é best-effort */ }
-        return j({
-          ok: true, deve_processar: false, motivo: 'contato_salvo',
-          comando, canal_salvo: canalCmd, contato_id: cid, nome: nomeLead,
-          instancia_uuid, telefone_clean, instancia_nome, evolution_url, evolution_apikey,
-        })
       }
 
       // ── /start ──────────────────────────────────────────────────────────

@@ -102,7 +102,7 @@ const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
   draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, setPararTarget,
   pausarBot, reativarBot, copyPhone, openChatwoot,
-  collapsed, toggleCollapsed, openPedido
+  collapsed, toggleCollapsed, openPedido, onDisparoManual
 }: {
   contact: Contact;
   column: ColumnKey;
@@ -121,6 +121,7 @@ const KanbanCard = memo(({
   collapsed: boolean;
   toggleCollapsed: (id: string) => void;
   openPedido: (pedidoId: string | null, contatoId?: string) => void;
+  onDisparoManual: (c: Contact, tipo: 'followup' | 'rmkt') => void;
 }) => {
   // Bot está pausado se bot_pausado_ate está no futuro
   const botPausado = !!contact.bot_pausado_ate && new Date(contact.bot_pausado_ate).getTime() > Date.now();
@@ -232,23 +233,29 @@ const KanbanCard = memo(({
                 {collapsed ? <span className="text-xs font-bold px-1">+</span> : <Minus className="w-3 h-3" />}
               </button>
 
+              {/* Clicar na tag = registrar disparo manual (X/3) — trabalho
+                  manual enquanto o bot está off. */}
               {column === 'follow_up' && realState === 'follow_up' && (
-                <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0 font-bold">
+                <Badge role="button" title="Registrar follow-up manual" onClick={(e) => { e.stopPropagation(); onDisparoManual(contact, 'followup'); }}
+                  className="bg-orange-500 text-white text-[10px] px-1.5 py-0 font-bold cursor-pointer hover:brightness-110">
                   F-UP{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
                 </Badge>
               )}
               {column === 'follow_up' && realState === 'wait_follow_up' && (
-                <Badge className="bg-amber-400 text-black text-[10px] px-1.5 py-0 font-bold">
+                <Badge role="button" title="Registrar follow-up manual" onClick={(e) => { e.stopPropagation(); onDisparoManual(contact, 'followup'); }}
+                  className="bg-amber-400 text-black text-[10px] px-1.5 py-0 font-bold cursor-pointer hover:brightness-110">
                   WAIT{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
                 </Badge>
               )}
               {column === 'rmkt' && contact._rmktWait && (
-                <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">
+                <Badge role="button" title="Registrar RMKT manual" onClick={(e) => { e.stopPropagation(); onDisparoManual(contact, 'rmkt'); }}
+                  className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold cursor-pointer hover:brightness-110">
                   WAIT{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
                 </Badge>
               )}
               {column === 'rmkt' && !contact._rmktWait && (
-                <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">
+                <Badge role="button" title="Registrar RMKT manual" onClick={(e) => { e.stopPropagation(); onDisparoManual(contact, 'rmkt'); }}
+                  className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold cursor-pointer hover:brightness-110">
                   RMKT{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
                 </Badge>
               )}
@@ -401,6 +408,7 @@ export default function KanbanPage() {
   const [suporteTarget, setSuporteTarget] = useState<Contact | null>(null);
   const [vendaTarget, setVendaTarget] = useState<Contact | null>(null);
   const [pararTarget, setPararTarget] = useState<{ contact: Contact; mode: 'followup' | 'rmkt' } | null>(null);
+  const [disparoTarget, setDisparoTarget] = useState<{ contact: Contact; tipo: 'followup' | 'rmkt'; proxima: number } | null>(null);
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [pedidoAbertoId, setPedidoAbertoId] = useState<string | null>(null);
@@ -695,6 +703,39 @@ export default function KanbanPage() {
     }
   };
 
+  // Clicar na tag (WAIT/F-UP/RMKT) → abre confirmação de disparo manual X/3.
+  const openDisparoManual = (contact: Contact, tipo: 'followup' | 'rmkt') => {
+    const feitas = tipo === 'rmkt'
+      ? (contact.rmkt_consecutive_silenciosos || 0)
+      : (contact.follow_up_tentativas || 0);
+    if (feitas >= 3) { toast.info('Este contato já teve os 3 disparos registrados.'); return; }
+    setDisparoTarget({ contact, tipo, proxima: feitas + 1 });
+  };
+
+  // Confirma o disparo manual: avança contador + carimba data (como o bot faria).
+  const handleDisparoManual = async () => {
+    if (!disparoTarget) return;
+    const { contact, tipo, proxima } = disparoTarget;
+    const rpc = tipo === 'rmkt' ? 'registrar_disparo_manual_rmkt' : 'registrar_disparo_manual_followup';
+    try {
+      const { data, error } = await supabase.rpc(rpc as any, { p_contato_id: contact.id });
+      if (error) throw error;
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error || 'não elegível');
+      await supabase.from('log_atividades').insert({
+        usuario: profile?.nome || 'Desconhecido',
+        acao: `Disparo manual ${tipo === 'rmkt' ? 'RMKT' : 'F-UP'} ${proxima}/3 via Kanban`,
+        tabela_afetada: 'contatos', registro_id: contact.id, detalhe: contact.nome,
+      });
+      toast.success(`${tipo === 'rmkt' ? 'RMKT' : 'Follow-up'} ${proxima}/3 registrado para ${contact.nome}`);
+      setDisparoTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
+      queryClient.invalidateQueries({ queryKey: ['kanban-rmkt-wait'] });
+    } catch (err: any) {
+      toast.error('Não deu pra registrar: ' + (err.message || 'erro'));
+    }
+  };
+
   // Parar campanha (X no card) — F-UP ou RMKT.
   //  followup → parar_followup_contato: volta pra 'start' + followup_bloqueado.
   //  rmkt     → parar_rmkt_contato:     volta pra 'cliente' + rmkt_bloqueado.
@@ -758,6 +799,7 @@ export default function KanbanPage() {
         reativarBot={reativarBot}
         copyPhone={copyPhone}
         openChatwoot={openChatwoot}
+        onDisparoManual={openDisparoManual}
         collapsed={collapsedIds.has(contact.id)}
         toggleCollapsed={toggleCollapsed}
         openPedido={openPedido}
@@ -885,6 +927,28 @@ export default function KanbanPage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handlePararCampanha} className="bg-destructive text-destructive-foreground">
               Parar {pararTarget?.mode === 'rmkt' ? 'RMKT' : 'F-UP'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmação de disparo manual (clicar na tag WAIT/F-UP/RMKT) */}
+      <AlertDialog open={!!disparoTarget} onOpenChange={() => setDisparoTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Disparo manual {disparoTarget?.tipo === 'rmkt' ? 'RMKT' : 'Follow-up'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Confirma que você realizou o <strong>{disparoTarget?.tipo === 'rmkt' ? 'RMKT' : 'follow-up'} {disparoTarget?.proxima}/3</strong> manualmente para <strong>{disparoTarget?.contact.nome}</strong>?
+              <br /><br />
+              Isso avança o contador e a data como se o bot tivesse enviado — assim, quando ele voltar, retoma de onde parou (não repete este toque).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDisparoManual} className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground">
+              Confirmar {disparoTarget?.proxima}/3
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
