@@ -98,6 +98,16 @@ const formatTentativa = (atual: number | null | undefined, max = 3) => {
   return `${atual}/${max}`;
 };
 
+// Preenche o template pro disparo manual: {nome}/{{nome}} → 1º nome do contato,
+// demais placeholders {{...}} viram vazio (não mostrar cru na cópia).
+function preencherTemplate(texto: string, nomeCompleto?: string | null): string {
+  const primeiro = String(nomeCompleto || '').trim().split(/\s+/)[0] || 'amigo(a)';
+  return String(texto || '')
+    .replace(/\{\{?\s*nome\s*\}?\}/gi, primeiro)
+    .replace(/\{\{[^}]*\}\}/g, '')
+    .trim();
+}
+
 const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
   draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, setPararTarget,
@@ -409,6 +419,8 @@ export default function KanbanPage() {
   const [vendaTarget, setVendaTarget] = useState<Contact | null>(null);
   const [pararTarget, setPararTarget] = useState<{ contact: Contact; mode: 'followup' | 'rmkt' } | null>(null);
   const [disparoTarget, setDisparoTarget] = useState<{ contact: Contact; tipo: 'followup' | 'rmkt'; proxima: number } | null>(null);
+  const [tplVars, setTplVars] = useState<string[]>([]);
+  const [tplIdx, setTplIdx] = useState(0);
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [pedidoAbertoId, setPedidoAbertoId] = useState<string | null>(null);
@@ -703,6 +715,26 @@ export default function KanbanPage() {
     }
   };
 
+  // Carrega as variações de template da etapa quando o popup abre.
+  useEffect(() => {
+    if (!disparoTarget) { setTplVars([]); setTplIdx(0); return; }
+    const { tipo, proxima } = disparoTarget;
+    const sub = tipo === 'followup' ? (['4h', '3d', '7d'][proxima - 1] || '4h') : null;
+    let cancelled = false;
+    (async () => {
+      let q = supabase.from('templates_msg').select('texto, ordem')
+        .eq('categoria', tipo === 'followup' ? 'followup' : 'rmkt')
+        .eq('ativo', true).order('ordem', { ascending: true });
+      if (sub) q = q.eq('subcategoria', sub);
+      const { data } = await q;
+      if (cancelled) return;
+      const arr = (data || []).map((t: any) => String(t.texto || '')).filter(Boolean);
+      setTplVars(arr);
+      setTplIdx(arr.length ? Math.floor(Math.random() * arr.length) : 0);
+    })();
+    return () => { cancelled = true; };
+  }, [disparoTarget]);
+
   // Clicar na tag (WAIT/F-UP/RMKT) → abre confirmação de disparo manual X/3.
   const openDisparoManual = (contact: Contact, tipo: 'followup' | 'rmkt') => {
     const feitas = tipo === 'rmkt'
@@ -937,14 +969,57 @@ export default function KanbanPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Disparo manual {disparoTarget?.tipo === 'rmkt' ? 'RMKT' : 'Follow-up'}
+              Disparo manual {disparoTarget?.tipo === 'rmkt' ? 'RMKT' : 'Follow-up'} · {disparoTarget?.proxima}/3
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Confirma que você realizou o <strong>{disparoTarget?.tipo === 'rmkt' ? 'RMKT' : 'follow-up'} {disparoTarget?.proxima}/3</strong> manualmente para <strong>{disparoTarget?.contact.nome}</strong>?
-              <br /><br />
-              Isso avança o contador e a data como se o bot tivesse enviado — assim, quando ele voltar, retoma de onde parou (não repete este toque).
+              Envie manualmente a mensagem abaixo para <strong>{disparoTarget?.contact.nome}</strong> e confirme. O contador avança como se o bot tivesse mandado — ele retoma daqui.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {disparoTarget && (() => {
+            const tplTexto = tplVars.length
+              ? preencherTemplate(tplVars[tplIdx % tplVars.length], disparoTarget.contact.nome)
+              : '';
+            return (
+              <div className="space-y-3">
+                {/* número copiável (útil com Chatwoot off) */}
+                <div className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2 bg-muted/30">
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase text-muted-foreground tracking-wide">Número do contato</p>
+                    <p className="font-mono text-sm truncate">{disparoTarget.contact.telefone || '—'}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => copyPhone(disparoTarget.contact.telefone || '')}>
+                    <Copy className="w-3.5 h-3.5 mr-1" /> Copiar
+                  </Button>
+                </div>
+
+                {/* template com variação */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] uppercase text-muted-foreground tracking-wide">
+                      Mensagem sugerida{tplVars.length > 1 ? ` (${(tplIdx % tplVars.length) + 1}/${tplVars.length})` : ''}
+                    </p>
+                    <div className="flex gap-1">
+                      {tplVars.length > 1 && (
+                        <Button size="sm" variant="ghost" className="h-7 px-2" title="Trocar variação"
+                          onClick={() => setTplIdx(i => (i + 1) % tplVars.length)}>
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="h-7 px-2" title="Copiar mensagem" disabled={!tplTexto}
+                        onClick={() => copyToClipboard(tplTexto).then(ok => ok ? toast.success('Mensagem copiada!') : toast.error('Falha ao copiar'))}>
+                        <Copy className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="border rounded-lg p-3 text-sm whitespace-pre-wrap bg-background max-h-48 overflow-y-auto">
+                    {tplTexto || <span className="text-muted-foreground italic">Nenhum template ativo cadastrado pra esta etapa.</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDisparoManual} className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground">
