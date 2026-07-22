@@ -57,6 +57,24 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
+    // 0) TRAVA DE SEGURANÇA — MODO MUDO.
+    // Normalmente o router-ingest já barra antes (devolve deve_processar:false),
+    // então isto aqui é o cinto: se alguém chamar este edge direto (workflow
+    // antigo, re-execução manual no n8n, retry), nenhuma mensagem sai por uma
+    // instância muda. Com o chip restrito pela Meta, cada tentativa conta.
+    try {
+      const q = supabase.from('instancias').select('agente_mudo')
+      const { data: iRow } = instancia_uuid
+        ? await q.eq('id', instancia_uuid).maybeSingle()
+        : await q.eq('evolution_instance', instancia_nome).maybeSingle()
+      if ((iRow as any)?.agente_mudo) {
+        return j({
+          ok: true, deve_enviar: false, motivo: 'agente_mudo',
+          contato_id, took_ms: Date.now() - t0,
+        })
+      }
+    } catch (_) { /* sem linha da instância → segue o fluxo normal */ }
+
     // 1) PROCESS BATCH (debounce) — pega mensagens acumuladas no buffer
     const { data: batchData, error: batchErr } = await supabase.rpc('process_batch_mensagens', {
       p_contato_id: contato_id,

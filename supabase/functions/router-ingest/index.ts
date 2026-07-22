@@ -357,9 +357,26 @@ Deno.serve(async (req) => {
         return j({ ok: false, motivo: 'start_trigger_sem_dados', contato_id: cid })
       }
       const { data: iRow } = await supabase.from('instancias')
-        .select('evolution_instance, evolution_url, evolution_apikey').eq('id', instId).maybeSingle()
+        .select('evolution_instance, evolution_url, evolution_apikey, agente_mudo').eq('id', instId).maybeSingle()
       if (!(iRow as any)?.evolution_instance) {
         return j({ ok: false, motivo: 'start_trigger_sem_instancia', contato_id: cid })
+      }
+      // MODO MUDO — FURO CRÍTICO: o router n8n ativo trata "/" via
+      // executa_comando_dono, que faz pg_net PRA CÁ. Esse caminho não passa
+      // pela checagem de agente_mudo lá embaixo, então um /start ainda
+      // disparava os blocos com o chip restrito. Barra aqui também.
+      if ((iRow as any).agente_mudo) {
+        try {
+          await supabase.from('eventos_contato').insert({
+            contato_id: cid, tipo: 'comando_start_manual',
+            canal: (iRow as any).evolution_instance, instancia_id: instId,
+            metadata: { comando: '/start', bloqueado: 'agente_mudo', enviados: [] },
+          })
+        } catch (_) { /* log é best-effort */ }
+        return j({
+          ok: true, motivo: 'agente_mudo_sem_envio', contato_id: cid,
+          aviso: 'Instância em MODO MUDO: nada foi enviado.',
+        })
       }
       const work = dispararStart(supabase, {
         cid,
