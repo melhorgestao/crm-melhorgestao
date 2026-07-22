@@ -410,25 +410,34 @@ Deno.serve(async (req) => {
     //    Executa direto e SAI sem rodar o agente.
     if (isComando) {
       const comando = msg_text.trim().split(/\s+/)[0].toLowerCase()
-      // Em mensagem fromMe o pushName é do REMETENTE (nosso chip, ex. "Santa
-      // Flor"), NÃO do lead. Busca o nome real do lead na Evolution
-      // (fetchProfile); se não vier, get_or_create usa o telefone como
-      // placeholder e o pushName real corrige na 1ª mensagem do lead.
-      let nomeLead = from_me ? '' : push_name
-      if (from_me) {
+      // NOME DO LEAD: usa SEMPRE o pushName do webhook (nome do lead). Só cai
+      // no fetchProfile da Evolution se o pushName vier vazio; telefone é o
+      // último recurso. (Antes blanqueava pra fromMe → quando a instância
+      // estava restrita e o fetchProfile falhava, salvava o TELEFONE como nome.)
+      let nomeLead = String(push_name || '').trim()
+      if (!nomeLead && from_me) {
         try {
           const pr = await fetch(`${evolution_url}/chat/fetchProfile/${encodeURIComponent(instancia_nome)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'apikey': evolution_apikey },
             body: JSON.stringify({ number: numeroEvolution(telefone_clean) }),
+            signal: AbortSignal.timeout(4000),  // instância restrita pode travar
           })
           const pj: any = await pr.json().catch(() => ({}))
           nomeLead = String(pj?.name || pj?.pushName || pj?.pushname || pj?.verifiedName || '').trim()
         } catch (_) { /* segue com placeholder */ }
       }
+
+      // CANAL por comando: /start e /saveads salvam ADS; /savebase salva BASE;
+      // demais comandos mantêm a detecção padrão (anúncio → ADS, senão BASE).
+      const canalCmd =
+        (comando === '/start' || comando === '/saveads') ? 'ADS'
+        : comando === '/savebase' ? 'BASE'
+        : (veio_de_anuncio ? 'ADS' : 'BASE')
+
       const { data: contatoCmd, error: contatoCmdErr } = await supabase.rpc('get_or_create_contato', {
         p_telefone: telefone_clean, p_nome: nomeLead, p_instancia_id: instancia_uuid,
-        p_canal_origem: veio_de_anuncio ? 'ADS' : 'BASE',
+        p_canal_origem: canalCmd,
         p_mensagem: msg_text.replace(/\n/g, ' '),
         p_metadata: { ctwa_source_id, ctwa_source_url },
       })
@@ -439,6 +448,25 @@ Deno.serve(async (req) => {
           comando, cmd_error: contatoCmdErr?.message || 'contato_id ausente',
           instancia_uuid, telefone_clean, instancia_nome, evolution_url, evolution_apikey,
         }, 500)
+      }
+
+      // ── /saveads e /savebase ─────────────────────────────────────────────
+      // SÓ salvam o contato no banco (canal já aplicado no get_or_create acima),
+      // SEM enviar nada. Uso: instância restrita — o dono cadastra o lead e
+      // encaminha a apresentação manualmente. /saveads = ADS, /savebase = BASE.
+      if (comando === '/saveads' || comando === '/savebase') {
+        try {
+          await supabase.from('eventos_contato').insert({
+            contato_id: cid, tipo: 'comando_save', canal: instancia_nome,
+            instancia_id: instancia_uuid,
+            metadata: { comando, canal_salvo: canalCmd, nome: nomeLead, from_me },
+          })
+        } catch (_) { /* log é best-effort */ }
+        return j({
+          ok: true, deve_processar: false, motivo: 'contato_salvo',
+          comando, canal_salvo: canalCmd, contato_id: cid, nome: nomeLead,
+          instancia_uuid, telefone_clean, instancia_nome, evolution_url, evolution_apikey,
+        })
       }
 
       // ── /start ──────────────────────────────────────────────────────────
