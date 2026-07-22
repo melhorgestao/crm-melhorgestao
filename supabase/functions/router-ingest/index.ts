@@ -336,7 +336,13 @@ Deno.serve(async (req) => {
     const ctwa_source_id  = ctwa.sourceId
     const ctwa_source_url = ctwa.sourceUrl
     // isAd cobre o caso de anúncio SEM sourceId (só externalAdReply/entryPoint)
-    const veio_de_anuncio = ctwa.isAd
+    // ADS por TEXTO (fallback do dono): o anúncio Meta está configurado com
+    // "Saber mais" como 1ª mensagem, então esse texto é assinatura de lead de
+    // anúncio. Vale mesmo quando o ctwa não vem no payload (o caso comum).
+    // Checado AQUI no router (não só no SQL) pra funcionar independente de
+    // migration aplicada.
+    const TEXTO_ADS = /saber\s*mais|vi\s+o\s+an[úu]ncio|vim\s+pelo\s+an[úu]ncio|vi\s+seu\s+an[úu]ncio|vi\s+um\s+an[úu]ncio|pelo\s+an[úu]ncio|do\s+an[úu]ncio/i
+    const veio_de_anuncio = ctwa.isAd || TEXTO_ADS.test(msg_text)
 
     // 2) filtros baratos antes de bater no banco.
     // ATENÇÃO: comandos "/" são digitados PELO DONO no WhatsApp (fromMe=true,
@@ -413,11 +419,15 @@ Deno.serve(async (req) => {
     //    Executa direto e SAI sem rodar o agente.
     if (isComando) {
       const comando = msg_text.trim().split(/\s+/)[0].toLowerCase()
-      // NOME DO LEAD: usa SEMPRE o pushName do webhook (nome do lead). Só cai
-      // no fetchProfile da Evolution se o pushName vier vazio; telefone é o
-      // último recurso. (Antes blanqueava pra fromMe → quando a instância
-      // estava restrita e o fetchProfile falhava, salvava o TELEFONE como nome.)
-      let nomeLead = String(push_name || '').trim()
+      // NOME DO LEAD — atenção ao que o WhatsApp manda:
+      // em mensagem fromMe (comando digitado pelo dono) o data.pushName é do
+      // REMETENTE, ou seja o NOSSO chip ("Santa Flor") — NÃO do lead. Usar ele
+      // grava o nome errado (foi o que aconteceu no /saveads).
+      // Então: push_name só vale quando a msg é DO LEAD (não fromMe). Pra
+      // comando fromMe, o nome real vem do fetchProfile da Evolution; se falhar
+      // (chip restrito), salva o telefone como placeholder — e o get_or_create
+      // troca pelo nome real automaticamente quando o lead escrever.
+      let nomeLead = from_me ? '' : String(push_name || '').trim()
       if (!nomeLead && from_me) {
         try {
           const pr = await fetch(`${evolution_url}/chat/fetchProfile/${encodeURIComponent(instancia_nome)}`, {
