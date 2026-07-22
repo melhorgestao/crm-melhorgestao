@@ -533,6 +533,15 @@ Deno.serve(async (req) => {
     })
     if (bufErr) return j({ ok: false, error: bufErr.message }, 500)
 
+    // Carimba a última entrada do lead (silêncio). Base do start->wait 4h:
+    // enquanto o lead responde, data_ultima_entrada avança e ele NÃO é movido
+    // pra follow-up (não é "silêncio"). best-effort.
+    try {
+      await supabase.from('contatos')
+        .update({ data_ultima_entrada: recebida_em })
+        .eq('id', contato_id)
+    } catch (_) { /* não bloqueia o fluxo */ }
+
     if (isBotPausado(bot_pausado_ate)) {
       return j({
         ok: true,
