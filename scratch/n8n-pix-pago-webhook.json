@@ -12,7 +12,10 @@
       "name": "Webhook Supabase",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-1600, 360],
+      "position": [
+        -1600,
+        360
+      ],
       "webhookId": "pix-pago-notify"
     },
     {
@@ -23,7 +26,10 @@
       "name": "EXTRAI",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1380, 360]
+      "position": [
+        -1380,
+        360
+      ]
     },
     {
       "parameters": {
@@ -34,8 +40,14 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "id",     "value": "=eq.{{ $('EXTRAI').item.json.pedido_em_aberto_id }}" },
-            { "name": "select", "value": "contato_id,instancia_id,total,resumo_formatado,is_parcelado,is_cobranca_saldo,valor_primeira_parcela" }
+            {
+              "name": "id",
+              "value": "=eq.{{ $('EXTRAI').item.json.pedido_em_aberto_id }}"
+            },
+            {
+              "name": "select",
+              "value": "contato_id,instancia_id,total,resumo_formatado,is_parcelado,is_cobranca_saldo,valor_primeira_parcela"
+            }
           ]
         },
         "options": {}
@@ -44,7 +56,10 @@
       "name": "GET pedido pago",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1160, 360]
+      "position": [
+        -1160,
+        360
+      ]
     },
     {
       "parameters": {
@@ -55,8 +70,14 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "id",     "value": "=eq.{{ $('GET pedido pago').item.json[0].contato_id }}" },
-            { "name": "select", "value": "nome,telefone,instancia_id" }
+            {
+              "name": "id",
+              "value": "=eq.{{ $('GET pedido pago').item.json[0].contato_id }}"
+            },
+            {
+              "name": "select",
+              "value": "nome,telefone,instancia_id"
+            }
           ]
         },
         "options": {}
@@ -65,7 +86,10 @@
       "name": "GET contato",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-940, 360]
+      "position": [
+        -940,
+        360
+      ]
     },
     {
       "parameters": {
@@ -76,8 +100,14 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "id",     "value": "=eq.{{ $('GET pedido pago').item.json[0].instancia_id || $('GET contato').item.json[0].instancia_id }}" },
-            { "name": "select", "value": "evolution_url,evolution_instance,evolution_apikey" }
+            {
+              "name": "id",
+              "value": "=eq.{{ $('GET pedido pago').item.json[0].instancia_id || $('GET contato').item.json[0].instancia_id }}"
+            },
+            {
+              "name": "select",
+              "value": "evolution_url,evolution_instance,evolution_apikey,agente_mudo"
+            }
           ]
         },
         "options": {}
@@ -86,7 +116,10 @@
       "name": "GET instância",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-720, 360]
+      "position": [
+        -720,
+        360
+      ]
     },
     {
       "parameters": {
@@ -96,7 +129,10 @@
       "name": "MONTA MENSAGEM",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-500, 360]
+      "position": [
+        -500,
+        360
+      ]
     },
     {
       "parameters": {
@@ -105,8 +141,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey",       "value": "={{ $('GET instância').item.json[0].evolution_apikey }}" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $('GET instância').item.json[0].evolution_apikey }}"
+            }
           ]
         },
         "sendBody": true,
@@ -117,7 +159,10 @@
       "name": "Evolution: notifica cliente",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-280, 360]
+      "position": [
+        -280,
+        360
+      ]
     },
     {
       "parameters": {
@@ -127,21 +172,149 @@
       "name": "Respond OK",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-60, 360]
+      "position": [
+        -60,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "agente-mudo",
+              "leftValue": "={{ ($('GET instância').item.json[0] || $('GET instância').item.json)?.agente_mudo === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-agente-mudo-pix",
+      "name": "MUDO? (não envia)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        180
+      ]
     }
   ],
   "connections": {
-    "Webhook Supabase":              { "main": [[ { "node": "EXTRAI",                     "type": "main", "index": 0 } ]] },
-    "EXTRAI":                        { "main": [[ { "node": "GET pedido pago",            "type": "main", "index": 0 } ]] },
-    "GET pedido pago":               { "main": [[ { "node": "GET contato",                "type": "main", "index": 0 } ]] },
-    "GET contato":                   { "main": [[ { "node": "GET instância",              "type": "main", "index": 0 } ]] },
-    "GET instância":                 { "main": [[ { "node": "MONTA MENSAGEM",             "type": "main", "index": 0 } ]] },
-    "MONTA MENSAGEM":                { "main": [[ { "node": "Evolution: notifica cliente","type": "main", "index": 0 } ]] },
-    "Evolution: notifica cliente":   { "main": [[ { "node": "Respond OK",                 "type": "main", "index": 0 } ]] }
+    "Webhook Supabase": {
+      "main": [
+        [
+          {
+            "node": "EXTRAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXTRAI": {
+      "main": [
+        [
+          {
+            "node": "GET pedido pago",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET pedido pago": {
+      "main": [
+        [
+          {
+            "node": "GET contato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET contato": {
+      "main": [
+        [
+          {
+            "node": "GET instância",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET instância": {
+      "main": [
+        [
+          {
+            "node": "MONTA MENSAGEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MONTA MENSAGEM": {
+      "main": [
+        [
+          {
+            "node": "MUDO? (não envia)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evolution: notifica cliente": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MUDO? (não envia)": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Evolution: notifica cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "pinData": {},
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "staticData": null,
-  "meta": { "instanceId": "santa-flor-crm" },
+  "meta": {
+    "instanceId": "santa-flor-crm"
+  },
   "tags": []
 }

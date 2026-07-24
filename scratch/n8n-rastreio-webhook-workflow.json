@@ -12,7 +12,10 @@
       "name": "Webhook: pedido postado",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-2080, 320],
+      "position": [
+        -2080,
+        320
+      ],
       "webhookId": "rastreio-postado"
     },
     {
@@ -25,7 +28,10 @@
       "name": "Responde ACK 200",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [-1860, 480]
+      "position": [
+        -1860,
+        480
+      ]
     },
     {
       "parameters": {
@@ -36,13 +42,34 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "id", "value": "=eq.{{ $('Webhook: pedido postado').item.json.body.pedido_id }}" },
-            { "name": "status_pedido", "value": "eq.postado" },
-            { "name": "link_rastreio", "value": "not.is.null" },
-            { "name": "rastreio_enviado_em", "value": "is.null" },
-            { "name": "rastreio_tentativas", "value": "lt.5" },
-            { "name": "select", "value": "id,order_number,link_rastreio,codigo_rastreio,contato_id,rastreio_tentativas" },
-            { "name": "limit", "value": "1" }
+            {
+              "name": "id",
+              "value": "=eq.{{ $('Webhook: pedido postado').item.json.body.pedido_id }}"
+            },
+            {
+              "name": "status_pedido",
+              "value": "eq.postado"
+            },
+            {
+              "name": "link_rastreio",
+              "value": "not.is.null"
+            },
+            {
+              "name": "rastreio_enviado_em",
+              "value": "is.null"
+            },
+            {
+              "name": "rastreio_tentativas",
+              "value": "lt.5"
+            },
+            {
+              "name": "select",
+              "value": "id,order_number,link_rastreio,codigo_rastreio,contato_id,rastreio_tentativas"
+            },
+            {
+              "name": "limit",
+              "value": "1"
+            }
           ]
         },
         "options": {}
@@ -51,7 +78,10 @@
       "name": "GET PEDIDO BY ID",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1860, 320]
+      "position": [
+        -1860,
+        320
+      ]
     },
     {
       "parameters": {
@@ -62,10 +92,22 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "ativo", "value": "eq.true" },
-            { "name": "status", "value": "eq.ativo" },
-            { "name": "evolution_apikey", "value": "not.is.null" },
-            { "name": "select", "value": "id,nome,evolution_instance,evolution_url,evolution_apikey,alerta_admin,alerta_telefone" }
+            {
+              "name": "ativo",
+              "value": "eq.true"
+            },
+            {
+              "name": "status",
+              "value": "eq.ativo"
+            },
+            {
+              "name": "evolution_apikey",
+              "value": "not.is.null"
+            },
+            {
+              "name": "select",
+              "value": "id,nome,evolution_instance,evolution_url,evolution_apikey,alerta_admin,alerta_telefone,agente_mudo"
+            }
           ]
         },
         "options": {}
@@ -74,7 +116,10 @@
       "name": "GET INSTÂNCIAS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1640, 320]
+      "position": [
+        -1640,
+        320
+      ]
     },
     {
       "parameters": {
@@ -84,7 +129,10 @@
       "name": "MERGE PEDIDO+CONFIG",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1420, 320]
+      "position": [
+        -1420,
+        320
+      ]
     },
     {
       "parameters": {
@@ -95,9 +143,18 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "id", "value": "=eq.{{ $json.contato_id }}" },
-            { "name": "select", "value": "id,nome,telefone,instancia_id,canal_origem,canal_atual,representante_id,representante:representante_id(id,nome,telefone,instancia_id)" },
-            { "name": "limit", "value": "1" }
+            {
+              "name": "id",
+              "value": "=eq.{{ $json.contato_id }}"
+            },
+            {
+              "name": "select",
+              "value": "id,nome,telefone,instancia_id,canal_origem,canal_atual,representante_id,representante:representante_id(id,nome,telefone,instancia_id)"
+            },
+            {
+              "name": "limit",
+              "value": "1"
+            }
           ]
         },
         "options": {}
@@ -106,7 +163,10 @@
       "name": "GET CONTATO",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-1200, 320]
+      "position": [
+        -1200,
+        320
+      ]
     },
     {
       "parameters": {
@@ -116,15 +176,38 @@
       "name": "RESOLVE INSTÂNCIA",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-980, 320]
+      "position": [
+        -980,
+        320
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
-            { "id": "tel", "leftValue": "={{ $json.telefone }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty" } },
-            { "id": "inst", "leftValue": "={{ $json._instancia?.evolution_apikey }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty" } }
+            {
+              "id": "tel",
+              "leftValue": "={{ $json.telefone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "inst",
+              "leftValue": "={{ $json._instancia?.evolution_apikey }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -134,7 +217,10 @@
       "name": "IF telefone+instância OK",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [-760, 320]
+      "position": [
+        -760,
+        320
+      ]
     },
     {
       "parameters": {
@@ -145,7 +231,10 @@
       "name": "JITTER 30-90s",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [-540, 220]
+      "position": [
+        -540,
+        220
+      ]
     },
     {
       "parameters": {
@@ -154,30 +243,55 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $('RESOLVE INSTÂNCIA').item.json._instancia.evolution_apikey }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "apikey",
+              "value": "={{ $('RESOLVE INSTÂNCIA').item.json._instancia.evolution_apikey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ number: (nd => (nd.length===10 || (nd.length===11 && nd.charAt(2)==='9')) ? '55'+nd : nd)(String($('RESOLVE INSTÂNCIA').item.json.telefone).replace(/[^0-9]/g, '')), text: $('RESOLVE INSTÂNCIA').item.json.via_rep ? ('Olá ' + $('RESOLVE INSTÂNCIA').item.json.nome.split(' ')[0] + '!\\n\\nPedido do cliente *' + $('RESOLVE INSTÂNCIA').item.json.cliente_nome + '* foi postado pela Santa Flor.\\n\\nLink de rastreio para repassar ao cliente:\\n' + $('MERGE PEDIDO+CONFIG').item.json.link_rastreio) : ('Olá ' + $('RESOLVE INSTÂNCIA').item.json.nome.split(' ')[0] + '!\\n\\nSeu pedido foi postado pela Santa Flor.\\n\\nAcompanhe a entrega:\\n' + $('MERGE PEDIDO+CONFIG').item.json.link_rastreio + '\\n\\nBom uso!'), delay: 2000 }) }}",
         "options": {
-          "response": { "response": { "neverError": true } }
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "send-msg-evo",
       "name": "SEND MSG EVO",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-320, 220],
+      "position": [
+        -320,
+        220
+      ],
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
-            { "id": "nokey", "leftValue": "={{ $json.key?.id }}", "rightValue": "", "operator": { "type": "string", "operation": "empty" } }
+            {
+              "id": "nokey",
+              "leftValue": "={{ $json.key?.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -187,7 +301,10 @@
       "name": "DETECTA FALHA?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [-100, 220]
+      "position": [
+        -100,
+        220
+      ]
     },
     {
       "parameters": {
@@ -197,7 +314,12 @@
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [ { "name": "Content-Type", "value": "application/json" } ]
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
         "sendBody": true,
         "specifyBody": "json",
@@ -208,7 +330,10 @@
       "name": "INCREMENT TENTATIVA",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [120, 100]
+      "position": [
+        120,
+        100
+      ]
     },
     {
       "parameters": {
@@ -219,12 +344,20 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "id", "value": "=eq.{{ $('MERGE PEDIDO+CONFIG').item.json.id }}" }
+            {
+              "name": "id",
+              "value": "=eq.{{ $('MERGE PEDIDO+CONFIG').item.json.id }}"
+            }
           ]
         },
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [ { "name": "Prefer", "value": "return=minimal" } ]
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
         },
         "sendBody": true,
         "specifyBody": "json",
@@ -235,53 +368,195 @@
       "name": "MARCA ENVIADO",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [120, 340]
+      "position": [
+        120,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "agente-mudo",
+              "leftValue": "={{ $('RESOLVE INSTÂNCIA').item.json._instancia?.agente_mudo === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-agente-mudo-rastreio",
+      "name": "MUDO? (não envia)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -540,
+        40
+      ]
     }
   ],
   "connections": {
     "Webhook: pedido postado": {
-      "main": [[
-        { "node": "GET PEDIDO BY ID", "type": "main", "index": 0 },
-        { "node": "Responde ACK 200", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "GET PEDIDO BY ID",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Responde ACK 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "GET PEDIDO BY ID": {
-      "main": [[ { "node": "GET INSTÂNCIAS", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "GET INSTÂNCIAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "GET INSTÂNCIAS": {
-      "main": [[ { "node": "MERGE PEDIDO+CONFIG", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "MERGE PEDIDO+CONFIG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "MERGE PEDIDO+CONFIG": {
-      "main": [[ { "node": "GET CONTATO", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "GET CONTATO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "GET CONTATO": {
-      "main": [[ { "node": "RESOLVE INSTÂNCIA", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "RESOLVE INSTÂNCIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "RESOLVE INSTÂNCIA": {
-      "main": [[ { "node": "IF telefone+instância OK", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "IF telefone+instância OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "IF telefone+instância OK": {
       "main": [
-        [ { "node": "JITTER 30-90s", "type": "main", "index": 0 } ],
+        [
+          {
+            "node": "MUDO? (não envia)",
+            "type": "main",
+            "index": 0
+          }
+        ],
         []
       ]
     },
     "JITTER 30-90s": {
-      "main": [[ { "node": "SEND MSG EVO", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "SEND MSG EVO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "SEND MSG EVO": {
-      "main": [[ { "node": "DETECTA FALHA?", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "DETECTA FALHA?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "DETECTA FALHA?": {
       "main": [
-        [ { "node": "INCREMENT TENTATIVA", "type": "main", "index": 0 } ],
-        [ { "node": "MARCA ENVIADO", "type": "main", "index": 0 } ]
+        [
+          {
+            "node": "INCREMENT TENTATIVA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MARCA ENVIADO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MUDO? (não envia)": {
+      "main": [
+        [
+          {
+            "node": "MARCA ENVIADO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "JITTER 30-90s",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
   "pinData": {},
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "staticData": null,
-  "meta": { "instanceId": "santa-flor-crm" },
+  "meta": {
+    "instanceId": "santa-flor-crm"
+  },
   "tags": []
 }
