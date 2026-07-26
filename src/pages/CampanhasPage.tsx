@@ -127,6 +127,17 @@ export default function CampanhasPage() {
           ] as const).map(secao => {
             const grupo = campanhas!.filter(c => (secao.tipos as readonly string[]).includes(c.tipo));
             if (grupo.length === 0) return null;
+            // FOLLOW-UP: ordem fixa 4h → 3 dias → 7 dias → Personalizado
+            // (o alfabético punha "3 dias" na frente; o 4h é o 1º toque real).
+            if (secao.key === 'followup') {
+              const rank = (nome: string) =>
+                /4h/i.test(nome) ? 0
+                : /3\s*dias?/i.test(nome) ? 1
+                : /7\s*dias?/i.test(nome) ? 2
+                : /personaliz/i.test(nome) ? 3
+                : 4;
+              grupo.sort((a, b) => rank(a.nome) - rank(b.nome) || a.nome.localeCompare(b.nome));
+            }
             return (
               <div key={secao.key} className="space-y-3">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">

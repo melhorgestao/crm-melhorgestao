@@ -211,6 +211,8 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
     if (campanha.tipo !== 'followup') return null;
     const t = (templates || []).find(x => x.subcategoria);
     if (t?.subcategoria) return t.subcategoria;
+    // Follow-up Personalizado (agendado pelo agent no prazo do cliente)
+    if (/personaliz/i.test(campanha.nome)) return 'custom';
     // aceita nomes antigos ("24h") mas mapeia pra 1ª tentativa = '4h'
     const m = campanha.nome.match(/4h|24h|3d|7d|3\s*dias?|7\s*dias?/i)?.[0];
     if (!m) return '4h';
@@ -295,7 +297,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
             <section className="space-y-3">
               <p className="text-xs uppercase text-muted-foreground tracking-wide">Regras de elegibilidade</p>
 
-              {campanha.tipo === 'followup' && (
+              {campanha.tipo === 'followup' && subcatPrincipal !== 'custom' && (
                 <div className="border rounded-lg bg-muted/30 p-3 text-xs space-y-1">
                   <p className="font-medium text-sm">📋 Critérios fixos</p>
                   <p className="text-muted-foreground">
@@ -307,6 +309,23 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                     <li><strong>Follow-up 7 dias</strong>: 3ª tentativa 7 dias após o 2º toque</li>
                   </ul>
                   <p className="text-muted-foreground pt-1">Limite total: 3 tentativas (controlado por <code className="font-mono">follow_up_tentativas</code>).</p>
+                </div>
+              )}
+
+              {campanha.tipo === 'followup' && subcatPrincipal === 'custom' && (
+                <div className="border rounded-lg bg-violet-50 dark:bg-violet-950/30 border-violet-300 p-3 text-xs space-y-1">
+                  <p className="font-medium text-sm">🗓️ Follow-up Personalizado (agendado pelo agent)</p>
+                  <p className="text-muted-foreground">
+                    O agent agenda um retorno no <strong>prazo que o cliente prometeu</strong> —
+                    "mês que vem", "daqui 3 dias", "quarta eu chamo". O lead fica em
+                    <code className="font-mono"> wait_follow_up_custom</code> com a tag <strong>F-UP Custom</strong> no Kanban.
+                  </p>
+                  <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
+                    <li>Na data prometida, dispara <strong>este</strong> template.</li>
+                    <li>Se o cliente pedir mais prazo, o agent <strong>reagenda</strong>.</li>
+                    <li>Sem conversão nem novo prazo, cai na cadência <strong>3 dias → 7 dias</strong> (pula o 4h).</li>
+                  </ul>
+                  <p className="text-muted-foreground pt-1">Ligue a campanha e mantenha ao menos 1 variação de template ativa.</p>
                 </div>
               )}
 

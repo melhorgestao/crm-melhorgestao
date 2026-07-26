@@ -31,7 +31,7 @@ type ColumnKey = typeof KANBAN_COLUMNS[number]['key'];
 
 // Estados internos que vão pra cada coluna do Kanban.
 const COLUMN_STATES: Record<ColumnKey, readonly string[]> = {
-  follow_up:     ['wait_follow_up', 'follow_up'],
+  follow_up:     ['wait_follow_up', 'follow_up', 'wait_follow_up_custom'],
   rmkt:          ['rmkt'],
   em_fechamento: ['em_fechamento'],
   suporte:       ['suporte'],
@@ -65,6 +65,7 @@ interface Contact {
   data_start?: string | null;
   data_ultima_entrada?: string | null;
   data_wait_follow_up?: string | null;
+  followup_custom_em?: string | null;
   data_ultimo_follow_up?: string | null;
   data_em_fechamento?: string | null;
   data_ultimo_rmkt?: string | null;
@@ -159,6 +160,19 @@ const KanbanCard = memo(({
           time: contact.data_ultimo_follow_up ? timeAgo(contact.data_ultimo_follow_up) : null,
           tentativa: formatTentativa(contact.follow_up_tentativas, 3),
           label: 'disparado',
+        };
+      }
+      // wait_follow_up_custom — prazo prometido pelo cliente. Mostra a data
+      // combinada ("volta 05/08"), não "sumiu há".
+      if (realState === 'wait_follow_up_custom') {
+        const d = contact.followup_custom_em ? new Date(contact.followup_custom_em) : null;
+        const dataStr = d
+          ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+          : null;
+        return {
+          time: dataStr ? `Volta ${dataStr}` : null,
+          tentativa: null,
+          label: 'prazo do cliente',
         };
       }
       // wait_follow_up — "Sumiu há X" = tempo desde a ÚLTIMA MENSAGEM DO LEAD
@@ -261,6 +275,12 @@ const KanbanCard = memo(({
                 <Badge role="button" title="Registrar follow-up manual" onClick={(e) => { e.stopPropagation(); onDisparoManual(contact, 'followup'); }}
                   className="bg-amber-400 text-black text-[10px] px-1.5 py-0 font-bold cursor-pointer hover:brightness-110">
                   WAIT{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
+                </Badge>
+              )}
+              {column === 'follow_up' && realState === 'wait_follow_up_custom' && (
+                <Badge title="Retorno agendado no prazo do cliente"
+                  className="bg-violet-500 text-white text-[10px] px-1.5 py-0 font-bold">
+                  F-UP Custom
                 </Badge>
               )}
               {column === 'rmkt' && contact._rmktWait && (
@@ -503,7 +523,7 @@ export default function KanbanPage() {
           created_at, updated_at, tag_kanban, tag_kanban_ate,
           ultima_interacao, ja_comprou,
           follow_up_tentativas, ativacao_tentativas,
-          data_start, data_ultima_entrada, data_wait_follow_up, data_ultimo_follow_up,
+          data_start, data_ultima_entrada, data_wait_follow_up, followup_custom_em, data_ultimo_follow_up,
           data_em_fechamento, data_ultimo_rmkt, data_suporte, suporte_motivo,
           bot_pausado_ate, ultima_venda_em, rmkt_consecutive_silenciosos,
           qtd_ultimo_pedido,
@@ -580,7 +600,11 @@ export default function KanbanPage() {
     if (col === 'follow_up') {
       const now = Date.now();
       const tempoAteDisparo = (c: Contact): number => {
-        if (c.ultima_interacao === 'follow_up') return -Infinity; // sempre topo
+        if (c.ultima_interacao === 'follow_up') return -Infinity; // disparado no topo
+        // custom: ordena pela data prometida pelo cliente
+        if (c.ultima_interacao === 'wait_follow_up_custom') {
+          return c.followup_custom_em ? new Date(c.followup_custom_em).getTime() - now : Infinity;
+        }
         if (!c.data_wait_follow_up) return Infinity;
         const tent = Math.min(c.follow_up_tentativas ?? 0, FOLLOW_UP_GAPS_MS.length - 1);
         const gap = FOLLOW_UP_GAPS_MS[tent];

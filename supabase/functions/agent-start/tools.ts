@@ -138,6 +138,20 @@ export const TOOL_SCHEMAS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'agendar_retorno_cliente',
+      description: 'Use quando o CLIENTE disser que vai comprar/decidir MAIS PRA FRENTE, dando um prazo: "mês que vem eu compro", "daqui 3 dias recebo e fecho", "quarta-feira eu chamo", "semana que vem". Agenda um follow-up automático nesse prazo — depois é só se despedir cordialmente confirmando o retorno. NÃO use se o cliente quer comprar AGORA (use iniciar_fechamento) nem pra dúvida comum. Passe o prazo o mais literal possível.',
+      parameters: {
+        type: 'object',
+        properties: {
+          prazo: { type: 'string', description: 'O prazo dito pelo cliente, literal. Ex: "mês que vem", "daqui 3 dias", "quarta-feira", "semana que vem", "dia 15".' },
+        },
+        required: ['prazo'],
+      },
+    },
+  },
 ]
 
 // ---- EXECUTOR --------------------------------------------------------------
@@ -206,6 +220,16 @@ export async function executeTool(ctx: ToolCtx): Promise<any> {
         const { data, error } = await supabase.rpc('iniciar_fechamento_contato', {
           p_contato_id: contato_id,
           p_produto_pretendido: args.produto_pretendido || '',
+        })
+        if (error) return { error: error.message }
+        return { ok: true, data }
+      }
+
+      case 'agendar_retorno_cliente': {
+        const prazo = String(args.prazo || '').trim()
+        // Prazo interpretado no banco (parse_prazo_followup); fallback +3 dias.
+        const { data, error } = await supabase.rpc('agendar_followup_custom', {
+          p_contato_id: contato_id, p_texto: prazo,
         })
         if (error) return { error: error.message }
         return { ok: true, data }

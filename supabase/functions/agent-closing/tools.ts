@@ -182,6 +182,20 @@ export const CLOSING_TOOL_SCHEMAS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'agendar_retorno_cliente',
+      description: 'Use quando o CLIENTE pedir pra comprar/falar MAIS PRA FRENTE, dando um prazo: "mês que vem eu compro", "daqui 3 dias recebo e fecho", "quarta-feira eu chamo", "semana que vem", "dia 15". Agenda um follow-up automático nesse prazo e tira o lead do fechamento — depois é só se despedir cordialmente confirmando o retorno. NÃO use se o cliente quer comprar AGORA nem pra dúvida comum. Passe o prazo o mais literal possível.',
+      parameters: {
+        type: 'object',
+        properties: {
+          prazo: { type: 'string', description: 'O prazo dito pelo cliente, literal. Ex: "mês que vem", "daqui 3 dias", "quarta-feira", "semana que vem", "dia 15".' },
+        },
+        required: ['prazo'],
+      },
+    },
+  },
 ]
 
 export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
@@ -340,6 +354,17 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
         })
         if (error) return { error: error.message }
         return { ok: true }
+      }
+
+      case 'agendar_retorno_cliente': {
+        const prazo = String(args.prazo || '').trim()
+        // O prazo é interpretado DETERMINISTICAMENTE no banco
+        // (parse_prazo_followup). Se não entender, agenda +3 dias de fallback.
+        const { data, error } = await supabase.rpc('agendar_followup_custom', {
+          p_contato_id: contato_id, p_texto: prazo,
+        })
+        if (error) return { error: error.message }
+        return data ?? { ok: true }
       }
 
       default:
