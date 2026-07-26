@@ -9,9 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { timeAgo } from '@/lib/format';
-import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Pause, Play, ShoppingCart, RefreshCw, Package, Minus } from 'lucide-react';
+import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Pause, Play, ShoppingCart, RefreshCw, Package, Minus, CalendarClock } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Calendar } from '@/components/ui/calendar';
+import { ptBR } from 'date-fns/locale';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { findConversationByPhone } from '@/lib/chatwootApi';
 import { FechamentoVendaModal } from '@/components/kanban/FechamentoVendaModal';
@@ -115,7 +118,7 @@ const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
   draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, setPararTarget,
   pausarBot, reativarBot, copyPhone, openChatwoot,
-  collapsed, toggleCollapsed, openPedido, onDisparoManual
+  collapsed, toggleCollapsed, openPedido, onDisparoManual, onAgendarCustom
 }: {
   contact: Contact;
   column: ColumnKey;
@@ -135,6 +138,7 @@ const KanbanCard = memo(({
   toggleCollapsed: (id: string) => void;
   openPedido: (pedidoId: string | null, contatoId?: string) => void;
   onDisparoManual: (c: Contact, tipo: 'followup' | 'rmkt') => void;
+  onAgendarCustom: (c: Contact) => void;
 }) => {
   // Bot está pausado se bot_pausado_ate está no futuro
   const botPausado = !!contact.bot_pausado_ate && new Date(contact.bot_pausado_ate).getTime() > Date.now();
@@ -387,6 +391,20 @@ const KanbanCard = memo(({
                 </Button>
               </>
             )}
+            {/* Agendar retorno manual (F-UP Custom). Fallback pro agent
+                off/mudo ou erro de agendamento: marca/edita a data em que o
+                bot deve retomar o lead. Só nas colunas do funil de venda. */}
+            {(column === 'follow_up' || column === 'em_fechamento') && (
+              <Button
+                variant="ghost" size="icon"
+                className={cn('h-7 w-7 hover:bg-violet-500/10',
+                  realState === 'wait_follow_up_custom' ? 'text-violet-600' : 'text-muted-foreground hover:text-violet-600')}
+                title={realState === 'wait_follow_up_custom' ? 'Editar retorno agendado (F-UP Custom)' : 'Agendar retorno manual (F-UP Custom)'}
+                onClick={() => onAgendarCustom(contact)}
+              >
+                <CalendarClock className="w-3.5 h-3.5" />
+              </Button>
+            )}
             {/* Demais colunas (não-suporte): pause/play.
                 Em em_fechamento o pause é útil pra intervenção humana quando
                 o agent está com problema — o trigger de invariante move o
@@ -450,6 +468,11 @@ export default function KanbanPage() {
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [pedidoAbertoId, setPedidoAbertoId] = useState<string | null>(null);
+  // Filtro da coluna Follow-up: todos | custom | wait | 1 | 2 | 3 (tentativa)
+  const [fupFiltro, setFupFiltro] = useState<'todos' | 'custom' | 'wait' | '1' | '2' | '3'>('todos');
+  // Agendamento manual F-UP Custom (calendário)
+  const [agendarTarget, setAgendarTarget] = useState<Contact | null>(null);
+  const [agendarDate, setAgendarDate] = useState<Date | undefined>(undefined);
 
   const toggleCollapsed = (id: string) => setCollapsedIds(prev => {
     const n = new Set(prev);
@@ -583,7 +606,18 @@ export default function KanbanPage() {
 
   const getColumnContacts = (col: ColumnKey) => {
     const states = COLUMN_STATES[col];
-    const list = contacts.filter(c => states.includes(c.ultima_interacao || ''));
+    let list = contacts.filter(c => states.includes(c.ultima_interacao || ''));
+
+    // Filtro do dropdown da coluna Follow-up (Custom / Wait / 1|2|3 de 3).
+    if (col === 'follow_up' && fupFiltro !== 'todos') {
+      list = list.filter(c => {
+        const st = c.ultima_interacao;
+        if (fupFiltro === 'custom') return st === 'wait_follow_up_custom';
+        if (fupFiltro === 'wait')   return st === 'wait_follow_up';
+        // '1' | '2' | '3' → já disparados (follow_up) por tentativa
+        return st === 'follow_up' && (c.follow_up_tentativas ?? 0) === Number(fupFiltro);
+      });
+    }
 
     // Coluna SUPORTE: ordena por data_suporte ASC (mais antigos no topo).
     if (col === 'suporte') {
@@ -798,6 +832,55 @@ export default function KanbanPage() {
     }
   };
 
+  // ---- F-UP Custom manual (calendário) --------------------------------------
+  // Fallback pro agent off/mudo/erro: marca ou edita a data de retorno.
+  const abrirAgendarCustom = (contact: Contact) => {
+    setAgendarTarget(contact);
+    // pré-seleciona a data já agendada (modo edição), senão vazio
+    setAgendarDate(contact.followup_custom_em ? new Date(contact.followup_custom_em) : undefined);
+  };
+
+  const confirmAgendarCustom = async () => {
+    if (!agendarTarget || !agendarDate) return;
+    // dispara às 10:00 local (dentro da janela comercial 09-20). O RPC ainda
+    // aplica guarda-corpos (nunca no passado, teto de 90 dias).
+    const d = new Date(agendarDate);
+    d.setHours(10, 0, 0, 0);
+    try {
+      const { data, error } = await supabase.rpc('agendar_followup_custom', {
+        p_contato_id: agendarTarget.id,
+        p_data: d.toISOString(),
+      });
+      if (error) throw error;
+      const quando = (data as any)?.agendado_para
+        ? new Date((data as any).agendado_para).toLocaleDateString('pt-BR')
+        : d.toLocaleDateString('pt-BR');
+      await supabase.from('log_atividades').insert({
+        usuario: profile?.nome || 'Desconhecido',
+        acao: `F-UP Custom agendado p/ ${quando} via Kanban`,
+        tabela_afetada: 'contatos', registro_id: agendarTarget.id, detalhe: agendarTarget.nome,
+      });
+      toast.success(`${agendarTarget.nome}: retorno agendado p/ ${quando}`);
+      setAgendarTarget(null); setAgendarDate(undefined);
+      queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
+    } catch (err: any) {
+      toast.error('Não deu pra agendar: ' + (err.message || 'erro'));
+    }
+  };
+
+  const desagendarCustom = async () => {
+    if (!agendarTarget) return;
+    try {
+      const { error } = await supabase.rpc('desagendar_followup_custom', { p_contato_id: agendarTarget.id });
+      if (error) throw error;
+      toast.success(`${agendarTarget.nome}: agendamento cancelado — voltou pra fila de follow-up`);
+      setAgendarTarget(null); setAgendarDate(undefined);
+      queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
+    } catch (err: any) {
+      toast.error('Não deu pra cancelar: ' + (err.message || 'erro'));
+    }
+  };
+
   // Parar campanha (X no card) — F-UP ou RMKT.
   //  followup → parar_followup_contato: volta pra 'start' + followup_bloqueado.
   //  rmkt     → parar_rmkt_contato:     volta pra 'cliente' + rmkt_bloqueado.
@@ -862,6 +945,7 @@ export default function KanbanPage() {
         copyPhone={copyPhone}
         openChatwoot={openChatwoot}
         onDisparoManual={openDisparoManual}
+        onAgendarCustom={abrirAgendarCustom}
         collapsed={collapsedIds.has(contact.id)}
         toggleCollapsed={toggleCollapsed}
         openPedido={openPedido}
@@ -910,11 +994,26 @@ export default function KanbanPage() {
                 if (id) handleDrop(id, key);
               }}
             >
-              <div className="p-3 border-b border-border">
+              <div className="p-3 border-b border-border space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-sm">{label}</h3>
                   <Badge variant="secondary" className="text-xs">{colContacts.length}</Badge>
                 </div>
+                {key === 'follow_up' && (
+                  <Select value={fupFiltro} onValueChange={(v) => setFupFiltro(v as typeof fupFiltro)}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Todos os F-up" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os F-up</SelectItem>
+                      <SelectItem value="custom">🗓️ Custom (agendado)</SelectItem>
+                      <SelectItem value="wait">⏳ Wait (na fila)</SelectItem>
+                      <SelectItem value="1">F-UP 1/3 (disparado)</SelectItem>
+                      <SelectItem value="2">F-UP 2/3 (disparado)</SelectItem>
+                      <SelectItem value="3">F-UP 3/3 (disparado)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="p-2 space-y-2 max-h-[60vh] overflow-y-auto">
                 {colContacts.length === 0 && (
@@ -1073,6 +1172,59 @@ export default function KanbanPage() {
         onClose={() => setPedidoAbertoId(null)}
         pedidoId={pedidoAbertoId}
       />
+
+      {/* Agendar/editar F-UP Custom manual (calendário) */}
+      <Dialog
+        open={!!agendarTarget}
+        onOpenChange={(o) => { if (!o) { setAgendarTarget(null); setAgendarDate(undefined); } }}
+      >
+        <DialogContent className="sm:max-w-fit">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarClock className="w-4 h-4 text-violet-600" />
+              {agendarTarget?.ultima_interacao === 'wait_follow_up_custom' ? 'Editar retorno agendado' : 'Agendar retorno'}
+            </DialogTitle>
+            <DialogDescription>
+              <span className="font-medium text-foreground">{agendarTarget?.nome}</span> — escolha o dia em que o bot deve retomar o contato.
+              {agendarTarget?.followup_custom_em && (
+                <span className="block mt-1 text-xs">
+                  Agendado hoje para <strong>{new Date(agendarTarget.followup_custom_em).toLocaleDateString('pt-BR')}</strong>.
+                </span>
+              )}
+              <span className="block mt-1 text-xs text-muted-foreground">
+                Fallback manual para quando o agent está mudo/off ou não captou o prazo. Dispara ~10h, dentro da janela comercial.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-center">
+            <Calendar
+              mode="single"
+              locale={ptBR}
+              selected={agendarDate}
+              onSelect={setAgendarDate}
+              weekStartsOn={0}
+              disabled={(d) => { const t = new Date(); t.setHours(0, 0, 0, 0); return d < t; }}
+              initialFocus
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            {agendarTarget?.ultima_interacao === 'wait_follow_up_custom' ? (
+              <Button variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={desagendarCustom}>
+                Cancelar agendamento
+              </Button>
+            ) : <span />}
+            <Button
+              className="bg-violet-600 hover:bg-violet-600/90 text-white"
+              disabled={!agendarDate}
+              onClick={confirmAgendarCustom}
+            >
+              {agendarTarget?.ultima_interacao === 'wait_follow_up_custom' ? 'Salvar data' : 'Agendar retorno'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
