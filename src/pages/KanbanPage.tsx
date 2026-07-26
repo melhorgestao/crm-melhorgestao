@@ -114,6 +114,40 @@ function preencherTemplate(texto: string, nomeCompleto?: string | null): string 
     .trim();
 }
 
+// Quando o PRÓXIMO follow-up deste lead fica apto (mesma cadência do claim):
+//   tent 0 → 4h de silêncio real (data_ultima_entrada)
+//   tent 1 → 3 dias do último envio; tent 2 → 7 dias.
+// Retorna epoch ms; 0 = já apto (sem data base pra comparar).
+function nextFollowupEligibleAt(c: Contact): number {
+  const tent = c.follow_up_tentativas ?? 0;
+  if (tent <= 0) {
+    const base = c.data_ultima_entrada || c.data_wait_follow_up || c.data_start;
+    return base ? new Date(base).getTime() + 4 * 3600_000 : 0;
+  }
+  const base = c.data_ultimo_follow_up || c.data_wait_follow_up;
+  const days = tent === 1 ? 3 : 7;
+  return base ? new Date(base).getTime() + days * 86400_000 : 0;
+}
+
+// Elegibilidade do disparo manual: RMKT sempre liberado (cadência própria);
+// follow-up respeita a cadência acima.
+function dispatchEligible(t: { contact: Contact; tipo: 'followup' | 'rmkt' } | null): { apto: boolean; faltamMs: number } {
+  if (!t || t.tipo === 'rmkt') return { apto: true, faltamMs: 0 };
+  const faltamMs = nextFollowupEligibleAt(t.contact) - Date.now();
+  return { apto: faltamMs <= 0, faltamMs: Math.max(0, faltamMs) };
+}
+
+// "2d 5h" / "5h 30min" / "12min"
+function formatCountdown(ms: number): string {
+  const totalMin = Math.max(0, Math.ceil(ms / 60000));
+  const d = Math.floor(totalMin / 1440);
+  const h = Math.floor((totalMin % 1440) / 60);
+  const m = totalMin % 60;
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}min`;
+  return `${m}min`;
+}
+
 const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
   draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, setPararTarget,
@@ -399,7 +433,7 @@ const KanbanCard = memo(({
                 variant="ghost" size="icon"
                 className={cn('h-7 w-7 hover:bg-violet-500/10',
                   realState === 'wait_follow_up_custom' ? 'text-violet-600' : 'text-muted-foreground hover:text-violet-600')}
-                title={realState === 'wait_follow_up_custom' ? 'Editar retorno agendado (F-UP Custom)' : 'Agendar retorno manual (F-UP Custom)'}
+                title={realState === 'wait_follow_up_custom' ? 'Editar retorno agendado (F-UP Custom)' : 'Agendar retorno (F-UP Custom)'}
                 onClick={() => onAgendarCustom(contact)}
               >
                 <CalendarClock className="w-3.5 h-3.5" />
@@ -1112,8 +1146,17 @@ export default function KanbanPage() {
             const tplTexto = tplVars.length
               ? preencherTemplate(tplVars[tplIdx % tplVars.length], disparoTarget.contact.nome)
               : '';
+            const { apto, faltamMs } = dispatchEligible(disparoTarget);
             return (
               <div className="space-y-3">
+                {/* Guarda de cadência: não deixa disparar antes do prazo (evita
+                    spam/ban). Fora do prazo → mostra o contador e trava o botão. */}
+                {!apto && (
+                  <div className="border border-amber-300 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                    ⏳ Fora do prazo da cadência. Faltam <strong>{formatCountdown(faltamMs)}</strong> para o {disparoTarget.proxima}/3 ficar apto.
+                    Você pode aguardar ou cancelar.
+                  </div>
+                )}
                 {/* número copiável (útil com Chatwoot off) */}
                 <div className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2 bg-muted/30">
                   <div className="min-w-0">
@@ -1154,7 +1197,14 @@ export default function KanbanPage() {
 
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDisparoManual} className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground">
+            <AlertDialogAction
+              onClick={handleDisparoManual}
+              disabled={!dispatchEligible(disparoTarget).apto}
+              className={cn(
+                'bg-sf-green hover:bg-sf-green/90 text-primary-foreground',
+                !dispatchEligible(disparoTarget).apto && 'opacity-40 pointer-events-none',
+              )}
+            >
               Confirmar {disparoTarget?.proxima}/3
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1195,7 +1245,7 @@ export default function KanbanPage() {
                 </span>
               )}
               <span className="block mt-1 text-xs text-muted-foreground">
-                Fallback manual para quando o agent está mudo/off ou não captou o prazo. Dispara ~10h, dentro da janela comercial.
+                Fallback para quando o agent está mudo/off ou não captou o prazo.
               </span>
             </DialogDescription>
           </DialogHeader>
