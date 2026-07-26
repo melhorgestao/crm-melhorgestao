@@ -41,6 +41,7 @@ interface Contact {
   follow_up_tentativas?: number | null;
   ativacao_tentativas?: number | null;
   data_start?: string | null;
+  data_ultima_entrada?: string | null;
   data_wait_follow_up?: string | null;
   data_ultimo_follow_up?: string | null;
   data_em_fechamento?: string | null;
@@ -81,11 +82,14 @@ const KanbanCard = memo(({
 
   const stateInfo = (() => {
     switch (column) {
-      case 'wait_follow_up':
+      case 'wait_follow_up': {
+        // "Sumiu há X" = desde a última mensagem do lead (não desde a entrada).
+        const silencioDesde = contact.data_ultima_entrada || contact.data_wait_follow_up || contact.data_start;
         return {
-          time: contact.data_wait_follow_up ? timeAgo(contact.data_wait_follow_up) : null,
+          time: silencioDesde ? timeAgo(silencioDesde) : null,
           tentativa: formatTentativa(contact.follow_up_tentativas, 3),
         };
+      }
       case 'follow_up':
         return {
           time: contact.data_ultimo_follow_up ? timeAgo(contact.data_ultimo_follow_up) : null,
@@ -208,7 +212,7 @@ export default function KanbanRepPage() {
           created_at, updated_at, tag_kanban, tag_kanban_ate,
           ultima_interacao, ja_comprou,
           follow_up_tentativas, ativacao_tentativas,
-          data_start, data_wait_follow_up, data_ultimo_follow_up,
+          data_start, data_ultima_entrada, data_wait_follow_up, data_ultimo_follow_up,
           data_em_fechamento, data_ultimo_rmkt, data_suporte, suporte_motivo
         `)
         .eq('representante_id', user?.id)

@@ -38,10 +38,11 @@ const COLUMN_STATES: Record<ColumnKey, readonly string[]> = {
 };
 
 // Gaps de follow_up por tentativa (igual claim_proximo_lead_followup):
-// tentativa 0 → 24h, 1 → 3d, 2 → 7d. Usado pra ordenar WAIT por
-// proximidade do próximo disparo (quem está mais perto = topo).
+// tentativa 0 → dispara já (o 4h de silêncio já foi no start->wait), 1 → 3d,
+// 2 → 7d. Usado pra ordenar WAIT por proximidade do próximo disparo
+// (quem está mais perto = topo). Tent 0 = 0 → sempre "no ponto", vai pro topo.
 const FOLLOW_UP_GAPS_MS = [
-  24 * 3600 * 1000,
+  0,
   3  * 24 * 3600 * 1000,
   7  * 24 * 3600 * 1000,
 ] as const;
@@ -62,6 +63,7 @@ interface Contact {
   follow_up_tentativas?: number | null;
   ativacao_tentativas?: number | null;
   data_start?: string | null;
+  data_ultima_entrada?: string | null;
   data_wait_follow_up?: string | null;
   data_ultimo_follow_up?: string | null;
   data_em_fechamento?: string | null;
@@ -159,9 +161,13 @@ const KanbanCard = memo(({
           label: 'disparado',
         };
       }
-      // wait_follow_up
+      // wait_follow_up — "Sumiu há X" = tempo desde a ÚLTIMA MENSAGEM DO LEAD
+      // (data_ultima_entrada), não desde que entrou na coluna. Assim, ao chegar
+      // com 4h de silêncio mostra "Sumiu há 4h" (não "Agora"), e se o lead
+      // responder zera pra "Agora". Fallback pro que existir.
+      const silencioDesde = contact.data_ultima_entrada || contact.data_wait_follow_up || contact.data_start;
       return {
-        time: contact.data_wait_follow_up ? timeAgo(contact.data_wait_follow_up) : null,
+        time: silencioDesde ? timeAgo(silencioDesde) : null,
         tentativa: formatTentativa(contact.follow_up_tentativas, 3),
         label: 'no aguardo',
       };
@@ -497,7 +503,7 @@ export default function KanbanPage() {
           created_at, updated_at, tag_kanban, tag_kanban_ate,
           ultima_interacao, ja_comprou,
           follow_up_tentativas, ativacao_tentativas,
-          data_start, data_wait_follow_up, data_ultimo_follow_up,
+          data_start, data_ultima_entrada, data_wait_follow_up, data_ultimo_follow_up,
           data_em_fechamento, data_ultimo_rmkt, data_suporte, suporte_motivo,
           bot_pausado_ate, ultima_venda_em, rmkt_consecutive_silenciosos,
           qtd_ultimo_pedido,
