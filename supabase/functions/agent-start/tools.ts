@@ -152,6 +152,20 @@ export const TOOL_SCHEMAS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'descadastrar_lead',
+      description: 'Use SÓ em recusa EXTREMA e clara: "não tenho interesse", "não quero mais", "para de me mandar mensagem", "me tira da lista", "não me manda mais nada". Tira o lead de circulação (NUNCA_MAIS) — sai do follow-up/RMKT, evitando bloqueio e denúncia por insistência. Depois só uma despedida curta e educada ("Tudo bem, não te incomodo mais! Qualquer dia, é só chamar. 🙏"). NÃO use por hesitação ("vou pensar", "depois eu vejo") — isso é agendar_retorno_cliente ou nada.',
+      parameters: {
+        type: 'object',
+        properties: {
+          motivo: { type: 'string', description: 'Motivo curto: sem_interesse | pediu_remocao | irritado_insistencia' },
+        },
+        required: [],
+      },
+    },
+  },
 ]
 
 // ---- EXECUTOR --------------------------------------------------------------
@@ -230,6 +244,14 @@ export async function executeTool(ctx: ToolCtx): Promise<any> {
         // Prazo interpretado no banco (parse_prazo_followup); fallback +3 dias.
         const { data, error } = await supabase.rpc('agendar_followup_custom', {
           p_contato_id: contato_id, p_texto: prazo,
+        })
+        if (error) return { error: error.message }
+        return { ok: true, data }
+      }
+
+      case 'descadastrar_lead': {
+        const { data, error } = await supabase.rpc('marcar_nunca_mais', {
+          p_contato_id: contato_id, p_motivo: args.motivo || 'sem_interesse',
         })
         if (error) return { error: error.message }
         return { ok: true, data }

@@ -612,10 +612,13 @@ export default function KanbanPage() {
     if (col === 'follow_up' && fupFiltro !== 'todos') {
       list = list.filter(c => {
         const st = c.ultima_interacao;
+        const tent = c.follow_up_tentativas ?? 0;
         if (fupFiltro === 'custom') return st === 'wait_follow_up_custom';
-        if (fupFiltro === 'wait')   return st === 'wait_follow_up';
-        // '1' | '2' | '3' → já disparados (follow_up) por tentativa
-        return st === 'follow_up' && (c.follow_up_tentativas ?? 0) === Number(fupFiltro);
+        // 'wait' = aguardando o 1º toque (ainda sem disparo): WAIT sem número
+        if (fupFiltro === 'wait')   return st === 'wait_follow_up' && tent === 0;
+        // '1' | '2' | '3' → tentativa N já disparada, esteja o card DISPARADO
+        // (F-UP N/3) ou de volta na fila (WAIT N/3) — os dois entram.
+        return (st === 'follow_up' || st === 'wait_follow_up') && tent === Number(fupFiltro);
       });
     }
 
@@ -1007,10 +1010,10 @@ export default function KanbanPage() {
                     <SelectContent>
                       <SelectItem value="todos">Todos os F-up</SelectItem>
                       <SelectItem value="custom">🗓️ Custom (agendado)</SelectItem>
-                      <SelectItem value="wait">⏳ Wait (na fila)</SelectItem>
-                      <SelectItem value="1">F-UP 1/3 (disparado)</SelectItem>
-                      <SelectItem value="2">F-UP 2/3 (disparado)</SelectItem>
-                      <SelectItem value="3">F-UP 3/3 (disparado)</SelectItem>
+                      <SelectItem value="wait">⏳ Wait (aguardando 1º)</SelectItem>
+                      <SelectItem value="1">1/3 (F-UP + Wait)</SelectItem>
+                      <SelectItem value="2">2/3 (F-UP + Wait)</SelectItem>
+                      <SelectItem value="3">3/3 (F-UP + Wait)</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
