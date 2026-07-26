@@ -1154,7 +1154,6 @@ export default function KanbanPage() {
                 {!apto && (
                   <div className="border border-amber-300 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
                     ⏳ Fora do prazo da cadência. Faltam <strong>{formatCountdown(faltamMs)}</strong> para o {disparoTarget.proxima}/3 ficar apto.
-                    Você pode aguardar ou cancelar.
                   </div>
                 )}
                 {/* número copiável (útil com Chatwoot off) */}
