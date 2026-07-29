@@ -1355,9 +1355,13 @@ export default function MetricasPage() {
               <div className="text-sm text-muted-foreground border rounded-lg p-4 bg-muted/20">
                 Sem dados de grupo neste período.
               </div>
+            ) : selectedGrupo === 'todos' ? (
+              <div className="text-sm text-muted-foreground border rounded-lg p-4 bg-muted/20">
+                Selecione um grupo no filtro <strong>Grupo</strong> (canto superior direito) para ver o detalhamento. Os totais de todos os grupos estão em <strong>RESULTADO</strong> e <strong>CUSTOS</strong> abaixo.
+              </div>
             ) : (
               <div className="space-y-5">
-                {(selectedGrupo === 'todos' ? perGrupo : perGrupo.filter(g => (g.grupo_id || 'sem') === selectedGrupo)).map(g => {
+                {perGrupo.filter(g => (g.grupo_id || 'sem') === selectedGrupo).map(g => {
                   const margem = g.receita > 0 ? (g.lucro / g.receita) * 100 : 0;
                   const pct = g.fracao * 100;
                   const shareTip = (catLabel: string, total: number, valor: number) => (
@@ -1422,14 +1426,6 @@ export default function MetricasPage() {
                     </div>
                   );
                 })}
-
-                {/* TOTAL — confere com o card Lucro */}
-                {selectedGrupo === 'todos' && (
-                  <div className="flex items-center justify-between rounded-lg border-2 px-4 py-2 bg-muted/40 text-sm font-bold">
-                    <span>TOTAL (Σ dos grupos)</span>
-                    <span className="text-primary">Lucro {formatBRL(perGrupo.reduce((s, g) => s + g.lucro, 0))}</span>
-                  </div>
-                )}
               </div>
             )}
           </div>
