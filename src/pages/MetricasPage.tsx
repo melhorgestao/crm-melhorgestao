@@ -595,17 +595,15 @@ export default function MetricasPage() {
 
         const compartilhadoTotal = custoAds + etiquetaTotal + logTotal + influencerTotal + infraestruturaTotal;
 
-        // une grupos que têm receita e/ou material
         const chaves = new Set<string>();
         const nomePorChave = new Map<string, string>();
+        // Semeia TODOS os grupos cadastrados — mesmo sem receita/material no
+        // período aparecem (zerados). Assim novos grupos entram automaticamente.
+        const { data: gAll } = await supabase.from('produtos_grupos').select('id, nome').order('ordem');
+        (gAll || []).forEach((g: any) => { chaves.add(g.id); nomePorChave.set(g.id, g.nome); });
+        // grupos com receita/material (cobre o bucket "Sem grupo" também)
         linhasReceita.forEach(r => { const k = r.grupo_id || 'sem'; chaves.add(k); nomePorChave.set(k, r.grupo_nome || 'Sem grupo'); });
-        matPorGrupo.forEach((_v, k) => chaves.add(k));
-        // nome dos grupos que só têm material (sem receita no período)
-        if (chaves.size) {
-          const { data: gAll } = await supabase.from('produtos_grupos').select('id, nome');
-          (gAll || []).forEach((g: any) => { if (!nomePorChave.has(g.id)) nomePorChave.set(g.id, g.nome); });
-          if (chaves.has('sem')) nomePorChave.set('sem', 'Sem grupo');
-        }
+        matPorGrupo.forEach((_v, k) => { chaves.add(k); if (!nomePorChave.has(k)) nomePorChave.set(k, k === 'sem' ? 'Sem grupo' : 'Grupo'); });
 
         const receitaPorChave = new Map<string, number>();
         const unidadesPorChave = new Map<string, number>();
@@ -838,7 +836,7 @@ export default function MetricasPage() {
             <div key={r.id} className="flex justify-between items-center text-xs p-2 rounded bg-muted/30">
               <div className="flex flex-col items-start min-w-0 flex-1">
                 <span className="font-semibold uppercase text-[10px] text-muted-foreground">{r.categoria}</span>
-                <span className="truncate max-w-full">{r.descricao || '—'}</span>
+                <span className="truncate max-w-full">{r.descricao?.trim() || <span className="italic text-muted-foreground">sem descrição</span>}</span>
                 <span className="text-[10px] text-muted-foreground">{new Date(r.data).toLocaleDateString('pt-BR')}</span>
               </div>
               <span className="font-medium text-destructive ml-2 shrink-0">{formatBRL(Number(r.valor))}</span>

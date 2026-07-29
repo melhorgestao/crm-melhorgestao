@@ -1305,26 +1305,20 @@ export default function FinanceiroPage() {
               <Input value={formValor} onChange={e => setFormValor(e.target.value)} placeholder="0,00" className="min-h-[44px]" />
             </div>
 
-            {/* MATERIAL: custo dividido por grupo → nome do material + grupo. */}
+            {/* MATERIAL: custo dividido por grupo (a descrição fica no campo Descrição). */}
             {formTipo === 'MATERIAL' && !editItem && (
-              <>
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Nome do material</Label>
-                  <Input value={formDescricao} onChange={e => setFormDescricao(e.target.value)} placeholder="ex: Frascos 30ml, óleo base…" className="min-h-[44px]" />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Grupo *</Label>
-                  <Select value={formGrupoId} onValueChange={setFormGrupoId}>
-                    <SelectTrigger className="min-h-[44px]"><SelectValue placeholder="Escolha o grupo do material" /></SelectTrigger>
-                    <SelectContent>
-                      {gruposProduto.map(g => <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    O custo de material é dividido por grupo. ADS, etiqueta e logística são compartilhados (rateados por receita).
-                  </p>
-                </div>
-              </>
+              <div>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Grupo *</Label>
+                <Select value={formGrupoId} onValueChange={setFormGrupoId}>
+                  <SelectTrigger className="min-h-[44px]"><SelectValue placeholder="Escolha o grupo do material" /></SelectTrigger>
+                  <SelectContent>
+                    {gruposProduto.map(g => <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  O custo de material é dividido por grupo. ADS, etiqueta e logística são compartilhados (rateados por receita).
+                </p>
+              </div>
             )}
 
             {formTipo === 'VENDA' && !editItem && (
