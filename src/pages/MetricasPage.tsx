@@ -1393,14 +1393,14 @@ export default function MetricasPage() {
                               <FormulaRow label="= Lucro do grupo" value={formatBRL(g.lucro)} isResult />
                             </div>
                           ))} />
-                        <MetricCard label="Receita" value={formatBRL(g.receita)} color="bg-card border border-purple-200"
-                          tip="Receita atribuída ao grupo (peso preço×qtd dos itens; desconto rateado)."
-                          onClick={() => showFormula(`Receita · ${g.nome}`, (
+                        <MetricCard label="Faturamento" value={formatBRL(g.receita)} color="bg-card border-l-4 border-l-purple-500"
+                          tip="Faturamento atribuído ao grupo (peso preço×qtd dos itens; desconto rateado)."
+                          onClick={() => showFormula(`Faturamento · ${g.nome}`, (
                             <div className="text-sm">
                               <FormulaRow label="Faturamento total" value={formatBRL(data.fatTotal)} />
                               <FormulaRow label={`× fatia de receita do grupo (${pct.toFixed(1)}%)`} value={formatPercent(pct)} />
-                              <FormulaRow label="= Receita do grupo" value={formatBRL(g.receita)} isResult />
-                              <p className="text-xs text-muted-foreground mt-3">A receita de cada pedido é distribuída entre grupos pelo peso preço×qtd dos itens.</p>
+                              <FormulaRow label="= Faturamento do grupo" value={formatBRL(g.receita)} isResult />
+                              <p className="text-xs text-muted-foreground mt-3">O faturamento de cada pedido é distribuído entre grupos pelo peso preço×qtd dos itens.</p>
                             </div>
                           ))} />
                         <MetricCard label="Material" value={formatBRL(g.material)} color="bg-card border-l-4 border-l-destructive"
