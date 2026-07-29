@@ -1381,8 +1381,18 @@ export default function MetricasPage() {
                         </span>
                       </div>
 
-                      {/* topo do cenário */}
+                      {/* topo do cenário — Lucro primeiro (resultado do grupo) */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <MetricCard label="Lucro" value={formatBRL(g.lucro)} color="bg-card border-l-4 border-l-primary"
+                          tip="Receita − Material − Rateio compartilhado."
+                          onClick={() => showFormula(`Lucro · ${g.nome}`, (
+                            <div className="text-sm">
+                              <FormulaRow label="Receita" value={formatBRL(g.receita)} />
+                              <FormulaRow label="− Material" value={formatBRL(g.material)} />
+                              <FormulaRow label="− Rateio compartilhado" value={formatBRL(g.compartilhado)} />
+                              <FormulaRow label="= Lucro do grupo" value={formatBRL(g.lucro)} isResult />
+                            </div>
+                          ))} />
                         <MetricCard label="Receita" value={formatBRL(g.receita)} color="bg-card border border-purple-200"
                           tip="Receita atribuída ao grupo (peso preço×qtd dos itens; desconto rateado)."
                           onClick={() => showFormula(`Receita · ${g.nome}`, (
@@ -1396,16 +1406,6 @@ export default function MetricasPage() {
                         <MetricCard label="Material" value={formatBRL(g.material)} color="bg-card border-l-4 border-l-destructive"
                           tip="Custo de material lançado neste grupo. Clique pra ver os lançamentos."
                           onClick={() => showLancamentos(`Material · ${g.nome}`, 'material', g.grupo_id)} />
-                        <MetricCard label="Lucro" value={formatBRL(g.lucro)} color="bg-card border-l-4 border-l-primary"
-                          tip="Receita − Material − Rateio compartilhado."
-                          onClick={() => showFormula(`Lucro · ${g.nome}`, (
-                            <div className="text-sm">
-                              <FormulaRow label="Receita" value={formatBRL(g.receita)} />
-                              <FormulaRow label="− Material" value={formatBRL(g.material)} />
-                              <FormulaRow label="− Rateio compartilhado" value={formatBRL(g.compartilhado)} />
-                              <FormulaRow label="= Lucro do grupo" value={formatBRL(g.lucro)} isResult />
-                            </div>
-                          ))} />
                         <MetricCard label="Unidades" value={String(g.unidades)} color="bg-card border-l-4 border-l-sf-gold"
                           tip="Unidades vendidas atribuídas ao grupo no período." />
                       </div>
@@ -1434,30 +1434,34 @@ export default function MetricasPage() {
             )}
           </div>
 
-          {/* Custos */}
+          {/* Resultado (geral — todos os grupos) */}
           <div>
-            <h2 className="font-bold mb-2 text-destructive">CUSTOS</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <MetricCard label="Custo Total" value={formatBRL(data.custoTotal)} color="bg-card border-l-4 border-l-destructive" tip="Soma de todos os lançamentos tipo 'despesa' em Financeiro no período." onClick={() => showLancamentos('Custo Total — Lançamentos')} />
-              <MetricCard label="Custo ADS" value={formatBRL(data.custoAds)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'ads' em Financeiro." onClick={() => showLancamentos('Custo ADS — Lançamentos', 'ads')} />
-              <MetricCard label="Etiqueta Total" value={formatBRL(data.etiquetaTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'etiqueta' em Financeiro." onClick={() => showLancamentos('Etiqueta — Lançamentos', 'etiqueta')} />
-              <MetricCard label="Log Total" value={formatBRL(data.logTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'logistica' em Financeiro." onClick={() => showLancamentos('Logística — Lançamentos', 'logistica')} />
-              <MetricCard label="Material Total" value={formatBRL(data.materialTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'material' em Financeiro." onClick={() => showLancamentos('Material — Lançamentos', 'material')} />
-              <MetricCard label="Influencer" value={formatBRL(data.influencerTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'influencer'. Reduz lucro mas NÃO entra em custo operacional/produção unitário." onClick={() => showLancamentos('Influencer — Lançamentos', 'influencer')} />
-              <MetricCard label="Infraestrutura" value={formatBRL(data.infraestruturaTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'infraestrutura'. Reduz lucro mas NÃO entra em custo operacional/produção unitário." onClick={() => showLancamentos('Infraestrutura — Lançamentos', 'infraestrutura')} />
-            </div>
-          </div>
-
-          {/* Resultado */}
-          <div>
-            <h2 className="font-bold mb-2 text-primary">RESULTADO</h2>
+            <h2 className="font-bold mb-2 text-primary">
+              RESULTADO <span className="text-xs font-medium text-muted-foreground">· todos os grupos</span>
+            </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <MetricCard label="Lucro" value={formatBRL(data.lucro)} color="bg-card border-l-4 border-l-primary" tip="Faturamento − Custo Total." onClick={() => showFormula('Lucro do período', formulaLucro)} />
+              <MetricCard label="Lucro" value={formatBRL(data.lucro)} color="bg-card border-l-4 border-l-primary" tip="Faturamento − Custo Total (todos os grupos)." onClick={() => showFormula('Lucro do período', formulaLucro)} />
               <MetricCard label="Margem" value={formatPercent(data.margem)} color="bg-card border-l-4 border-l-primary" tip="(Lucro ÷ Faturamento) × 100" onClick={() => showFormula('Margem', formulaMargem)} />
               <MetricCard label="Med. Lucro Un. Base" value={formatBRL(data.medLucroBase)} color="bg-card border-l-4 border-l-primary" tip="(Fat. Base ÷ Prod. Base) − Custo Produto Un. − Custo Operacional Un." onClick={() => showFormula('Med. Lucro Un. Base', medLucroFormula('BASE', data.fatBase, data.prodBase, data.medLucroBase))} />
               <MetricCard label="Med. Lucro Un. ADS" value={formatBRL(data.medLucroAds)} color="bg-card border-l-4 border-l-primary" tip="(Fat. ADS ÷ Prod. ADS) − Custo Produto Un. − Custo Operacional Un. − CPA Un. ADS" onClick={() => showFormula('Med. Lucro Un. ADS', medLucroFormula('ADS', data.fatAds, data.prodAds, data.medLucroAds))} />
               <MetricCard label="Med. Lucro Un. Rep" value={formatBRL(data.medLucroRep)} color="bg-card border-l-4 border-l-primary" tip="(Fat. Rep ÷ Prod. Rep) − Custo Produto Un. − Custo Operacional Un." onClick={() => showFormula('Med. Lucro Un. Rep', medLucroFormula('REP', data.fatRep, data.prodRep, data.medLucroRep))} />
               <MetricCard label="Med. Lucro Un. Geral" value={formatBRL(data.medLucroGeral)} color="bg-card border-l-4 border-l-primary" tip="Lucro ÷ Produtos (pagos + pendentes, exclui FREE)." onClick={() => showFormula('Med. Lucro Un. Geral', formulaMedLucroGeral)} />
+            </div>
+          </div>
+
+          {/* Custos (todos os grupos) */}
+          <div>
+            <h2 className="font-bold mb-2 text-destructive">
+              CUSTOS <span className="text-xs font-medium text-muted-foreground">· todos os grupos</span>
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <MetricCard label="Custo Total" value={formatBRL(data.custoTotal)} color="bg-card border-l-4 border-l-destructive" tip="Soma de todos os lançamentos tipo 'despesa' em Financeiro no período (todos os grupos)." onClick={() => showLancamentos('Custo Total — Lançamentos')} />
+              <MetricCard label="Custo ADS" value={formatBRL(data.custoAds)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'ads' em Financeiro." onClick={() => showLancamentos('Custo ADS — Lançamentos', 'ads')} />
+              <MetricCard label="Etiqueta Total" value={formatBRL(data.etiquetaTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'etiqueta' em Financeiro." onClick={() => showLancamentos('Etiqueta — Lançamentos', 'etiqueta')} />
+              <MetricCard label="Log Total" value={formatBRL(data.logTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'logistica' em Financeiro." onClick={() => showLancamentos('Logística — Lançamentos', 'logistica')} />
+              <MetricCard label="Material Total" value={formatBRL(data.materialTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'material' em Financeiro (todos os grupos)." onClick={() => showLancamentos('Material — Lançamentos', 'material')} />
+              <MetricCard label="Influencer" value={formatBRL(data.influencerTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'influencer'. Reduz lucro mas NÃO entra em custo operacional/produção unitário." onClick={() => showLancamentos('Influencer — Lançamentos', 'influencer')} />
+              <MetricCard label="Infraestrutura" value={formatBRL(data.infraestruturaTotal)} color="bg-card border-l-4 border-l-destructive" tip="Lançamentos categoria 'infraestrutura'. Reduz lucro mas NÃO entra em custo operacional/produção unitário." onClick={() => showLancamentos('Infraestrutura — Lançamentos', 'infraestrutura')} />
             </div>
           </div>
 
