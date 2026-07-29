@@ -355,6 +355,7 @@ export type Database = {
           created_at: string
           data: string
           descricao: string | null
+          grupo_id: string | null
           id: string
           quantidade: number | null
           tipo: string
@@ -366,6 +367,7 @@ export type Database = {
           created_at?: string
           data?: string
           descricao?: string | null
+          grupo_id?: string | null
           id?: string
           quantidade?: number | null
           tipo: string
@@ -377,12 +379,21 @@ export type Database = {
           created_at?: string
           data?: string
           descricao?: string | null
+          grupo_id?: string | null
           id?: string
           quantidade?: number | null
           tipo?: string
           valor?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "produtos_grupos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       follow_up: {
         Row: {
@@ -1373,6 +1384,15 @@ export type Database = {
         Returns: Json
       }
       processar_todos_estoque_pendente: { Args: never; Returns: Json }
+      receita_por_grupo: {
+        Args: { p_inicio: string; p_fim: string }
+        Returns: {
+          grupo_id: string | null
+          grupo_nome: string
+          receita: number
+          unidades: number
+        }[]
+      }
       reprocessar_pedidos_estoque: { Args: never; Returns: Json }
       salvar_remetente: {
         Args: {

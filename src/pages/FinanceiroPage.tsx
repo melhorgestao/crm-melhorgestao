@@ -92,6 +92,9 @@ export default function FinanceiroPage() {
   const [instanciaLocked, setInstanciaLocked] = useState(false);
   const [formProdutos, setFormProdutos] = useState<{ produto_id: string; quantidade: number }[]>([{ produto_id: '', quantidade: 1 }]);
   const [allProdutos, setAllProdutos] = useState<any[]>([]);
+  // Grupos de produto (para custo de MATERIAL, dividido por grupo)
+  const [gruposProduto, setGruposProduto] = useState<{ id: string; nome: string }[]>([]);
+  const [formGrupoId, setFormGrupoId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [formModalidade, setFormModalidade] = useState('mini');
   const [formUfPostagem, setFormUfPostagem] = useState('');
@@ -157,6 +160,11 @@ export default function FinanceiroPage() {
       supabase.from('instancias').select('id, nome, ativo').eq('ativo', true).order('nome'),
       supabase.rpc('listar_caixas' as any),
     ]);
+
+    // Grupos de produto (para o custo de MATERIAL) — carga leve, à parte.
+    supabase.from('produtos_grupos').select('id, nome').order('ordem').then(({ data }) => {
+      setGruposProduto(((data || []) as any[]).map(g => ({ id: g.id, nome: g.nome })));
+    });
 
     const caixasList = ((caixasResult.data || []) as any[])
       .map((c: any) => ({ codigo: c.codigo, apelido: c.apelido }));
@@ -572,6 +580,11 @@ export default function FinanceiroPage() {
     const valor = parseFloat(formValor.replace(',', '.'));
     if (!valor || isNaN(valor)) { toast.error('Valor inválido'); return; }
 
+    // MATERIAL exige grupo (custo dividido por grupo de produto).
+    if (formTipo === 'MATERIAL' && !formGrupoId) {
+      toast.error('Escolha o grupo do material'); return;
+    }
+
     if (formTipo === 'VENDA' && formCanal === 'C-REP' && formNewContact && !formRepresentanteId) {
       toast.error('Selecione um REPRESENTANTE para cliente C-REP');
       return;
@@ -782,11 +795,17 @@ export default function FinanceiroPage() {
           profile?.nome ||
           user?.email?.split('@')[0] ||
           'sistema';
+        // MATERIAL: mostra "Nome do material (Grupo)" na lista de lançamentos.
+        const grupoNomeSel = gruposProduto.find(g => g.id === formGrupoId)?.nome;
+        const descricaoFinal = formTipo === 'MATERIAL' && grupoNomeSel
+          ? `${formDescricao?.trim() || 'Material'} (${grupoNomeSel})`
+          : formDescricao;
+
         const { error: insertError } = await supabase.from('lancamentos_socios').insert({
           socio: formSocio,
           tipo: formTipo,
           valor: -valor,
-          descricao: formDescricao,
+          descricao: descricaoFinal,
           status_pagamento: '-',
           criado_por: adminLabel,
           snapshot_saldo_v: socioBalances['V'] ?? 0,
@@ -798,7 +817,13 @@ export default function FinanceiroPage() {
         // (uso para investimentos: máquinas, escritório, etc.)
         const categoriaMap: Record<string, string> = { ADS: 'ads', ETIQUETA: 'etiqueta', MATERIAL: 'material', LOGISTICA: 'logistica', INFLUENCER: 'influencer', INFRAESTRUTURA: 'infraestrutura' };
         if (categoriaMap[formTipo]) {
-          await supabase.from('financeiro').insert({ tipo: 'despesa', valor, categoria: categoriaMap[formTipo] });
+          // MATERIAL é divisível por grupo → grupo_id. Demais custos são
+          // compartilhados (rateados por receita nas Métricas) → grupo_id null.
+          await supabase.from('financeiro').insert({
+            tipo: 'despesa', valor, categoria: categoriaMap[formTipo],
+            descricao: descricaoFinal || null,
+            grupo_id: formTipo === 'MATERIAL' ? formGrupoId : null,
+          });
         }
       }
 
@@ -947,7 +972,7 @@ export default function FinanceiroPage() {
     setPhoneDuplicate(null); setFormProdutos([{ produto_id: '', quantidade: 1 }]); setFormContactSearch('');
     setFormModalidade('mini'); setFormUfPostagem(''); setFormStatusPagamento('pago'); setFormObs('');
     setClientSaved(false); setCepLoading(false); setFormRepresentanteId(null);
-    setFormInstanciaId(null); setInstanciaLocked(false);
+    setFormInstanciaId(null); setInstanciaLocked(false); setFormGrupoId('');
   };
 
   const openEdit = (item: any) => {
@@ -1279,6 +1304,28 @@ export default function FinanceiroPage() {
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">Valor (R$)</Label>
               <Input value={formValor} onChange={e => setFormValor(e.target.value)} placeholder="0,00" className="min-h-[44px]" />
             </div>
+
+            {/* MATERIAL: custo dividido por grupo → nome do material + grupo. */}
+            {formTipo === 'MATERIAL' && !editItem && (
+              <>
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Nome do material</Label>
+                  <Input value={formDescricao} onChange={e => setFormDescricao(e.target.value)} placeholder="ex: Frascos 30ml, óleo base…" className="min-h-[44px]" />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Grupo *</Label>
+                  <Select value={formGrupoId} onValueChange={setFormGrupoId}>
+                    <SelectTrigger className="min-h-[44px]"><SelectValue placeholder="Escolha o grupo do material" /></SelectTrigger>
+                    <SelectContent>
+                      {gruposProduto.map(g => <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    O custo de material é dividido por grupo. ADS, etiqueta e logística são compartilhados (rateados por receita).
+                  </p>
+                </div>
+              </>
+            )}
 
             {formTipo === 'VENDA' && !editItem && (
               <>
