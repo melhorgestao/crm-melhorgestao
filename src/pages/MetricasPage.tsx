@@ -1344,7 +1344,8 @@ export default function MetricasPage() {
             </div>
           </div>
 
-          {/* ===================== POR GRUPO ===================== */}
+          {/* ===================== POR GRUPO (só quando um grupo é escolhido) ===================== */}
+          {selectedGrupo !== 'todos' && (
           <div>
             <h2 className="font-bold mb-1 text-indigo-600 dark:text-indigo-400">POR GRUPO</h2>
             <p className="text-xs text-muted-foreground mb-3">
@@ -1354,10 +1355,6 @@ export default function MetricasPage() {
             {perGrupo.length === 0 ? (
               <div className="text-sm text-muted-foreground border rounded-lg p-4 bg-muted/20">
                 Sem dados de grupo neste período.
-              </div>
-            ) : selectedGrupo === 'todos' ? (
-              <div className="text-sm text-muted-foreground border rounded-lg p-4 bg-muted/20">
-                Selecione um grupo no filtro <strong>Grupo</strong> (canto superior direito) para ver o detalhamento. Os totais de todos os grupos estão em <strong>RESULTADO</strong> e <strong>CUSTOS</strong> abaixo.
               </div>
             ) : (
               <div className="space-y-5">
@@ -1429,6 +1426,7 @@ export default function MetricasPage() {
               </div>
             )}
           </div>
+          )}
 
           {/* Resultado (geral — todos os grupos) */}
           <div>
