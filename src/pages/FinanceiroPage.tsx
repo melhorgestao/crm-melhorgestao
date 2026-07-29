@@ -866,11 +866,25 @@ export default function FinanceiroPage() {
     const valor = parseFloat(formValor.replace(',', '.'));
     const oldValor = editItem.valor;
     await supabase.from('lancamentos_socios').update({ valor, descricao: formDescricao }).eq('id', editItem.id);
+
+    // VENDA: o faturamento/lucro das Métricas vem da tabela `pedidos`, não do
+    // lançamento. Ao editar o valor de uma venda, sincroniza o pedido também —
+    // senão a edição não reflete nas métricas. Preserva o desconto:
+    // valor_original = novo_líquido + desconto → vendaReal (val_original − desc) = novo.
+    if (editItem.tipo === 'VENDA' && editItem.pedido_id) {
+      const novo = Math.abs(valor);
+      const { data: ped } = await supabase.from('pedidos').select('desconto_total').eq('id', editItem.pedido_id).maybeSingle();
+      const desconto = Number((ped as any)?.desconto_total) || 0;
+      await supabase.from('pedidos')
+        .update({ valor: novo, valor_original: novo + desconto })
+        .eq('id', editItem.pedido_id);
+    }
+
     await supabase.from('log_atividades').insert({
       usuario: profile?.nome || 'Desconhecido', acao: 'Editou lançamento', tabela_afetada: 'lancamentos_socios', registro_id: editItem.id,
       detalhe: `${formatBRL(oldValor)} → ${formatBRL(valor)}`,
     });
-    toast.success('Lançamento atualizado!');
+    toast.success(editItem.tipo === 'VENDA' && editItem.pedido_id ? 'Venda atualizada (lançamento + pedido)!' : 'Lançamento atualizado!');
     setEditItem(null);
     fetchAll();
   };
