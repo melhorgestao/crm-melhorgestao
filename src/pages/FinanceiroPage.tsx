@@ -56,6 +56,10 @@ export default function FinanceiroPage() {
   const [editItem, setEditItem] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [detailItem, setDetailItem] = useState<any>(null);
+  // Saldo antes→depois de um CAIXA (ex: DeFlow) no detalhe do lançamento.
+  // Caixas não têm snapshot gravado (só V/A), então computa somando os
+  // lançamentos do caixa até a data deste. null = não é caixa (usa V/A).
+  const [caixaSaldo, setCaixaSaldo] = useState<{ antes: number; depois: number } | null>(null);
   const [selectSocioTarget, setSelectSocioTarget] = useState<any>(null);
   const [detailPedido, setDetailPedido] = useState<any>(null);
   const [fetchingPedido, setFetchingPedido] = useState(false);
@@ -136,6 +140,22 @@ export default function FinanceiroPage() {
   };
 
   useEffect(() => { fetchAll(); }, []);
+
+  // Saldo do CAIXA (antes→depois) quando o detalhe é de uma operação de caixa.
+  useEffect(() => {
+    const socio = detailItem?.socio;
+    if (!detailItem || !socio || !caixas.some(c => c.codigo === socio)) { setCaixaSaldo(null); return; }
+    let cancelled = false;
+    (async () => {
+      // saldo DEPOIS = soma de todos os lançamentos do caixa até este (inclusive).
+      const { data } = await supabase.from('lancamentos_socios')
+        .select('valor').eq('socio', socio).lte('created_at', detailItem.created_at);
+      if (cancelled) return;
+      const depois = (data || []).reduce((s: number, r: any) => s + (Number(r.valor) || 0), 0);
+      setCaixaSaldo({ antes: depois - (Number(detailItem.valor) || 0), depois });
+    })();
+    return () => { cancelled = true; };
+  }, [detailItem, caixas]);
 
   const fetchAll = async () => {
     try {
@@ -1623,24 +1643,32 @@ export default function FinanceiroPage() {
                     </span>
                   </div>
                   <div className="flex justify-between border-b pb-1"><span className="text-muted-foreground">{detailItem.tipo === 'PARCELA_VENDA' ? 'Valor da Parcela:' : 'Valor Total:'}</span><span className="font-medium text-sf-green">{formatBRL(Math.abs(detailItem.valor))}</span></div>
-                  {(detailItem.snapshot_saldo_v != null || detailItem.snapshot_saldo_a != null) && (
+                  {(caixas.some(c => c.codigo === detailItem.socio) || detailItem.snapshot_saldo_v != null || detailItem.snapshot_saldo_a != null) && (
                     <div className="border-b pb-1 pt-1">
                       <span className="text-muted-foreground text-xs block mb-1">Saldos (antes → depois):</span>
-                      {socios.map(s => {
-                        const snap = s.key === 'V' ? detailItem.snapshot_saldo_v : detailItem.snapshot_saldo_a;
-                        if (snap == null) return null;
-                        
-                        // VENDA: Participa apenas quem recebeu
-                        if (s.key !== detailItem.socio) return null;
-                        
-                        const depois = snap + Math.abs(detailItem.valor);
-                        return (
-                          <div key={s.key} className="flex justify-between text-sm">
-                            <span>{s.nome}:</span>
-                            <span className="font-medium">{formatBRL(snap)} + {formatBRL(Math.abs(detailItem.valor))} = {formatBRL(depois)}</span>
+                      {caixas.some(c => c.codigo === detailItem.socio) ? (
+                        // CAIXA (ex: DeFlow): saldo computado (não tem snapshot).
+                        caixaSaldo ? (
+                          <div className="flex justify-between text-sm">
+                            <span>{socioLabels[detailItem.socio] || detailItem.socio}:</span>
+                            <span className="font-medium">{formatBRL(caixaSaldo.antes)} + {formatBRL(Math.abs(detailItem.valor))} = {formatBRL(caixaSaldo.depois)}</span>
                           </div>
-                        );
-                      })}
+                        ) : <span className="text-xs text-muted-foreground">calculando…</span>
+                      ) : (
+                        socios.map(s => {
+                          const snap = s.key === 'V' ? detailItem.snapshot_saldo_v : detailItem.snapshot_saldo_a;
+                          if (snap == null) return null;
+                          // VENDA: Participa apenas quem recebeu
+                          if (s.key !== detailItem.socio) return null;
+                          const depois = snap + Math.abs(detailItem.valor);
+                          return (
+                            <div key={s.key} className="flex justify-between text-sm">
+                              <span>{s.nome}:</span>
+                              <span className="font-medium">{formatBRL(snap)} + {formatBRL(Math.abs(detailItem.valor))} = {formatBRL(depois)}</span>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   )}
                   {detailItem.descricao && detailItem.descricao.trim() !== '' && !/^Venda\s*#/i.test(detailItem.descricao) && !/^Venda\s+Pendente/i.test(detailItem.descricao) && (
