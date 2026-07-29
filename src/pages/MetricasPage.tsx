@@ -50,7 +50,14 @@ export default function MetricasPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState<any>({});
   // Custo/Lucro por grupo de produto
-  type GrupoLinha = { grupo_id: string | null; nome: string; receita: number; material: number; compartilhado: number; lucro: number; unidades: number };
+  type GrupoLinha = {
+    grupo_id: string | null; nome: string; cor: string | null;
+    receita: number; material: number; unidades: number;
+    // rateio dos compartilhados detalhado (por receita)
+    adsComp: number; etiquetaComp: number; logComp: number; influencerComp: number; infraComp: number;
+    compartilhado: number; lucro: number;
+    fracao: number;
+  };
   const [perGrupo, setPerGrupo] = useState<GrupoLinha[]>([]);
   const [selectedGrupo, setSelectedGrupo] = useState<string>('todos'); // 'todos' | grupo_id | 'sem'
   const [pendentesTotal, setPendentesTotal] = useState(0);
@@ -66,7 +73,7 @@ export default function MetricasPage() {
     | { type: 'formula'; title: string; body: React.ReactNode }
     | { type: 'pedidos'; title: string; filter: { canal?: string; isFreeOnly?: boolean; isPendente?: boolean; isPagoOnly?: boolean } }
     | { type: 'recebimentos'; title: string; filter: { canal?: string } }
-    | { type: 'lancamentos'; title: string; categoria?: string }
+    | { type: 'lancamentos'; title: string; categoria?: string; grupoId?: string | null }
     | null
   >(null);
   const navigate = useNavigate();
@@ -593,14 +600,13 @@ export default function MetricasPage() {
           matPorGrupo.set(k, (matPorGrupo.get(k) || 0) + Number(d.valor));
         });
 
-        const compartilhadoTotal = custoAds + etiquetaTotal + logTotal + influencerTotal + infraestruturaTotal;
-
         const chaves = new Set<string>();
         const nomePorChave = new Map<string, string>();
+        const corPorChave = new Map<string, string | null>();
         // Semeia TODOS os grupos cadastrados — mesmo sem receita/material no
         // período aparecem (zerados). Assim novos grupos entram automaticamente.
-        const { data: gAll } = await supabase.from('produtos_grupos').select('id, nome').order('ordem');
-        (gAll || []).forEach((g: any) => { chaves.add(g.id); nomePorChave.set(g.id, g.nome); });
+        const { data: gAll } = await supabase.from('produtos_grupos').select('id, nome, cor_grupo').order('ordem');
+        (gAll || []).forEach((g: any) => { chaves.add(g.id); nomePorChave.set(g.id, g.nome); corPorChave.set(g.id, g.cor_grupo || null); });
         // grupos com receita/material (cobre o bucket "Sem grupo" também)
         linhasReceita.forEach(r => { const k = r.grupo_id || 'sem'; chaves.add(k); nomePorChave.set(k, r.grupo_nome || 'Sem grupo'); });
         matPorGrupo.forEach((_v, k) => { chaves.add(k); if (!nomePorChave.has(k)) nomePorChave.set(k, k === 'sem' ? 'Sem grupo' : 'Grupo'); });
@@ -625,14 +631,24 @@ export default function MetricasPage() {
           const fracao = receitaBase > 0 ? receita / receitaBase
             : unidadesTotal > 0 ? unidades / unidadesTotal
             : 0;
-          const compartilhado = compartilhadoTotal * fracao;
+          const adsComp = custoAds * fracao;
+          const etiquetaComp = etiquetaTotal * fracao;
+          const logComp = logTotal * fracao;
+          const influencerComp = influencerTotal * fracao;
+          const infraComp = infraestruturaTotal * fracao;
+          const compartilhado = adsComp + etiquetaComp + logComp + influencerComp + infraComp;
           return {
             grupo_id: k === 'sem' ? null : k,
             nome: nomePorChave.get(k) || 'Sem grupo',
-            receita, material, compartilhado, unidades,
+            cor: corPorChave.get(k) ?? null,
+            receita, material, unidades, fracao,
+            adsComp, etiquetaComp, logComp, influencerComp, infraComp,
+            compartilhado,
             lucro: receita - material - compartilhado,
           };
-        }).sort((a, b) => b.receita - a.receita);
+          // ordena por maior atividade: receita, e como desempate o gasto
+          // (material + rateio) — grupo mais relevante no topo.
+        }).sort((a, b) => (b.receita - a.receita) || ((b.material + b.compartilhado) - (a.material + a.compartilhado)));
 
         setPerGrupo(linhas);
       } catch (e) {
@@ -801,7 +817,7 @@ export default function MetricasPage() {
   };
 
   // ---------- Drill-down: lista de lançamentos do financeiro ----------
-  const LancamentosDetail = ({ categoria }: { categoria?: string }) => {
+  const LancamentosDetail = ({ categoria, grupoId }: { categoria?: string; grupoId?: string | null }) => {
     const [rows, setRows] = useState<any[] | null>(null);
     useEffect(() => {
       const start = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -809,11 +825,12 @@ export default function MetricasPage() {
       const nextY = month === 12 ? year + 1 : year;
       const end = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
       const fetch = async () => {
-        let q = supabase.from('financeiro').select('id, tipo, valor, categoria, descricao, data')
+        let q = supabase.from('financeiro').select('id, tipo, valor, categoria, descricao, data, grupo_id')
           .eq('tipo', 'despesa')
           .gte('data', start).lt('data', end)
           .order('data', { ascending: false });
         if (categoria) q = q.eq('categoria', categoria);
+        if (grupoId !== undefined) q = grupoId === null ? q.is('grupo_id', null) : q.eq('grupo_id', grupoId);
         const { data } = await q;
         setRows((data || []) as any[]);
       };
@@ -987,7 +1004,7 @@ export default function MetricasPage() {
   // Helpers para abrir o dialog
   const showFormula = (title: string, body: React.ReactNode) => setDetail({ type: 'formula', title, body });
   const showPedidos = (title: string, filter: { canal?: string; isFreeOnly?: boolean; isPendente?: boolean; isPagoOnly?: boolean }) => setDetail({ type: 'pedidos', title, filter });
-  const showLancamentos = (title: string, categoria?: string) => setDetail({ type: 'lancamentos', title, categoria });
+  const showLancamentos = (title: string, categoria?: string, grupoId?: string | null) => setDetail({ type: 'lancamentos', title, categoria, grupoId });
 
   // Bodies de formula (pre-computados) — alguns sao usados varias vezes
   const formulaLucro = (
@@ -1327,6 +1344,96 @@ export default function MetricasPage() {
             </div>
           </div>
 
+          {/* ===================== POR GRUPO ===================== */}
+          <div>
+            <h2 className="font-bold mb-1 text-indigo-600 dark:text-indigo-400">POR GRUPO</h2>
+            <p className="text-xs text-muted-foreground mb-3">
+              Material é direto por grupo. ADS, etiqueta, logística, influencer e infra são compartilhados e rateados por receita — por isso a soma dos lucros por grupo bate com o Lucro total. Cards clicáveis.
+            </p>
+
+            {perGrupo.length === 0 ? (
+              <div className="text-sm text-muted-foreground border rounded-lg p-4 bg-muted/20">
+                Sem dados de grupo neste período.
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {(selectedGrupo === 'todos' ? perGrupo : perGrupo.filter(g => (g.grupo_id || 'sem') === selectedGrupo)).map(g => {
+                  const margem = g.receita > 0 ? (g.lucro / g.receita) * 100 : 0;
+                  const pct = g.fracao * 100;
+                  const shareTip = (catLabel: string, total: number, valor: number) => (
+                    <div className="text-sm">
+                      <FormulaRow label={`${catLabel} (total do período)`} value={formatBRL(total)} />
+                      <FormulaRow label={`× fatia de receita do grupo (${pct.toFixed(1)}%)`} value={formatPercent(pct)} />
+                      <FormulaRow label="= rateado a este grupo" value={formatBRL(valor)} isResult />
+                      <p className="text-xs text-muted-foreground mt-3">Custos compartilhados são rateados pela participação do grupo na receita total.</p>
+                    </div>
+                  );
+                  return (
+                    <div key={g.grupo_id || 'sem'} className="rounded-xl border p-3 bg-muted/10">
+                      {/* cabeçalho do grupo */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full border shrink-0" style={{ backgroundColor: g.cor || '#e5e7eb' }} />
+                          <h3 className="font-bold text-sm">{g.nome}</h3>
+                        </div>
+                        <span className={cn('text-xs font-semibold px-2 py-0.5 rounded', g.lucro >= 0 ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive')}>
+                          Margem {formatPercent(margem)}
+                        </span>
+                      </div>
+
+                      {/* topo do cenário */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <MetricCard label="Receita" value={formatBRL(g.receita)} color="bg-card border border-purple-200"
+                          tip="Receita atribuída ao grupo (peso preço×qtd dos itens; desconto rateado)."
+                          onClick={() => showFormula(`Receita · ${g.nome}`, (
+                            <div className="text-sm">
+                              <FormulaRow label="Faturamento total" value={formatBRL(data.fatTotal)} />
+                              <FormulaRow label={`× fatia de receita do grupo (${pct.toFixed(1)}%)`} value={formatPercent(pct)} />
+                              <FormulaRow label="= Receita do grupo" value={formatBRL(g.receita)} isResult />
+                              <p className="text-xs text-muted-foreground mt-3">A receita de cada pedido é distribuída entre grupos pelo peso preço×qtd dos itens.</p>
+                            </div>
+                          ))} />
+                        <MetricCard label="Material" value={formatBRL(g.material)} color="bg-card border-l-4 border-l-destructive"
+                          tip="Custo de material lançado neste grupo. Clique pra ver os lançamentos."
+                          onClick={() => showLancamentos(`Material · ${g.nome}`, 'material', g.grupo_id)} />
+                        <MetricCard label="Lucro" value={formatBRL(g.lucro)} color="bg-card border-l-4 border-l-primary"
+                          tip="Receita − Material − Rateio compartilhado."
+                          onClick={() => showFormula(`Lucro · ${g.nome}`, (
+                            <div className="text-sm">
+                              <FormulaRow label="Receita" value={formatBRL(g.receita)} />
+                              <FormulaRow label="− Material" value={formatBRL(g.material)} />
+                              <FormulaRow label="− Rateio compartilhado" value={formatBRL(g.compartilhado)} />
+                              <FormulaRow label="= Lucro do grupo" value={formatBRL(g.lucro)} isResult />
+                            </div>
+                          ))} />
+                        <MetricCard label="Unidades" value={String(g.unidades)} color="bg-card border-l-4 border-l-sf-gold"
+                          tip="Unidades vendidas atribuídas ao grupo no período." />
+                      </div>
+
+                      {/* rateio compartilhado detalhado */}
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground mt-3 mb-1">Rateio compartilhado — {formatBRL(g.compartilhado)}</p>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <MetricCard label="ADS comp." value={formatBRL(g.adsComp)} color="bg-card border-l-4 border-l-destructive" tip="Fatia do grupo no Custo ADS total." onClick={() => showFormula(`ADS compartilhado · ${g.nome}`, shareTip('Custo ADS', data.custoAds, g.adsComp))} />
+                        <MetricCard label="Etiqueta comp." value={formatBRL(g.etiquetaComp)} color="bg-card border-l-4 border-l-destructive" tip="Fatia do grupo na Etiqueta total." onClick={() => showFormula(`Etiqueta compartilhada · ${g.nome}`, shareTip('Etiqueta', data.etiquetaTotal, g.etiquetaComp))} />
+                        <MetricCard label="Log comp." value={formatBRL(g.logComp)} color="bg-card border-l-4 border-l-destructive" tip="Fatia do grupo na Logística total." onClick={() => showFormula(`Logística compartilhada · ${g.nome}`, shareTip('Logística', data.logTotal, g.logComp))} />
+                        <MetricCard label="Influencer comp." value={formatBRL(g.influencerComp)} color="bg-card border-l-4 border-l-destructive" tip="Fatia do grupo no Influencer total." onClick={() => showFormula(`Influencer compartilhado · ${g.nome}`, shareTip('Influencer', data.influencerTotal, g.influencerComp))} />
+                        <MetricCard label="Infra comp." value={formatBRL(g.infraComp)} color="bg-card border-l-4 border-l-destructive" tip="Fatia do grupo na Infraestrutura total." onClick={() => showFormula(`Infraestrutura compartilhada · ${g.nome}`, shareTip('Infraestrutura', data.infraestruturaTotal, g.infraComp))} />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* TOTAL — confere com o card Lucro */}
+                {selectedGrupo === 'todos' && (
+                  <div className="flex items-center justify-between rounded-lg border-2 px-4 py-2 bg-muted/40 text-sm font-bold">
+                    <span>TOTAL (Σ dos grupos)</span>
+                    <span className="text-primary">Lucro {formatBRL(perGrupo.reduce((s, g) => s + g.lucro, 0))}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Custos */}
           <div>
             <h2 className="font-bold mb-2 text-destructive">CUSTOS</h2>
@@ -1354,75 +1461,6 @@ export default function MetricasPage() {
             </div>
           </div>
 
-          {/* ===================== POR GRUPO ===================== */}
-          <div>
-            <h2 className="font-bold mb-1 text-indigo-600 dark:text-indigo-400">POR GRUPO</h2>
-            <p className="text-xs text-muted-foreground mb-2">
-              Material é direto por grupo. ADS, etiqueta, logística, influencer e infra são compartilhados e rateados por receita.
-              Por isso a soma dos lucros por grupo bate com o Lucro total.
-            </p>
-
-            {perGrupo.length === 0 ? (
-              <div className="text-sm text-muted-foreground border rounded-lg p-4 bg-muted/20">
-                Sem dados de grupo neste período (nenhuma receita/material com grupo).
-              </div>
-            ) : selectedGrupo === 'todos' ? (
-              <Card>
-                <CardContent className="p-0 overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-xs uppercase text-muted-foreground">
-                        <th className="text-left font-medium px-3 py-2">Grupo</th>
-                        <th className="text-right font-medium px-3 py-2">Receita</th>
-                        <th className="text-right font-medium px-3 py-2">Material</th>
-                        <th className="text-right font-medium px-3 py-2">Rateio compart.</th>
-                        <th className="text-right font-medium px-3 py-2">Lucro</th>
-                        <th className="text-right font-medium px-3 py-2">Margem</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {perGrupo.map(g => {
-                        const margem = g.receita > 0 ? (g.lucro / g.receita) * 100 : 0;
-                        return (
-                          <tr key={g.grupo_id || 'sem'} className="border-b last:border-0 hover:bg-muted/30">
-                            <td className="px-3 py-2 font-medium">{g.nome}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">{formatBRL(g.receita)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-destructive">{formatBRL(g.material)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-destructive">{formatBRL(g.compartilhado)}</td>
-                            <td className={cn('px-3 py-2 text-right tabular-nums font-semibold', g.lucro >= 0 ? 'text-primary' : 'text-destructive')}>{formatBRL(g.lucro)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatPercent(margem)}</td>
-                          </tr>
-                        );
-                      })}
-                      {/* Total (deve bater com o card Lucro) */}
-                      <tr className="border-t-2 font-bold bg-muted/40">
-                        <td className="px-3 py-2">TOTAL</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatBRL(perGrupo.reduce((s, g) => s + g.receita, 0))}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatBRL(perGrupo.reduce((s, g) => s + g.material, 0))}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatBRL(perGrupo.reduce((s, g) => s + g.compartilhado, 0))}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-primary">{formatBRL(perGrupo.reduce((s, g) => s + g.lucro, 0))}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">—</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </CardContent>
-              </Card>
-            ) : (() => {
-              const g = perGrupo.find(x => (x.grupo_id || 'sem') === selectedGrupo);
-              if (!g) return <div className="text-sm text-muted-foreground">Grupo sem dados neste período.</div>;
-              const margem = g.receita > 0 ? (g.lucro / g.receita) * 100 : 0;
-              return (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <MetricCard label={`Receita · ${g.nome}`} value={formatBRL(g.receita)} color="bg-card border-l-4 border-l-purple-500" tip="Receita atribuída a este grupo (peso preço×qtd dos itens, desconto rateado)." />
-                  <MetricCard label="Material" value={formatBRL(g.material)} color="bg-card border-l-4 border-l-destructive" tip="Custo de material lançado neste grupo." />
-                  <MetricCard label="Rateio compartilhado" value={formatBRL(g.compartilhado)} color="bg-card border-l-4 border-l-destructive" tip="Fatia deste grupo em ADS + etiqueta + logística + influencer + infra, rateada por receita." />
-                  <MetricCard label="Lucro" value={formatBRL(g.lucro)} color="bg-card border-l-4 border-l-primary" tip="Receita − Material − Rateio compartilhado." />
-                  <MetricCard label="Margem" value={formatPercent(margem)} color="bg-card border-l-4 border-l-primary" tip="(Lucro ÷ Receita) × 100" />
-                  <MetricCard label="Unidades" value={String(g.unidades)} color="bg-card border-l-4 border-l-sf-gold" tip="Unidades vendidas atribuídas ao grupo no período." />
-                </div>
-              );
-            })()}
-          </div>
         </TabsContent>
 
         {/* ========================= OPERACIONAL ========================= */}
@@ -1565,7 +1603,7 @@ export default function MetricasPage() {
           {detail?.type === 'formula' && detail.body}
           {detail?.type === 'pedidos' && <PedidosDetail filter={detail.filter} />}
           {detail?.type === 'recebimentos' && <RecebimentosDetail filter={detail.filter} />}
-          {detail?.type === 'lancamentos' && <LancamentosDetail categoria={detail.categoria} />}
+          {detail?.type === 'lancamentos' && <LancamentosDetail categoria={detail.categoria} grupoId={detail.grupoId} />}
         </DialogContent>
       </Dialog>
     </div>
