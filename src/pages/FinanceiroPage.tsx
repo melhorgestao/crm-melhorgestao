@@ -94,7 +94,7 @@ export default function FinanceiroPage() {
   const [allInstancias, setAllInstancias] = useState<{ id: string; nome: string }[]>([]);
   const [formInstanciaId, setFormInstanciaId] = useState<string | null>(null);
   const [instanciaLocked, setInstanciaLocked] = useState(false);
-  const [formProdutos, setFormProdutos] = useState<{ produto_id: string; quantidade: number }[]>([{ produto_id: '', quantidade: 1 }]);
+  const [formProdutos, setFormProdutos] = useState<{ produto_id: string; quantidade: number; is_free?: boolean }[]>([{ produto_id: '', quantidade: 1 }]);
   const [allProdutos, setAllProdutos] = useState<any[]>([]);
   // Grupos de produto (para custo de MATERIAL, dividido por grupo)
   const [gruposProduto, setGruposProduto] = useState<{ id: string; nome: string }[]>([]);
@@ -730,6 +730,7 @@ export default function FinanceiroPage() {
             quantidade: fp.quantidade,
             valor_unit: preco != null ? Number(preco) : null,
             preco: preco != null ? Number(preco) : null,
+            is_free: !!fp.is_free,   // item de reposição (não cobrado)
           };
         });
 
@@ -1528,7 +1529,7 @@ export default function FinanceiroPage() {
                 <div>
                   <Label className="text-xs text-muted-foreground uppercase tracking-wide">Produtos</Label>
                   {formProdutos.map((fp, idx) => (
-                    <div key={idx} className={cn('mt-2', isMobile ? 'flex flex-col gap-2' : 'flex gap-2')}>
+                    <div key={idx} className={cn('mt-2', isMobile ? 'flex flex-col gap-2' : 'flex gap-2 items-center')}>
                       <Select value={fp.produto_id} onValueChange={v => { const n = [...formProdutos]; n[idx].produto_id = v; setFormProdutos(n); }}>
                         <SelectTrigger className={cn('min-h-[44px]', !isMobile && 'flex-1')}><SelectValue placeholder="Produto" /></SelectTrigger>
                         <SelectContent>
@@ -1541,9 +1542,19 @@ export default function FinanceiroPage() {
                         </SelectContent>
                       </Select>
                       <Input type="number" min={1} value={fp.quantidade} onChange={e => { const n = [...formProdutos]; n[idx].quantidade = Number(e.target.value); setFormProdutos(n); }} className={cn('min-h-[44px]', isMobile ? 'w-full' : 'w-20')} placeholder="Qtd" />
+                      {/* Free: item de reposição — baixa estoque, não é cobrado */}
+                      <label className={cn('flex items-center gap-1.5 shrink-0 rounded-lg border px-2 py-1.5 cursor-pointer select-none',
+                        fp.is_free ? 'border-sky-400 bg-sky-50 dark:bg-sky-950/30' : 'border-input')}
+                        title="Item de reposição (free): baixa estoque, não é cobrado nem entra no faturamento">
+                        <Switch checked={!!fp.is_free} onCheckedChange={c => { const n = [...formProdutos]; n[idx].is_free = c; setFormProdutos(n); }} />
+                        <span className={cn('text-xs font-medium', fp.is_free ? 'text-sky-600' : 'text-muted-foreground')}>Free</span>
+                      </label>
                     </div>
                   ))}
                   <Button variant="link" size="sm" onClick={() => setFormProdutos([...formProdutos, { produto_id: '', quantidade: 1 }])}>➕ Adicionar produto</Button>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    <strong>Free</strong> = item de reposição: baixa estoque e vai pra Logística, mas não é cobrado nem entra no faturamento. O <strong>Valor</strong> acima deve ser só dos itens cobrados.
+                  </p>
                 </div>
                 <Separator />
                 <div>
