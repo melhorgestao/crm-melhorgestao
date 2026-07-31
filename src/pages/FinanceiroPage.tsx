@@ -816,7 +816,8 @@ export default function FinanceiroPage() {
           user?.email?.split('@')[0] ||
           'sistema';
         // MATERIAL: mostra "Nome do material (Grupo)" na lista de lançamentos.
-        const grupoNomeSel = gruposProduto.find(g => g.id === formGrupoId)?.nome;
+        // "ambos" = material geral (sem grupo → rateado nas Métricas).
+        const grupoNomeSel = formGrupoId === 'ambos' ? 'Geral' : gruposProduto.find(g => g.id === formGrupoId)?.nome;
         const descricaoFinal = formTipo === 'MATERIAL' && grupoNomeSel
           ? `${formDescricao?.trim() || 'Material'} (${grupoNomeSel})`
           : formDescricao;
@@ -842,7 +843,8 @@ export default function FinanceiroPage() {
           await supabase.from('financeiro').insert({
             tipo: 'despesa', valor, categoria: categoriaMap[formTipo],
             descricao: descricaoFinal || null,
-            grupo_id: formTipo === 'MATERIAL' ? formGrupoId : null,
+            // material "ambos" (geral) → grupo_id null → rateado nas Métricas
+            grupo_id: formTipo === 'MATERIAL' && formGrupoId !== 'ambos' ? formGrupoId : null,
           });
         }
       }
@@ -1346,11 +1348,12 @@ export default function FinanceiroPage() {
                 <Select value={formGrupoId} onValueChange={setFormGrupoId}>
                   <SelectTrigger className="min-h-[44px]"><SelectValue placeholder="Escolha o grupo do material" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="ambos">Ambos os grupos (geral)</SelectItem>
                     {gruposProduto.map(g => <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  O custo de material é dividido por grupo. ADS, etiqueta e logística são compartilhados (rateados por receita).
+                  Material específico de um grupo vai direto pra ele. <strong>Ambos os grupos</strong> = material geral (caixa, fita, plástico bolha…) → rateado entre os grupos por receita, como os demais compartilhados.
                 </p>
               </div>
             )}

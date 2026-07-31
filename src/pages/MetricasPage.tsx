@@ -593,11 +593,13 @@ export default function MetricasPage() {
         const { data: recGrp } = await supabase.rpc('receita_por_grupo', { p_inicio: start, p_fim: end });
         const linhasReceita = (recGrp || []) as Array<{ grupo_id: string | null; grupo_nome: string; receita: number; unidades: number }>;
 
-        // material por grupo (das despesas já carregadas)
+        // material por grupo: COM grupo_id → direto pro grupo; SEM grupo_id
+        // ("ambos"/geral, ex: caixa/fita) → compartilhado, rateado por receita.
         const matPorGrupo = new Map<string, number>();
+        let materialGeralTotal = 0;
         despesas.filter(d => d.categoria === 'material').forEach((d: any) => {
-          const k = d.grupo_id || 'sem';
-          matPorGrupo.set(k, (matPorGrupo.get(k) || 0) + Number(d.valor));
+          if (d.grupo_id) matPorGrupo.set(d.grupo_id, (matPorGrupo.get(d.grupo_id) || 0) + Number(d.valor));
+          else materialGeralTotal += Number(d.valor);
         });
 
         const chaves = new Set<string>();
@@ -622,9 +624,14 @@ export default function MetricasPage() {
         const receitaBase = fatTotal > 0 ? fatTotal : 0;
         const unidadesTotal = Array.from(unidadesPorChave.values()).reduce((s, v) => s + v, 0);
 
+        // Material geral ("ambos"): dividido IGUALMENTE entre os grupos reais e
+        // somado ao Material de cada um (não é card de rateio). "Sem grupo" não recebe.
+        const numRealGrupos = Array.from(chaves).filter(k => k !== 'sem').length;
+        const materialGeralPorGrupo = numRealGrupos > 0 ? materialGeralTotal / numRealGrupos : 0;
+
         const linhas: GrupoLinha[] = Array.from(chaves).map(k => {
           const receita = receitaPorChave.get(k) || 0;
-          const material = matPorGrupo.get(k) || 0;
+          const material = (matPorGrupo.get(k) || 0) + (k === 'sem' ? 0 : materialGeralPorGrupo);
           const unidades = unidadesPorChave.get(k) || 0;
           // rateio dos compartilhados: por receita; se não há receita no período,
           // rateia por unidades; se nem isso, fica 0 (fica no total, não alocado).
@@ -1349,7 +1356,7 @@ export default function MetricasPage() {
           <div>
             <h2 className="font-bold mb-1 text-indigo-600 dark:text-indigo-400">POR GRUPO</h2>
             <p className="text-xs text-muted-foreground mb-3">
-              Material é direto por grupo. ADS, etiqueta, logística, influencer e infra são compartilhados e rateados por receita — por isso a soma dos lucros por grupo bate com o Lucro total. Cards clicáveis.
+              Material específico vai direto pro grupo; material geral ("ambos") é dividido igualmente e somado ao Material de cada grupo. ADS, etiqueta, logística, influencer e infra são rateados por receita — por isso a soma dos lucros por grupo bate com o Lucro total. Cards clicáveis.
             </p>
 
             {perGrupo.length === 0 ? (
@@ -1405,7 +1412,7 @@ export default function MetricasPage() {
                             </div>
                           ))} />
                         <MetricCard label="Material" value={formatBRL(g.material)} color="bg-card border-l-4 border-l-destructive"
-                          tip="Custo de material lançado neste grupo. Clique pra ver os lançamentos."
+                          tip='Material específico do grupo + parte igual do material geral ("Ambos os grupos"). O clique mostra os lançamentos diretos do grupo.'
                           onClick={() => showLancamentos(`Material · ${g.nome}`, 'material', g.grupo_id)} />
                         <MetricCard label="Unidades" value={String(g.unidades)} color="bg-card border-l-4 border-l-sf-gold"
                           tip="Unidades vendidas atribuídas ao grupo no período." />
