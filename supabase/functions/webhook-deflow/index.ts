@@ -91,9 +91,19 @@ Deno.serve(async (req) => {
         return j({ error: 'timestamp fora da tolerância (replay?)' }, 401)
       }
 
-      const signed = `${t}.${rawBody}`
-      const expected = await hmacSHA256Hex(webhookSecret, signed)
-      if (!timingSafeEqualHex(expected, v1)) {
+      // A DeFlow assina "t.JSON.stringify(body)" (corpo RE-SERIALIZADO — ver
+      // exemplo oficial deles). Outros providers assinam o corpo CRU. Aceitamos
+      // as DUAS formas pra não falhar por diferença de serialização
+      // (espaço/ordem de chave) — foi o que derrubou o webhook (401 → desativado).
+      let candidatoBody = rawBody
+      try { candidatoBody = JSON.stringify(payload) } catch { /* fica com o cru */ }
+      const candidatos = candidatoBody === rawBody ? [rawBody] : [candidatoBody, rawBody]
+      let assinaturaOk = false
+      for (const c of candidatos) {
+        const expected = await hmacSHA256Hex(webhookSecret, `${t}.${c}`)
+        if (timingSafeEqualHex(expected, v1)) { assinaturaOk = true; break }
+      }
+      if (!assinaturaOk) {
         return j({ error: 'assinatura inválida' }, 401)
       }
     }
