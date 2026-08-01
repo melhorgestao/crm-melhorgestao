@@ -1,1 +1,8 @@
 project_id = "seplijmbdrbfbtdmjubg"
+
+# webhook-deflow recebe chamadas da DeFlow SEM JWT do Supabase. A segurança é a
+# assinatura HMAC (DF-Signature) validada DENTRO da função. Sem isto, o gateway
+# do Supabase bloqueia com 401 antes da função rodar, e a DeFlow desativa o
+# webhook por falhas seguidas (foi o que aconteceu). Função PÚBLICA de propósito.
+[functions.webhook-deflow]
+verify_jwt = false
