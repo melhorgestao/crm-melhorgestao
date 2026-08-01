@@ -1397,6 +1397,16 @@ export type Database = {
         }[]
       }
       reprocessar_pedidos_estoque: { Args: never; Returns: Json }
+      unidades_por_grupo: {
+        Args: { p_inicio: string; p_fim: string }
+        Returns: {
+          grupo_id: string | null
+          ads: number
+          base: number
+          rep: number
+          free: number
+        }[]
+      }
       salvar_remetente: {
         Args: {
           p_bairro: string

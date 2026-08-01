@@ -60,6 +60,9 @@ export default function MetricasPage() {
   };
   const [perGrupo, setPerGrupo] = useState<GrupoLinha[]>([]);
   const [selectedGrupo, setSelectedGrupo] = useState<string>('todos'); // 'todos' | grupo_id | 'sem'
+  // unidades por grupo (aba Operacional): grupo_id||'sem' → {ads,base,rep,free}
+  type UnidGrp = { ads: number; base: number; rep: number; free: number };
+  const [unidGrupo, setUnidGrupo] = useState<Map<string, UnidGrp>>(new Map());
   const [pendentesTotal, setPendentesTotal] = useState(0);
   const [deltas, setDeltas] = useState<{ fat: DeltaInfo; prod: DeltaInfo; lucro: DeltaInfo }>({ fat: null, prod: null, lucro: null });
   const [recompraMetrics, setRecompraMetrics] = useState<{
@@ -662,6 +665,22 @@ export default function MetricasPage() {
         console.error('perGrupo erro:', e);
         setPerGrupo([]);
       }
+
+      // unidades por grupo × canal × free (aba Operacional)
+      try {
+        const { data: u } = await supabase.rpc('unidades_por_grupo', { p_inicio: start, p_fim: end });
+        const m = new Map<string, UnidGrp>();
+        ((u || []) as any[]).forEach(r => {
+          m.set(r.grupo_id || 'sem', {
+            ads: Number(r.ads) || 0, base: Number(r.base) || 0,
+            rep: Number(r.rep) || 0, free: Number(r.free) || 0,
+          });
+        });
+        setUnidGrupo(m);
+      } catch (e) {
+        console.error('unidadesPorGrupo erro:', e);
+        setUnidGrupo(new Map());
+      }
     })();
 
     // Delta% em background — nao bloqueia render
@@ -1093,6 +1112,27 @@ export default function MetricasPage() {
     </div>
   );
 
+  // Valores da aba OPERACIONAL por grupo (null quando "Todos os grupos").
+  // CAC e CLIENTE&RECOMPRA ficam geral (por decisão — métricas de pedido/cliente
+  // não dividem limpo por grupo).
+  const opG = (() => {
+    if (selectedGrupo === 'todos') return null;
+    const g = perGrupo.find(x => (x.grupo_id || 'sem') === selectedGrupo);
+    if (!g) return null;
+    const u = unidGrupo.get(selectedGrupo) || { ads: 0, base: 0, rep: 0, free: 0 };
+    const paid = u.ads + u.base + u.rep;
+    const total = paid + u.free;
+    const denom = total > 0 ? total : 1;   // custo/un divide por unidades (inclui free)
+    return {
+      nome: g.nome,
+      custoProdUn: g.material / denom,
+      custoOpUn: (g.etiquetaComp + g.logComp) / denom,
+      icm: (g.lucro + g.adsComp) > 0 ? (g.adsComp / (g.lucro + g.adsComp)) * 100 : 0,
+      cpaUnAds: u.ads > 0 ? g.adsComp / u.ads : 0,
+      ads: u.ads, base: u.base, rep: u.rep, free: u.free, total,
+    };
+  })();
+
   if (loading) return <Skeleton className="h-96" />;
 
   return (
@@ -1472,31 +1512,38 @@ export default function MetricasPage() {
         <TabsContent value="operacional" className="space-y-6">
           {/* Indicadores */}
           <div>
-            <h2 className="font-bold mb-2 text-sf-gold">INDICADORES</h2>
+            <h2 className="font-bold mb-2 text-sf-gold">
+              INDICADORES <span className="text-xs font-medium text-muted-foreground">· {opG ? opG.nome : 'todos os grupos'}</span>
+            </h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <MetricCard label="ICM" value={formatPercent(data.icm)} color="bg-card border-l-4 border-l-sf-gold" tip="Índice de Custo de Marketing: Custo ADS ÷ (Lucro + Custo ADS) × 100. Quanto menor, melhor." onClick={() => showFormula('ICM — Índice de Custo de Marketing', formulaIcm)} />
-              <MetricCard label="CPA Un. ADS" value={formatBRL(data.cpaUnAds)} color="bg-card border-l-4 border-l-sf-gold" tip="Custo ADS por unidade vendida ADS: Custo ADS ÷ Unidades ADS." onClick={() => showFormula('CPA Un. ADS', formulaCpa)} />
-              <MetricCard label="CAC" value={formatBRL(data.cac)} color="bg-card border-l-4 border-l-sf-gold" tip="Custo de Aquisição por venda ADS: Custo ADS ÷ Nº de pedidos ADS." onClick={() => showFormula('CAC — Custo de Aquisição', formulaCac)} />
-              <MetricCard label="Custo Operacional Un." value={formatBRL(data.custoOpUn)} color="bg-card border-l-4 border-l-sf-gold" tip="(Etiqueta + Logística) ÷ Total de unidades (inclui FREE)." onClick={() => showFormula('Custo Operacional Un.', formulaCustoOp)} />
-              <MetricCard label="Custo Produto Un." value={formatBRL(data.custoProdUn)} color="bg-card border-l-4 border-l-sf-gold" tip="Material ÷ Total de unidades (inclui FREE)." onClick={() => showFormula('Custo Produto Un.', formulaCustoProd)} />
+              <MetricCard label="ICM" value={formatPercent(opG ? opG.icm : data.icm)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? 'ICM do grupo: ADS rateado ÷ (Lucro do grupo + ADS rateado) × 100.' : 'Índice de Custo de Marketing: Custo ADS ÷ (Lucro + Custo ADS) × 100. Quanto menor, melhor.'} onClick={() => !opG && showFormula('ICM — Índice de Custo de Marketing', formulaIcm)} />
+              <MetricCard label="CPA Un. ADS" value={formatBRL(opG ? opG.cpaUnAds : data.cpaUnAds)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? 'CPA do grupo: ADS rateado do grupo ÷ unidades ADS do grupo.' : 'Custo ADS por unidade vendida ADS: Custo ADS ÷ Unidades ADS.'} onClick={() => !opG && showFormula('CPA Un. ADS', formulaCpa)} />
+              <MetricCard label={opG ? 'CAC · geral' : 'CAC'} value={formatBRL(data.cac)} color="bg-card border-l-4 border-l-sf-gold" tip="Custo de Aquisição por venda ADS: Custo ADS ÷ Nº de pedidos ADS. Sempre GERAL — um pedido pode ter itens de mais de um grupo." onClick={() => showFormula('CAC — Custo de Aquisição', formulaCac)} />
+              <MetricCard label="Custo Operacional Un." value={formatBRL(opG ? opG.custoOpUn : data.custoOpUn)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? '(Etiqueta + Logística rateados do grupo) ÷ unidades do grupo (inclui free).' : '(Etiqueta + Logística) ÷ Total de unidades (inclui FREE).'} onClick={() => !opG && showFormula('Custo Operacional Un.', formulaCustoOp)} />
+              <MetricCard label="Custo Produto Un." value={formatBRL(opG ? opG.custoProdUn : data.custoProdUn)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? 'Material do grupo ÷ unidades do grupo (inclui free).' : 'Material ÷ Total de unidades (inclui FREE).'} onClick={() => !opG && showFormula('Custo Produto Un.', formulaCustoProd)} />
             </div>
           </div>
 
           {/* Produtos */}
           <div>
-            <h2 className="font-bold mb-2" style={{ color: '#1976D2' }}>PRODUTOS</h2>
+            <h2 className="font-bold mb-2" style={{ color: '#1976D2' }}>
+              PRODUTOS <span className="text-xs font-medium text-muted-foreground">· {opG ? opG.nome : 'todos os grupos'}</span>
+            </h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <MetricCard label="Total de Produtos" value={String(data.prodTotalRealistico ?? data.prodTotal)} color="bg-card border-l-4 border-l-blue-500" tip="Pagos + Pendentes + FREE. Reflete unidades efetivamente movimentadas." onClick={() => showPedidos('Pedidos do período (Produtos)', {})} />
-              <MetricCard label="Prod. ADS" value={String(data.prodAds)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades em pedidos do canal ADS (pagos + pendentes)." onClick={() => showPedidos('Pedidos ADS', { canal: 'ADS' })} />
-              <MetricCard label="Prod. Base" value={String(data.prodBase)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades em pedidos do canal BASE (pagos + pendentes)." onClick={() => showPedidos('Pedidos BASE', { canal: 'BASE' })} />
-              <MetricCard label="Prod. Rep" value={String(data.prodRep)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades em pedidos do canal REP (pagos + pendentes)." onClick={() => showPedidos('Pedidos REP', { canal: 'REP' })} />
-              <MetricCard label="Prod. Free" value={String(data.prodFree ?? 0)} color="bg-card border-l-4 border-l-sky-500" tip="Unidades em pedidos FREE (brindes/reposições da Logística). Não afeta lucro." onClick={() => showPedidos('Pedidos FREE', { isFreeOnly: true })} />
+              <MetricCard label="Total de Produtos" value={String(opG ? opG.total : (data.prodTotalRealistico ?? data.prodTotal))} color="bg-card border-l-4 border-l-blue-500" tip="Pagos + Pendentes + FREE. Reflete unidades efetivamente movimentadas." onClick={() => !opG && showPedidos('Pedidos do período (Produtos)', {})} />
+              <MetricCard label="Prod. ADS" value={String(opG ? opG.ads : data.prodAds)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades vendidas (não-free) do canal ADS." onClick={() => !opG && showPedidos('Pedidos ADS', { canal: 'ADS' })} />
+              <MetricCard label="Prod. Base" value={String(opG ? opG.base : data.prodBase)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades vendidas (não-free) do canal BASE." onClick={() => !opG && showPedidos('Pedidos BASE', { canal: 'BASE' })} />
+              <MetricCard label="Prod. Rep" value={String(opG ? opG.rep : data.prodRep)} color="bg-card border-l-4 border-l-blue-500" tip="Unidades vendidas (não-free) do canal REP." onClick={() => !opG && showPedidos('Pedidos REP', { canal: 'REP' })} />
+              <MetricCard label="Prod. Free" value={String(opG ? opG.free : (data.prodFree ?? 0))} color="bg-card border-l-4 border-l-sky-500" tip="Unidades FREE: reposições (item free) + pedidos FREE da Logística. Não afeta lucro." onClick={() => !opG && showPedidos('Pedidos FREE', { isFreeOnly: true })} />
             </div>
           </div>
 
           {/* Cliente & Recompra */}
           <div>
-            <h2 className="font-bold mb-2 text-emerald-700">👥 CLIENTE & RECOMPRA</h2>
+            <h2 className="font-bold mb-2 text-emerald-700 flex items-center gap-2 flex-wrap">
+              👥 CLIENTE &amp; RECOMPRA
+              {opG && <span className="text-[11px] font-medium text-muted-foreground bg-muted rounded px-1.5 py-0.5">geral · não divide por grupo</span>}
+            </h2>
 
             {/* Sub-bloco 1: Valor do Cliente */}
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 mt-3">Valor do Cliente</p>
