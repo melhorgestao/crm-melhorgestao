@@ -1,8 +1,11 @@
 // ============================================================================
-// gerar-pix-deflow — DeFlow real (POST /v1/deposit/create, mode=exact)
+// gerar-pix-deflow — DeFlow real (POST /v1/deposit/create)
 //
-// Modo "exact": cliente paga o valor BRUTO do pedido. DeFlow desconta taxa
-// do crédito. Recebemos LÍQUIDO (netAmountCents) — esse vai pra caixa.
+// v1.8: 'mode' NÃO é mais enviado (a API ignora — depósito sempre no modo
+// bruto). O cliente paga o valor BRUTO (amountInCents); a DeFlow desconta a
+// taxa do crédito em DePix e recebemos o LÍQUIDO — esse é o que vai pra caixa.
+// (Não sacamos pra banco: o saldo fica em cripto, então a taxa de SAQUE não
+//  entra na conta — só a taxa do depósito, já refletida no líquido.)
 //
 // RESILIÊNCIA (v4): SEMPRE conclusivo, NUNCA background, e RESPEITANDO a
 // antifraude da DeFlow.
@@ -35,6 +38,24 @@ const corsHeaders = {
 }
 
 const DEFLOW_BASE = 'https://api.deflow.exchange'
+
+// Extração à prova de nome: a DeFlow pode nomear o valor/taxa/líquido de
+// várias formas entre versões. Procura em várias chaves e em containers
+// aninhados comuns ('values'/'valores'/'amounts'/'fees'). Retorna null se nada.
+function pickCents(obj: any, keys: string[]): number | null {
+  if (!obj || typeof obj !== 'object') return null
+  const containers = [obj, obj.values, obj.valores, obj.amounts, obj.fees, obj.valor]
+  for (const c of containers) {
+    if (!c || typeof c !== 'object') continue
+    for (const k of keys) {
+      const v = (c as any)[k]
+      if (v != null && Number.isFinite(Number(v))) return Number(v)
+    }
+  }
+  return null
+}
+const FEE_KEYS = ['feeCents', 'fee_cents', 'feeInCents', 'fee_in_cents', 'fee', 'taxaCents', 'taxa_cents', 'taxaInCents', 'taxa']
+const NET_KEYS = ['netAmountCents', 'net_amount_cents', 'netInCents', 'net_in_cents', 'netCents', 'net_cents', 'netAmount', 'net', 'liquidoCents', 'liquido_cents', 'liquido']
 
 type TentativaOk = {
   ok: true; depositId: string; qrCopyPaste: string; qrImageUrl: string;
@@ -94,8 +115,9 @@ async function tentarDeposito(
   }
   return {
     ok: true, depositId: d.id, qrCopyPaste: d.qrCopyPaste,
-    qrImageUrl: d.qrImageUrl || '', feeCents: d.feeCents ?? null,
-    netAmountCents: d.netAmountCents ?? null,
+    qrImageUrl: d.qrImageUrl || '',
+    feeCents: pickCents(d, FEE_KEYS),
+    netAmountCents: pickCents(d, NET_KEYS),
     expiresAt: d.expiresAt || new Date(Date.now() + 15 * 60 * 1000).toISOString(),
   }
 }

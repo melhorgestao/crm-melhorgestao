@@ -21,6 +21,23 @@ const corsHeaders = {
 
 const TOLERANCE_SECONDS = 5 * 60   // 5 minutos pra anti-replay
 
+// Extração à prova de nome do valor/taxa/líquido (muda entre versões da API).
+function pickCents(obj: any, keys: string[]): number | null {
+  if (!obj || typeof obj !== 'object') return null
+  const containers = [obj, obj.values, obj.valores, obj.amounts, obj.fees, obj.valor, obj.deposit, obj.data]
+  for (const c of containers) {
+    if (!c || typeof c !== 'object') continue
+    for (const k of keys) {
+      const v = (c as any)[k]
+      if (v != null && Number.isFinite(Number(v))) return Number(v)
+    }
+  }
+  return null
+}
+const AMOUNT_KEYS = ['amountInCents', 'amount_in_cents', 'amountCents', 'amount_cents', 'amount', 'grossCents', 'gross_cents', 'brutoCents']
+const FEE_KEYS    = ['feeCents', 'fee_cents', 'feeInCents', 'fee_in_cents', 'fee', 'taxaCents', 'taxa_cents', 'taxaInCents', 'taxa']
+const NET_KEYS    = ['netAmountCents', 'net_amount_cents', 'netInCents', 'net_in_cents', 'netCents', 'net_cents', 'netAmount', 'net', 'liquidoCents', 'liquido_cents', 'liquido']
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -102,19 +119,12 @@ Deno.serve(async (req) => {
     // 3) EXTRAÇÃO DEFENSIVA dos campos (camelCase + snake_case)
     // -----------------------------------------------------------------------
     const status = data.status ?? null
-    // ATENÇÃO: a partir da v1.8 da API o campo do valor é 'amountInCents'
-    // (o create passou a usar esse nome). Aceitamos todas as variantes —
-    // se o nome não casar, amount vira 0 e a VENDA entraria com valor ERRADO
-    // na caixa. Ordem: nome novo → nomes legados.
-    const amount = Number(
-      data.amountInCents ?? data.amount_in_cents ??
-      data.amountCents ?? data.amount_cents ?? data.amount ?? 0
-    )
-    const fee    = Number(data.feeCents ?? data.fee_cents ?? data.fee ?? 0)
-    const net    = Number(
-      data.netAmountCents ?? data.net_amount_cents ?? data.netAmount ??
-      data.netInCents ?? (amount - fee)
-    )
+    // ATENÇÃO: o nome do valor/taxa/líquido muda entre versões da API. Se o
+    // nome não casar, a VENDA entraria com valor ERRADO na caixa. Extração à
+    // prova de nome (várias chaves + containers aninhados).
+    const amount = pickCents(data, AMOUNT_KEYS) ?? 0
+    const fee    = pickCents(data, FEE_KEYS) ?? 0
+    const net    = pickCents(data, NET_KEYS) ?? (amount - fee)
 
     // Log do payload (auditoria + dedup). O evento normalizado tambem entra.
     try {
