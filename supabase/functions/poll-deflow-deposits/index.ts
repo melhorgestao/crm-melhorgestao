@@ -99,8 +99,9 @@ Deno.serve(async (req) => {
         })
         if (!error && (res as any)?.ok) {
           fechados++
+          const fresh = !(res as any)?.fechamento?.idempotente
           // notifica n8n (mesma forma do webhook → mensagem "aprovado" pro cliente)
-          if (cfg['deflow_webhook_n8n_url'] && !(res as any)?.fechamento?.idempotente) {
+          if (cfg['deflow_webhook_n8n_url'] && fresh) {
             fetch(cfg['deflow_webhook_n8n_url'], {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -110,6 +111,22 @@ Deno.serve(async (req) => {
                 acao: 'pago_via_polling',
               }),
             }).catch(() => {})
+          }
+          // SINAL "webhook fora": se o depósito foi pago há > 3 min e só o
+          // polling fechou (o webhook teve tempo e não processou), marca um
+          // evento pro sino do CRM avisar. paidAt ausente → não sinaliza
+          // (evita falso alarme quando o polling roda logo após o pagamento).
+          if (fresh) {
+            const paidAt = d.paidAt || d.paid_at || d.pagoEm || d.pago_em || null
+            const paidMs = paidAt ? Date.parse(String(paidAt)) : NaN
+            if (Number.isFinite(paidMs) && (Date.now() - paidMs > 3 * 60 * 1000)) {
+              try {
+                await supabase.from('eventos_contato').insert({
+                  contato_id: null, tipo: 'deflow_webhook_miss',
+                  metadata: { depositId: p.pix_id, paidAt, pedido_em_aberto_id: p.id },
+                })
+              } catch { /* sinal é best-effort */ }
+            }
           }
         }
       } else if (RE_EXPIRADO.test(status)) {

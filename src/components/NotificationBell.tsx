@@ -60,6 +60,20 @@ export function NotificationBell() {
     const { data: pedidos } = await supabase.from('pedidos').select('id').eq('status_pedido', 'aguardando_rastreio').lt('data', fourDaysAgo);
     if (pedidos?.length) a.push({ message: `⚠️ ${pedidos.length} pedidos aguardando postagem há mais de 4 dias`, link: '/pedidos', type: 'pedidos' });
 
+    // Webhook DeFlow fora: o backup (polling) teve que reconhecer pagamento(s)
+    // que o webhook deixou passar nas últimas 24h → sinal pra reativar.
+    const umDiaAtras = new Date(Date.now() - 24 * 3600000).toISOString();
+    const { count: webhookMiss } = await supabase.from('eventos_contato')
+      .select('id', { count: 'exact', head: true })
+      .eq('tipo', 'deflow_webhook_miss')
+      .gte('created_at', umDiaAtras);
+    if (webhookMiss && webhookMiss > 0) {
+      a.push({
+        message: `⚠️ Webhook DeFlow parece fora — ${webhookMiss} pagamento(s) reconhecido(s) pelo backup nas últimas 24h. Reative o webhook na DeFlow.`,
+        link: '/financeiro', type: 'deflow_webhook',
+      });
+    }
+
     setAlerts(a);
   }, []);
 
