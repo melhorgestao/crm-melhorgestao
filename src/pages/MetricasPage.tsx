@@ -1130,6 +1130,8 @@ export default function MetricasPage() {
       icm: (g.lucro + g.adsComp) > 0 ? (g.adsComp / (g.lucro + g.adsComp)) * 100 : 0,
       cpaUnAds: u.ads > 0 ? g.adsComp / u.ads : 0,
       ads: u.ads, base: u.base, rep: u.rep, free: u.free, total,
+      // brutos p/ os popups de fórmula
+      material: g.material, adsComp: g.adsComp, etiquetaComp: g.etiquetaComp, logComp: g.logComp, lucro: g.lucro,
     };
   })();
 
@@ -1516,11 +1518,51 @@ export default function MetricasPage() {
               INDICADORES <span className="text-xs font-medium text-muted-foreground">· {opG ? opG.nome : 'todos os grupos'}</span>
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <MetricCard label="ICM" value={formatPercent(opG ? opG.icm : data.icm)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? 'ICM do grupo: ADS rateado ÷ (Lucro do grupo + ADS rateado) × 100.' : 'Índice de Custo de Marketing: Custo ADS ÷ (Lucro + Custo ADS) × 100. Quanto menor, melhor.'} onClick={() => !opG && showFormula('ICM — Índice de Custo de Marketing', formulaIcm)} />
-              <MetricCard label="CPA Un. ADS" value={formatBRL(opG ? opG.cpaUnAds : data.cpaUnAds)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? 'CPA do grupo: ADS rateado do grupo ÷ unidades ADS do grupo.' : 'Custo ADS por unidade vendida ADS: Custo ADS ÷ Unidades ADS.'} onClick={() => !opG && showFormula('CPA Un. ADS', formulaCpa)} />
+              <MetricCard label="ICM" value={formatPercent(opG ? opG.icm : data.icm)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? 'ICM do grupo: ADS rateado ÷ (Lucro do grupo + ADS rateado) × 100.' : 'Índice de Custo de Marketing: Custo ADS ÷ (Lucro + Custo ADS) × 100. Quanto menor, melhor.'}
+                onClick={() => opG
+                  ? showFormula(`ICM · ${opG.nome}`, (
+                      <div className="text-sm">
+                        <FormulaRow label="ADS rateado do grupo" value={formatBRL(opG.adsComp)} />
+                        <FormulaRow label="÷ (Lucro do grupo + ADS rateado)" value={formatBRL(opG.lucro + opG.adsComp)} />
+                        <FormulaRow label="× 100" value="" />
+                        <FormulaRow label="ICM do grupo" value={formatPercent(opG.icm)} isResult />
+                      </div>
+                    ))
+                  : showFormula('ICM — Índice de Custo de Marketing', formulaIcm)} />
+              <MetricCard label="CPA Un. ADS" value={formatBRL(opG ? opG.cpaUnAds : data.cpaUnAds)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? 'CPA do grupo: ADS rateado do grupo ÷ unidades ADS do grupo.' : 'Custo ADS por unidade vendida ADS: Custo ADS ÷ Unidades ADS.'}
+                onClick={() => opG
+                  ? showFormula(`CPA Un. ADS · ${opG.nome}`, (
+                      <div className="text-sm">
+                        <FormulaRow label="ADS rateado do grupo" value={formatBRL(opG.adsComp)} />
+                        <FormulaRow label="÷ Unidades ADS do grupo" value={String(opG.ads)} />
+                        <FormulaRow label="CPA Un. ADS do grupo" value={formatBRL(opG.cpaUnAds)} isResult />
+                        {opG.ads === 0 && <p className="text-xs text-muted-foreground mt-3">Sem unidades ADS no grupo neste período.</p>}
+                      </div>
+                    ))
+                  : showFormula('CPA Un. ADS', formulaCpa)} />
               <MetricCard label={opG ? 'CAC · geral' : 'CAC'} value={formatBRL(data.cac)} color="bg-card border-l-4 border-l-sf-gold" tip="Custo de Aquisição por venda ADS: Custo ADS ÷ Nº de pedidos ADS. Sempre GERAL — um pedido pode ter itens de mais de um grupo." onClick={() => showFormula('CAC — Custo de Aquisição', formulaCac)} />
-              <MetricCard label="Custo Operacional Un." value={formatBRL(opG ? opG.custoOpUn : data.custoOpUn)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? '(Etiqueta + Logística rateados do grupo) ÷ unidades do grupo (inclui free).' : '(Etiqueta + Logística) ÷ Total de unidades (inclui FREE).'} onClick={() => !opG && showFormula('Custo Operacional Un.', formulaCustoOp)} />
-              <MetricCard label="Custo Produto Un." value={formatBRL(opG ? opG.custoProdUn : data.custoProdUn)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? 'Material do grupo ÷ unidades do grupo (inclui free).' : 'Material ÷ Total de unidades (inclui FREE).'} onClick={() => !opG && showFormula('Custo Produto Un.', formulaCustoProd)} />
+              <MetricCard label="Custo Operacional Un." value={formatBRL(opG ? opG.custoOpUn : data.custoOpUn)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? '(Etiqueta + Logística rateados do grupo) ÷ unidades do grupo (inclui free).' : '(Etiqueta + Logística) ÷ Total de unidades (inclui FREE).'}
+                onClick={() => opG
+                  ? showFormula(`Custo Operacional Un. · ${opG.nome}`, (
+                      <div className="text-sm">
+                        <FormulaRow label="Etiqueta rateada do grupo" value={formatBRL(opG.etiquetaComp)} />
+                        <FormulaRow label="+ Logística rateada do grupo" value={formatBRL(opG.logComp)} />
+                        <FormulaRow label="÷ Unidades do grupo (inclui free)" value={String(opG.total)} />
+                        <FormulaRow label="Custo Operacional Un." value={formatBRL(opG.custoOpUn)} isResult />
+                      </div>
+                    ))
+                  : showFormula('Custo Operacional Un.', formulaCustoOp)} />
+              <MetricCard label="Custo Produto Un." value={formatBRL(opG ? opG.custoProdUn : data.custoProdUn)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? 'Material do grupo ÷ unidades do grupo (inclui free).' : 'Material ÷ Total de unidades (inclui FREE).'}
+                onClick={() => opG
+                  ? showFormula(`Custo Produto Un. · ${opG.nome}`, (
+                      <div className="text-sm">
+                        <FormulaRow label="Material do grupo" value={formatBRL(opG.material)} />
+                        <FormulaRow label="÷ Unidades do grupo (inclui free)" value={String(opG.total)} />
+                        <FormulaRow label="Custo Produto Un." value={formatBRL(opG.custoProdUn)} isResult />
+                        <p className="text-xs text-muted-foreground mt-3">Material do grupo inclui a parte igual do material geral ("Ambos os grupos").</p>
+                      </div>
+                    ))
+                  : showFormula('Custo Produto Un.', formulaCustoProd)} />
             </div>
           </div>
 
