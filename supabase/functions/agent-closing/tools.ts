@@ -28,6 +28,14 @@ function extrairNumeroCasa(texto: string): string {
   return m ? m[1] : ''
 }
 
+/** Nome + sobrenome de verdade? 2+ palavras com ≥2 letras cada (ignora emoji,
+ *  número, pontuação). Ex.: "Elaine Cristina" ok; "😊", "Maria", "12" não. */
+export function nomeCompletoValido(s: string): boolean {
+  const limpo = String(s || '').replace(/[^\p{L}\s'.-]/gu, ' ').replace(/\s+/g, ' ').trim()
+  const tokens = limpo.split(' ').filter(t => t.replace(/[^\p{L}]/gu, '').length >= 2)
+  return tokens.length >= 2
+}
+
 // Alias keyword → tag REAL do produto (mesmo mapa do agent-start).
 const TAG_ALIAS: Record<string, string> = {
   verde: 'verde', cbd: 'verde', cbd4000: 'verde', '4000': 'verde', '4000mg': 'verde',
@@ -99,7 +107,7 @@ export const CLOSING_TOOL_SCHEMAS = [
     type: 'function',
     function: {
       name: 'salvar_endereco',
-      description: 'Persiste endereço completo + CPF no banco. Chame APÓS cliente confirmar todos os campos. CPF é obrigatório pra etiqueta de envio.',
+      description: 'Persiste endereço + CPF + NOME COMPLETO do destinatário. Chame APÓS o cliente confirmar. CPF e nome+sobrenome são obrigatórios pra etiqueta de envio.',
       parameters: {
         type: 'object',
         properties: {
@@ -111,11 +119,11 @@ export const CLOSING_TOOL_SCHEMAS = [
           cidade:      { type: 'string', description: 'Cidade.' },
           uf:          { type: 'string', description: 'UF 2 letras.' },
           cpf:         { type: 'string', description: 'CPF do cliente (11 dígitos, com ou sem máscara). Obrigatório pra etiqueta.' },
+          nome_completo: { type: 'string', description: 'Nome + sobrenome de QUEM VAI RECEBER (vai na etiqueta). Obrigatório. Ex.: "Elaine Cristina Alves".' },
         },
-        // rua/bairro/cidade/uf/cep já foram salvos pelo consultar_cep — só
-        // numero+cpf vêm da mensagem do ESTADO 3. Menos campos obrigatórios =
-        // LLM mais confiável. (rua só é necessária se foi CEP de cidade.)
-        required: ['numero', 'cpf'],
+        // rua/bairro/cidade/uf/cep já foram salvos pelo consultar_cep — número,
+        // cpf e nome_completo vêm da mensagem do ESTADO 3.
+        required: ['numero', 'cpf', 'nome_completo'],
       },
     },
   },
@@ -297,8 +305,25 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
         })
         if (error) return { error: error.message }
         if (data && data.ok === false) return { error: data.error || 'falha ao salvar endereço' }
+
+        // NOME DO DESTINATÁRIO (vai na etiqueta): salva no contato, substituindo
+        // o pushName (que costuma ser emoji/apelido). Exige nome + sobrenome.
+        let nomeSalvo: string | null = null
+        const nomeIn = String(args.nome_completo || '').trim()
+        if (nomeIn) {
+          if (!nomeCompletoValido(nomeIn)) {
+            // endereço já foi salvo; só o nome ficou pendente → agente re-pede.
+            return {
+              ok: true, numero_salvo: numero || null, cpf_salvo: cpfLimpo || null,
+              nome_invalido: true,
+              aviso: 'Nome incompleto — peça o NOME e o SOBRENOME de quem vai receber (2 palavras, sem emoji).',
+            }
+          }
+          await supabase.from('contatos').update({ nome: nomeIn, updated_at: new Date().toISOString() }).eq('id', contato_id)
+          nomeSalvo = nomeIn
+        }
         // Devolve o que foi efetivamente gravado pra o LLM não "achar" que salvou vazio.
-        return { ok: true, numero_salvo: numero || null, cpf_salvo: cpfLimpo || null }
+        return { ok: true, numero_salvo: numero || null, cpf_salvo: cpfLimpo || null, nome_salvo: nomeSalvo }
       }
 
       case 'enviar_foto_produto': {
@@ -326,6 +351,13 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
       }
 
       case 'gerar_pix_deflow': {
+        // TRAVA: nome + sobrenome do destinatário é OBRIGATÓRIO pra etiqueta.
+        // Sem isso, não gera Pix — o agente coleta e salva (salvar_endereco)
+        // antes. Evita venda paga sem nome válido pra gerar a etiqueta.
+        const { data: cNome } = await supabase.from('contatos').select('nome').eq('id', contato_id).maybeSingle()
+        if (!nomeCompletoValido(String((cNome as any)?.nome || ''))) {
+          return { error: 'falta o NOME e SOBRENOME de quem vai receber (obrigatório pra etiqueta). Peça o nome completo e salve com salvar_endereco antes de gerar o Pix.' }
+        }
         // Resolve o pedido NO CÓDIGO: o id vinha de tool result de turno
         // anterior, que NÃO persiste no history (só textos) → o LLM chutava
         // um UUID e o edge devolvia "pedido não encontrado" → escalava suporte.

@@ -57,11 +57,17 @@ export function buildClosingPrompt({ contato, pendencia, catalogo, contato_id, i
   // ESTADO 1 e tratar o número da casa como CEP.
   const temCep = !!contato.cep
   const temRua = !!contato.rua
+  // Nome + sobrenome do destinatário (vai na etiqueta). O pushName costuma ser
+  // emoji/apelido → obrigatório coletar e salvar um nome válido no fechamento.
+  const temNomeCompleto = String(contato.nome || '')
+    .replace(/[^\p{L}\s'.-]/gu, ' ').trim().split(/\s+/)
+    .filter(t => t.replace(/[^\p{L}]/gu, '').length >= 2).length >= 2
   const faltas: string[] = []
   if (!temCep) faltas.push('CEP')
   if (!temRua) faltas.push('rua')
   if (!contato.numero) faltas.push('número (e complemento)')
   if (!temCpf) faltas.push('CPF')
+  if (!temNomeCompleto) faltas.push('NOME + SOBRENOME do destinatário')
   const endFormat = temEndereco
     ? `📮 CEP: ${contato.cep}\n🏠 ${contato.rua}, ${contato.numero}${contato.complemento ? ' — ' + contato.complemento : ''}\n🏘 ${contato.bairro || ''} — ${contato.cidade}/${contato.uf}\n📄 CPF: ${cpfFormat}`
     : [
@@ -70,6 +76,7 @@ export function buildClosingPrompt({ contato, pendencia, catalogo, contato_id, i
         `Bairro/Cidade: ${contato.cidade ? `${contato.bairro || ''} — ${contato.cidade}/${contato.uf} ✅` : '❌ falta'}`,
         `Número: ${contato.numero ? contato.numero + ' ✅' : '❌ falta'}`,
         `CPF: ${temCpf ? cpfFormat + ' ✅' : '❌ falta'}`,
+        `Nome do destinatário: ${temNomeCompleto ? contato.nome + ' ✅' : '❌ falta (nome + sobrenome)'}`,
         '',
         `➡️ O QUE FALTA COLETAR: ${faltas.join(' + ') || 'nada'}.`,
         temCep ? '⚠️ CEP JÁ FOI CONSULTADO E SALVO — NUNCA chame consultar_cep de novo nem peça o CEP. Número de casa NÃO é CEP. Se o cliente mandar número+CPF, chame salvar_endereco DIRETO com esses dados.' : '',
@@ -141,7 +148,7 @@ ESTADO 2 — CONFIRMA ENDEREÇO DO CEP + FRETE
     PAC/SEDEX, NÃO pergunte modalidade. Diga:
       "📍 Confere o endereço do seu CEP: {rua}, {bairro} — {cidade}/{uf}
       🎁 Com {N} produtos seu envio é GRÁTIS via SEDEX!"
-    e vá DIRETO pro ESTADO 3 (número + CPF).
+    e vá DIRETO pro ESTADO 3 (nome + sobrenome, número, CPF).
   • 1 produto, ou 4+ (cliente paga frete) → siga o fluxo abaixo normalmente.
   • Quantidade ainda desconhecida → siga o fluxo abaixo (mostra opções) e pergunte o pedido.
 
@@ -170,17 +177,24 @@ ESTADO 3 — COMPLETAR ENDEREÇO + CPF + CRIAR PEDIDO
   Condição: tem CEP, modalidade escolhida, itens definidos. Falta NÚMERO+complemento e CPF.
   Obs: rua/bairro/cidade/uf JÁ foram salvos pelo consultar_cep — não peça de novo
        (EXCETO se era CEP de cidade, aí a rua ainda falta — veja abaixo).
-  Ação: peça em UMA mensagem só:
+  Ação: peça em UMA mensagem só (SEMPRE incluindo o nome completo do destinatário):
     • CEP normal (já tem rua): "Pra fechar e gerar a etiqueta de envio, me passa:
+        👤 Nome e sobrenome de quem vai receber
         🏠 Número (e complemento se tiver)
         📄 CPF do destinatário"
     • CEP de cidade (sem rua): peça TAMBÉM a rua:
         "Pra fechar e gerar a etiqueta, me passa:
+        👤 Nome e sobrenome de quem vai receber
         🏠 Rua + número (e complemento se tiver)
         📄 CPF do destinatário"
-  Quando cliente responder: chame salvar_endereco(cep, rua, numero, complemento, bairro, cidade, uf, CPF)
+  ⚠️ NOME + SOBRENOME é OBRIGATÓRIO — vai na etiqueta como o RECEBEDOR do produto.
+     Explique isso: "o nome e sobrenome corretos são pra etiqueta de quem vai receber".
+     Se o cliente mandar só o primeiro nome (ou um apelido/emoji), peça o sobrenome:
+     "Me confirma o SOBRENOME também? É pra sair certinho na etiqueta 🙏".
+  Quando cliente responder: chame salvar_endereco(cep, rua, numero, complemento, bairro, cidade, uf, CPF, nome_completo)
   — reaproveite rua/bairro/cidade/uf do consultar_cep (só preencha rua manualmente se era CEP de cidade)
   + chame calcular_pedido(itens, modalidade_frete_escolhida) pra criar pedido_em_aberto.
+  Se salvar_endereco retornar nome_invalido=true → peça o nome e sobrenome de novo (não avance).
   Se cliente esquecer um, peça SÓ o que falta (não repita o que já tem).
   Se calcular_pedido retornar pendencias:
     - 'endereco' → erro, peça dados que faltam
