@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { formatBRL } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { DollarSign, Tag, Package, UserPlus, RefreshCw, TrendingUp, TrendingDown, Target, CreditCard, Users } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell, LabelList } from 'recharts';
 
@@ -19,6 +19,32 @@ const CANAL_CORES: Record<string, string> = { ADS: '#2a78d6', BASE: '#eb6834', R
 const PIPELINE_CORES: Record<string, string> = {
   'Suporte': '#2a78d6', 'Follow-up': '#eb6834', 'Fechamento': '#1baf7a', 'RMKT': '#4a3aa7', 'Venda': '#008300',
 };
+
+// Anel de progresso da meta (SVG puro, sem dependência). Preenche conforme %.
+function MetaRing({ percent, size = 116, stroke = 11 }: { percent: number; size?: number; stroke?: number }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, percent));
+  const offset = c * (1 - pct / 100);
+  const atingiu = pct >= 100;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-muted" />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} strokeLinecap="round"
+          stroke={atingiu ? '#008300' : '#2D5A27'}
+          strokeDasharray={c} strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 700ms ease' }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-bold tabular-nums leading-none">{pct.toFixed(0)}%</span>
+        <span className="text-[10px] text-muted-foreground mt-0.5">da meta</span>
+      </div>
+    </div>
+  );
+}
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { getTagDisplayName } from '@/lib/productDisplayNames';
@@ -428,30 +454,35 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {statCards.map((s, i) => (
-          <Card key={i} className={i === 0 ? "border-purple-300 border-2" : ""}>
+          <Card key={i} className={cn('transition-shadow hover:shadow-sm', i === 0 && 'ring-1 ring-primary/25')}>
             <CardContent className="pt-4 pb-3 px-4">
-              <div className="flex items-center gap-2 mb-1">
-                <s.icon className="w-4 h-4 text-primary" />
-                <span className="text-xs text-muted-foreground">{s.label}</span>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary shrink-0">
+                  <s.icon className="w-4 h-4" />
+                </span>
+                <span className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{s.label}</span>
               </div>
-              <p className="text-lg font-bold">{s.value}</p>
+              <p className="text-2xl font-bold tracking-tight tabular-nums">{s.value}</p>
               {i === 0 && fatIndicator.direction !== 'neutral' && (
-                <div className={`flex items-center gap-1 text-xs mt-1 ${fatIndicator.direction === 'up' ? 'text-green-600' : 'text-destructive'}`}>
+                <div className={cn('flex items-center gap-1 text-xs mt-1 font-medium',
+                  fatIndicator.direction === 'up' ? 'text-emerald-600' : 'text-destructive')}>
                   {fatIndicator.direction === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  <span>{fatIndicator.direction === 'up' ? '▲' : '▼'} {fatIndicator.percent.toFixed(0)}% {fatIndicator.label}</span>
+                  <span>{fatIndicator.percent.toFixed(0)}% {fatIndicator.label}</span>
                 </div>
               )}
             </CardContent>
           </Card>
         ))}
         {/* Pendentes card */}
-        <Card className="border-orange-300 border-2 bg-orange-50/10">
+        <Card className="ring-1 ring-orange-300/50">
           <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center gap-2 mb-1">
-              <CreditCard className="w-4 h-4 text-orange-600" />
-              <span className="text-xs text-muted-foreground">Pendentes</span>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-orange-500/10 text-orange-600 shrink-0">
+                <CreditCard className="w-4 h-4" />
+              </span>
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">Pendentes</span>
             </div>
-            <p className="text-lg font-bold text-orange-700">{formatBRL(pendentesTotal)}</p>
+            <p className="text-2xl font-bold tracking-tight tabular-nums text-orange-700">{formatBRL(pendentesTotal)}</p>
           </CardContent>
         </Card>
       </div>
@@ -464,17 +495,23 @@ export default function Dashboard() {
             <span className="text-sm font-bold">Caixa Mensal</span>
           </div>
           {metaValor && !editingMeta ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span>Realizado: {formatBRL(faturamentoMesVal)}</span>
-                <span className="font-bold">{metaPercent.toFixed(0)}%</span>
+            <div className="flex items-center gap-5">
+              <MetaRing percent={metaPercent} />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Realizado</span>
+                  <span className="text-lg font-bold tabular-nums">{formatBRL(faturamentoMesVal)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Meta</span>
+                  <span className="text-sm font-medium tabular-nums text-muted-foreground">{formatBRL(metaValor)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Faltam</span>
+                  <span className="text-sm font-medium tabular-nums">{formatBRL(Math.max(0, metaValor - faturamentoMesVal))} · {diasRestantes} dias</span>
+                </div>
+                <Button variant="ghost" size="sm" className="text-xs h-7 px-2 -ml-2" onClick={() => setEditingMeta(true)}>Editar meta</Button>
               </div>
-              <Progress value={metaPercent} className="h-3 [&>div]:bg-[#2D5A27]" />
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Meta: {formatBRL(metaValor)}</span>
-                <span>Faltam {diasRestantes} dias</span>
-              </div>
-              <Button variant="ghost" size="sm" className="text-xs" onClick={() => setEditingMeta(true)}>Editar meta</Button>
             </div>
           ) : (
             <div className="flex items-center gap-2">
