@@ -325,18 +325,31 @@ export default function Dashboard() {
         fatIndicator = { percent: Math.abs(pct), direction: pct > 0 ? 'up' : pct < 0 ? 'down' : 'neutral', label: compareLabel };
       }
 
-      const months: { mes: string; valor: number }[] = [];
-      const monthPromises = [];
-      for (let m = 1; m <= 12; m++) {
-        const start = `${year}-${String(m).padStart(2, '0')}-01`;
-        const end = m === 12 ? `${year + 1}-01-01` : `${year}-${String(m + 1).padStart(2, '0')}-01`;
-        monthPromises.push(supabase.from('pedidos').select('valor').neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', start).lt('data_pago', end));
-      }
-      const monthResults = await Promise.all(monthPromises);
-      monthResults.forEach((res, m) => {
-        const total = res.data?.reduce((s, r) => s + Number(r.valor), 0) || 0;
-        months.push({ mes: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][m], valor: total });
+      // Faturamento x Mês = MESMA métrica de caixa real do widget de Faturamento
+      // (não mais pedidos.valor por data_pago, que divergia). Bucketa por mês:
+      //   VENDA        -> mês de realizado_em||data (pendente que pagou depois
+      //                   entra no mês em que foi de fato paga)
+      //   PARCELA_VENDA-> mês da data (cada parcela no mês que caiu no caixa)
+      const { data: parcelasAno } = await supabase
+        .from('lancamentos_socios')
+        .select('valor, data').eq('tipo', 'PARCELA_VENDA')
+        .gte('data', `${year}-01-01`).lt('data', `${year + 1}-01-01`);
+
+      const monthTotals = new Array(12).fill(0);
+      const bucket = (ref: string | null | undefined, valor: any) => {
+        if (!ref) return;
+        const y = Number(ref.slice(0, 4));
+        const mo = Number(ref.slice(5, 7));
+        if (y === year && mo >= 1 && mo <= 12) monthTotals[mo - 1] += Number(valor || 0);
+      };
+      (vendasAll.data || []).forEach((v: any) => {
+        const ref = v.realizado_em ? new Date(v.realizado_em).toISOString().slice(0, 10) : v.data;
+        bucket(ref, v.valor);
       });
+      (parcelasAno || []).forEach((p: any) => bucket(p.data, p.valor));
+
+      const NOMES_MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const months: { mes: string; valor: number }[] = monthTotals.map((valor, i) => ({ mes: NOMES_MES[i], valor }));
 
       return { dayStats, pedidosDia: pedRange, faturamentoMes, fatIndicator, monthlyChart: months };
     },
