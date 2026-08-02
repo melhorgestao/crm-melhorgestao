@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { formatBRL } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { DollarSign, Tag, Package, UserPlus, RefreshCw, TrendingUp, TrendingDown, Target, CreditCard, Users } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell, LabelList } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell, LabelList, PieChart, Pie, Legend } from 'recharts';
 
 // Cor por canal (paleta categórica validada CVD-safe — slots 1/2/3 da dataviz).
 const CANAL_CORES: Record<string, string> = { ADS: '#2a78d6', BASE: '#eb6834', REP: '#1baf7a' };
@@ -406,7 +406,18 @@ export default function Dashboard() {
       const NOMES_MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const months: { mes: string; valor: number }[] = monthTotals.map((valor, i) => ({ mes: NOMES_MES[i], valor }));
 
-      return { dayStats, pedidosDia: pedRange, faturamentoMes, fatIndicator, monthlyChart: months };
+      // Top produtos do período (por unidades vendidas nos pedidos pagos)
+      const prodMap = new Map<string, number>();
+      pedRange.forEach((p: any) => {
+        const nome = (p.produto || '—').trim() || '—';
+        prodMap.set(nome, (prodMap.get(nome) || 0) + (p.quantidade || 0));
+      });
+      const topProdutos = [...prodMap.entries()]
+        .map(([produto, qtd]) => ({ produto, qtd }))
+        .sort((a, b) => b.qtd - a.qtd)
+        .slice(0, 5);
+
+      return { dayStats, pedidosDia: pedRange, faturamentoMes, fatIndicator, monthlyChart: months, topProdutos };
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -415,7 +426,13 @@ export default function Dashboard() {
   const pedidosDia = dashboardData?.pedidosDia || [];
   const fatIndicator = dashboardData?.fatIndicator || { percent: 0, direction: 'neutral', label: 'vs ontem' };
   const monthlyChart = dashboardData?.monthlyChart || [];
-  const faturamentoMesVal = dashboardData?.faturamentoMes || 0;;
+  const topProdutos = dashboardData?.topProdutos || [];
+  const faturamentoMesVal = dashboardData?.faturamentoMes || 0;
+  const clientesComposicao = [
+    { nome: 'Novos', valor: dayStats.novos, cor: CANAL_CORES.ADS },
+    { nome: 'Recorrentes', valor: dayStats.recorrentes, cor: CANAL_CORES.BASE },
+    { nome: 'Representantes', valor: dayStats.representantes, cor: CANAL_CORES.REP },
+  ].filter(d => d.valor > 0);
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-64" /></div>;
 
@@ -454,7 +471,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {statCards.map((s, i) => (
-          <Card key={i} className={cn('transition-shadow hover:shadow-sm', i === 0 && 'ring-1 ring-primary/25')}>
+          <Card key={i} className={cn('rounded-xl border-border/50 shadow-sm transition-all duration-150 hover:shadow-md hover:-translate-y-0.5', i === 0 && 'ring-1 ring-primary/25')}>
             <CardContent className="pt-4 pb-3 px-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary shrink-0">
@@ -474,7 +491,7 @@ export default function Dashboard() {
           </Card>
         ))}
         {/* Pendentes card */}
-        <Card className="ring-1 ring-orange-300/50">
+        <Card className="rounded-xl border-border/50 shadow-sm ring-1 ring-orange-300/50 transition-all duration-150 hover:shadow-md hover:-translate-y-0.5">
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center gap-2 mb-2">
               <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-orange-500/10 text-orange-600 shrink-0">
@@ -488,7 +505,7 @@ export default function Dashboard() {
       </div>
 
       {/* Meta Mensal Widget */}
-      <Card>
+      <Card className="rounded-xl border-border/50 shadow-sm">
         <CardContent className="pt-4 pb-4 px-4">
           <div className="flex items-center gap-2 mb-3">
             <Target className="w-4 h-4 text-primary" />
@@ -526,7 +543,7 @@ export default function Dashboard() {
       </Card>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <Card>
+        <Card className="rounded-xl border-border/50 shadow-sm">
           <CardHeader><CardTitle className="text-sm">Faturamento x Mês</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
@@ -540,7 +557,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-xl border-border/50 shadow-sm">
           <CardHeader><CardTitle className="text-sm">Faturamento por Canal</CardTitle></CardHeader>
           <CardContent>
             {channelBars.every(c => c.valor === 0) ? (
@@ -567,7 +584,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <Card>
+        <Card className="rounded-xl border-border/50 shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm">Funil do Pipeline</CardTitle>
             <p className="text-xs text-muted-foreground">Contatos por coluna do Kanban · Venda = pedidos pagos no período</p>
@@ -587,7 +604,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-xl border-border/50 shadow-sm">
           <CardHeader><CardTitle className="text-sm">Pedidos do Período</CardTitle></CardHeader>
           <CardContent>
             {pedidosDia.length === 0 ? (
@@ -608,6 +625,63 @@ export default function Dashboard() {
                   </tbody>
                 </table>
               </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Top produtos do período */}
+        <Card className="rounded-xl border-border/50 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-sm">Top Produtos</CardTitle>
+            <p className="text-xs text-muted-foreground">Mais vendidos no período (unidades)</p>
+          </CardHeader>
+          <CardContent>
+            {topProdutos.length === 0 ? (
+              <div className="h-[220px] flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">Nenhuma venda no período</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={topProdutos} layout="vertical" margin={{ left: 4, right: 32, top: 4, bottom: 4 }}>
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="produto" width={120} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} formatter={(v: number) => [v, 'Unidades']} />
+                  <Bar dataKey="qtd" fill="#2a78d6" radius={[0, 4, 4, 0]} maxBarSize={26} animationDuration={700}>
+                    <LabelList dataKey="qtd" position="right" className="fill-foreground" fontSize={12} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Composição de clientes do período */}
+        <Card className="rounded-xl border-border/50 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-sm">Composição de Clientes</CardTitle>
+            <p className="text-xs text-muted-foreground">Quem comprou no período, por origem</p>
+          </CardHeader>
+          <CardContent>
+            {(dayStats.novos + dayStats.recorrentes + dayStats.representantes) === 0 ? (
+              <div className="h-[220px] flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">Nenhum cliente no período</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={clientesComposicao}
+                    dataKey="valor" nameKey="nome" innerRadius={54} outerRadius={82} paddingAngle={2} stroke="none"
+                    animationDuration={700}
+                  >
+                    {clientesComposicao.map((d, i) => <Cell key={i} fill={d.cor} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: number, n) => [v, n]} />
+                  <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
