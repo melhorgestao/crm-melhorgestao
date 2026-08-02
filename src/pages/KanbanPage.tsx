@@ -1293,7 +1293,7 @@ export default function KanbanPage() {
                     <SelectContent>
                       <SelectItem value="todos">Todos</SelectItem>
                       <SelectItem value="negociacao">🤝 Em negociação</SelectItem>
-                      <SelectItem value="aguardando">⏳ Aguardando fechamento</SelectItem>
+                      <SelectItem value="aguardando">⏳ Aguardando fechamento (Suporte)</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
