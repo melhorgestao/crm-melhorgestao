@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { contato_id, mensagens = '', instancia_id = null } = body
+    const { contato_id, mensagens = '', instancia_id = null, message_type = '' } = body
 
     if (!contato_id) return j({ error: 'contato_id obrigatório' }, 400)
 
@@ -44,6 +44,21 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+
+    // RECEITA (imagem/PDF): o agente NÃO lê o documento e hoje isso não agrega.
+    // Neste estado (pré-compra) mídia = quase sempre receita → escala pro
+    // suporte HUMANO (motivo 'analisar_receita') e avisa o lead pra aguardar na
+    // fila. Determinístico, sem LLM. (No fechamento a mídia é comprovante,
+    // tratada no agent-closing.)
+    if (/^(imageMessage|documentMessage)$/.test(String(message_type || ''))) {
+      try {
+        await supabase.rpc('marcar_contato_suporte', { p_contato_id: contato_id, p_motivo: 'analisar_receita' })
+      } catch (_) { /* mesmo se falhar o suporte, respondemos o lead */ }
+      return j({
+        resposta_texto: 'Recebi seu documento! 🙏 Vou chamar nosso suporte especializado pra analisar sua receita com calma. Você já entrou na fila — é só aguardar aqui que já já te chamam por aqui. 💚',
+        contato_id, debug: { midia: message_type, acao: 'escalado_analisar_receita' },
+      })
+    }
 
     // 1) chave do OpenRouter
     const { data: cfg } = await supabase

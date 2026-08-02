@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { contato_id, mensagens = '', instancia_id = null } = body
+    const { contato_id, mensagens = '', instancia_id = null, message_type = '' } = body
 
     if (!contato_id) return j({ error: 'contato_id obrigatório' }, 400)
 
@@ -43,6 +43,17 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+
+    // MÍDIA no fechamento = quase sempre COMPROVANTE de pagamento (não receita).
+    // O agente não lê a imagem, mas o reconhecimento do PIX é automático
+    // (webhook/polling da DeFlow). Então só tranquiliza o cliente e NÃO gera
+    // outro Pix nem escala receita. Determinístico, sem LLM.
+    if (/^(imageMessage|documentMessage)$/.test(String(message_type || ''))) {
+      return j({
+        resposta_texto: 'Recebi seu comprovante! 🙏 Vou confirmar seu pagamento aqui — assim que cair, te aviso na hora. Pode deixar comigo! 💚',
+        contato_id, debug: { midia: message_type, acao: 'comprovante_recebido' },
+      })
+    }
 
     // 1) chave OpenRouter
     const { data: cfg } = await supabase
