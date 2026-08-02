@@ -369,19 +369,23 @@ const KanbanCard = memo(({
                   RMKT{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
                 </Badge>
               )}
-              {activeTag === 'NEW' && <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">NEW</Badge>}
-              {activeTag === 'VIP' && <Badge className="bg-yellow-500 text-black text-[10px] px-1.5 py-0 font-bold">VIP</Badge>}
+              {/* Tags de CANAL/status (REP, ADS, BUYER, VIP, NEW) = metadado
+                  secundário → chip suave (outline), pra não competir com o nome.
+                  As tags de CAMPANHA acima (F-UP/WAIT/RMKT) são clicáveis, então
+                  ficam preenchidas (affordance de ação). */}
+              {activeTag === 'NEW' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-blue-300 text-blue-600 dark:border-blue-800 dark:text-blue-300">NEW</Badge>}
+              {activeTag === 'VIP' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-amber-300 text-amber-600 dark:border-amber-800 dark:text-amber-400">VIP</Badge>}
               {/* REP prevalece: representante (por canal ou tag) mostra REP,
                   NUNCA BUYER. BUYER também é redundante na coluna RMKT. */}
               {isRep ? (
-                <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold">REP</Badge>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-blue-300 text-blue-600 dark:border-blue-800 dark:text-blue-300">REP</Badge>
               ) : (
-                isBuyer && column !== 'rmkt' && <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0 font-bold">BUYER</Badge>
+                isBuyer && column !== 'rmkt' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-emerald-300 text-emerald-600 dark:border-emerald-800 dark:text-emerald-400">BUYER</Badge>
               )}
               {/* ADS só na coluna FECHAMENTO — é onde a origem do lead importa
                   pra decisão de venda. Nas outras colunas polui o card. */}
-              {isAds && column === 'em_fechamento' && <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold">ADS</Badge>}
-              <p className="font-bold text-sm truncate">{contact.nome}</p>
+              {isAds && column === 'em_fechamento' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-purple-300 text-purple-600 dark:border-purple-800 dark:text-purple-300">ADS</Badge>}
+              <p className="font-semibold text-sm truncate text-foreground">{contact.nome}</p>
             </div>
 
             {!collapsed && (
@@ -1270,8 +1274,8 @@ export default function KanbanPage() {
             >
               <div className="p-3 border-b border-border space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-sm">{label}</h3>
-                  <Badge variant="secondary" className="text-xs">{colContacts.length}</Badge>
+                  <h3 className="font-bold text-xs tracking-wider text-muted-foreground">{label}</h3>
+                  <Badge variant="secondary" className="text-xs tabular-nums rounded-full px-2">{colContacts.length}</Badge>
                 </div>
                 {key === 'follow_up' && (
                   <Select value={fupFiltro} onValueChange={(v) => setFupFiltro(v as typeof fupFiltro)}>
@@ -1303,7 +1307,7 @@ export default function KanbanPage() {
               </div>
               <div className="p-2 space-y-2 max-h-[60vh] overflow-y-auto">
                 {colContacts.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">Nenhum card</p>
+                  <p className="text-xs text-muted-foreground/60 text-center py-8 italic">Nenhum card</p>
                 )}
                 {colContacts.map(contact => renderCard(contact, key))}
               </div>
