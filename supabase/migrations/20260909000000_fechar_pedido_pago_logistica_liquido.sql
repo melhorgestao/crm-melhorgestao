@@ -43,6 +43,7 @@ DECLARE
   v_taxa numeric;
   v_modalidade text;
   v_uf text;
+  v_produto_json jsonb;
 BEGIN
   SELECT * INTO v_rascunho FROM public.pedido_em_aberto WHERE id = p_pedido_em_aberto_id;
   IF NOT FOUND THEN
@@ -125,13 +126,27 @@ BEGIN
     v_saldo_devedor := 0;
   END IF;
 
+  -- pedidos.produto = JSON array [{produto: <tag>, quantidade}] — MESMO formato
+  -- do criar_pedido_v2, pra a Logística mostrar o nome CURTO (tag), não o
+  -- nome_oficial verboso. Inclui itens pagos + brindes (ambos são enviados).
+  SELECT jsonb_agg(jsonb_build_object('produto', x.tag, 'quantidade', x.qtd))
+    INTO v_produto_json
+    FROM (
+      SELECT it->>'tag' AS tag, COALESCE((it->>'qtd')::int, 1) AS qtd
+        FROM jsonb_array_elements(v_rascunho.itens) it
+       WHERE COALESCE(it->>'tag', '') <> ''
+      UNION ALL
+      SELECT br->>'tag', 1
+        FROM jsonb_array_elements(COALESCE(v_rascunho.brindes, '[]'::jsonb)) br
+       WHERE COALESCE(br->>'tag', '') <> ''
+    ) x;
+
   INSERT INTO public.pedidos (
     contato_id, produto, quantidade, valor, valor_original, desconto_total, canal,
     endereco_entrega, modalidade, uf_postagem, status_pedido, status_pagamento, data
   ) VALUES (
     v_rascunho.contato_id,
-    (SELECT string_agg((it->>'emoji') || ' ' || (it->>'nome_oficial') || ' (' || (it->>'qtd') || 'x)', ' | ')
-       FROM jsonb_array_elements(v_rascunho.itens) it),
+    COALESCE(v_produto_json::text, '[]'),
     v_qtd,
     v_saldo_devedor,
     v_rascunho.total,
