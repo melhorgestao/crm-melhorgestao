@@ -315,7 +315,7 @@ const KanbanCard = memo(({
       }}
       onDragEnd={() => setDraggedCard(null)}
       className={cn(
-        'cursor-grab active:cursor-grabbing mb-2',
+        'group cursor-grab active:cursor-grabbing mb-2 transition-shadow hover:shadow-md',
         draggedCard === contact.id && 'opacity-50',
         !isDraggable && 'cursor-default',
         suporteNivel === 'atrasado' && 'border-2 border-amber-500',
@@ -498,8 +498,11 @@ const KanbanCard = memo(({
             )}
           </div>
 
-          {/* Ações — botões contextuais moram aqui pra manter altura padrão do card */}
-          <div className="flex items-center gap-1">
+          {/* Ações — escondidas por padrão no desktop; aparecem no hover do card
+              (padrão Linear/Trello) pra deixar o board limpo. Em telas pequenas
+              (touch, sem hover) ficam sempre visíveis. opacity-0 preserva o
+              espaço → sem "pulo" de layout ao revelar. */}
+          <div className="flex items-center gap-1 shrink-0 opacity-100 transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
             {/* Suporte: [✓] realizado · [🛒] registrar venda. Sem pause/play
                 (bot já está pausado neste estado). */}
             {column === 'suporte' && (
