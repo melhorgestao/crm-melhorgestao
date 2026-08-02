@@ -9,10 +9,16 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { formatBRL } from '@/lib/format';
 import { DollarSign, Tag, Package, UserPlus, RefreshCw, TrendingUp, TrendingDown, Target, CreditCard, Users } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell, LabelList } from 'recharts';
 
 // Cor por canal (paleta categórica validada CVD-safe — slots 1/2/3 da dataviz).
 const CANAL_CORES: Record<string, string> = { ADS: '#2a78d6', BASE: '#eb6834', REP: '#1baf7a' };
+
+// Funil do pipeline (colunas do Kanban + Venda). Cores alinhadas ao acento de
+// cada coluna do Kanban; Venda em verde (resultado).
+const PIPELINE_CORES: Record<string, string> = {
+  'Suporte': '#2a78d6', 'Follow-up': '#eb6834', 'Fechamento': '#1baf7a', 'RMKT': '#4a3aa7', 'Venda': '#008300',
+};
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { getTagDisplayName } from '@/lib/productDisplayNames';
@@ -170,27 +176,40 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: adsConversion = { total: 0, pagou: 0 } } = useQuery({
-    queryKey: ['dashboard_ads', dateFrom, dateTo],
+  // Funil do pipeline: contagem atual de contatos por coluna do Kanban + vendas
+  // do período. Mesmo mapeamento coluna↔estado do Kanban (fechamento_aguardando
+  // conta como Fechamento, não Suporte).
+  const { data: pipelineBars = [] } = useQuery({
+    queryKey: ['dashboard_pipeline', dateFrom, dateTo],
     queryFn: async () => {
-      // Convert local dates to UTC for timestamptz comparison (São Paulo = UTC-3)
-      const toUTC = (dateStr: string, endOfDay: boolean) => {
-        const [y, m, d] = dateStr.split('-').map(Number);
-        const localDate = new Date(y, m - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0);
-        return localDate.toISOString();
-      };
-      
-      const rangeStart = toUTC(dateFrom, false);
-      const rangeEnd = toUTC(dateTo, true);
-      
-      const { count: adsTotal } = await supabase.from('contatos').select('id', { count: 'exact', head: true })
-        .eq('canal_origem', 'ADS').gte('created_at', rangeStart).lte('created_at', rangeEnd);
-      const { count: adsPagou } = await supabase.from('pedidos').select('id', { count: 'exact', head: true })
-        .eq('canal', 'ADS').eq('status_pagamento', 'pago').neq('is_free', true).gte('data_pago', dateFrom).lte('data_pago', dateTo);
-      return { total: adsTotal || 0, pagou: adsPagou || 0 };
+      const [{ data: contatos }, { count: vendas }] = await Promise.all([
+        supabase.from('contatos')
+          .select('ultima_interacao, fechamento_aguardando')
+          .in('ultima_interacao', ['suporte', 'wait_follow_up', 'follow_up', 'wait_follow_up_custom', 'em_fechamento', 'rmkt']),
+        supabase.from('pedidos').select('id', { count: 'exact', head: true })
+          .neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', dateFrom).lte('data_pago', dateTo),
+      ]);
+
+      let suporte = 0, followup = 0, fechamento = 0, rmkt = 0;
+      (contatos || []).forEach((r: any) => {
+        const st = r.ultima_interacao;
+        if (st === 'suporte') { r.fechamento_aguardando ? fechamento++ : suporte++; }
+        else if (st === 'em_fechamento') fechamento++;
+        else if (st === 'rmkt') rmkt++;
+        else followup++; // wait_follow_up / follow_up / wait_follow_up_custom
+      });
+
+      return [
+        { etapa: 'Suporte', qtd: suporte },
+        { etapa: 'Follow-up', qtd: followup },
+        { etapa: 'Fechamento', qtd: fechamento },
+        { etapa: 'RMKT', qtd: rmkt },
+        { etapa: 'Venda', qtd: vendas || 0 },
+      ];
     },
     staleTime: 5 * 60 * 1000,
   });
+
 
   useEffect(() => {
     const channel = supabase.channel('dashboard-realtime')
@@ -512,19 +531,22 @@ export default function Dashboard() {
 
       <div className="grid md:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><CardTitle className="text-sm">Taxa Conversão Mensagens ADS</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-sm">Funil do Pipeline</CardTitle>
+            <p className="text-xs text-muted-foreground">Contatos por coluna do Kanban · Venda = pedidos pagos no período</p>
+          </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-center gap-8 py-4">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-destructive">{adsConversion.total}</p>
-                <p className="text-xs text-muted-foreground">Contatos ADS</p>
-              </div>
-              <span className="text-2xl text-muted-foreground">/</span>
-              <div className="text-center">
-                <p className="text-3xl font-bold text-primary">{adsConversion.pagou}</p>
-                <p className="text-xs text-muted-foreground">Pedidos ADS</p>
-              </div>
-            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={pipelineBars} layout="vertical" margin={{ left: 4, right: 32, top: 4, bottom: 4 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="etapa" width={78} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} formatter={(v: number) => [v, 'Contatos']} />
+                <Bar dataKey="qtd" radius={[0, 4, 4, 0]} maxBarSize={26} isAnimationActive animationDuration={700}>
+                  {pipelineBars.map(b => <Cell key={b.etapa} fill={PIPELINE_CORES[b.etapa] || '#2a78d6'} />)}
+                  <LabelList dataKey="qtd" position="right" className="fill-foreground" fontSize={12} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
