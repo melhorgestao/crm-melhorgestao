@@ -316,7 +316,7 @@ const KanbanCard = memo(({
       }}
       onDragEnd={() => setDraggedCard(null)}
       className={cn(
-        'group cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md',
+        'group cursor-grab active:cursor-grabbing transition-all duration-150 hover:shadow-md hover:-translate-y-0.5',
         compact ? 'mb-1' : 'mb-2',
         draggedCard === contact.id && 'opacity-50',
         !isDraggable && 'cursor-default',
