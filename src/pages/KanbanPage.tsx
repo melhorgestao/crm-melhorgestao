@@ -152,7 +152,7 @@ const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
   draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, setPararTarget,
   pausarBot, reativarBot, copyPhone, openChatwoot,
-  collapsed, toggleCollapsed, openPedido, onDisparoManual, onAgendarCustom, onFinalizarFechamento
+  collapsed, toggleCollapsed, openPedido, onDisparoManual, onAgendarCustom, onFinalizarFechamento, onEditMotivo
 }: {
   contact: Contact;
   column: ColumnKey;
@@ -174,7 +174,11 @@ const KanbanCard = memo(({
   onDisparoManual: (c: Contact, tipo: 'followup' | 'rmkt') => void;
   onAgendarCustom: (c: Contact) => void;
   onFinalizarFechamento: (c: Contact) => void;
+  onEditMotivo: (c: Contact, motivo: string) => void;
 }) => {
+  // Edição inline do motivo do suporte (duplo clique no texto azul)
+  const [editandoMotivo, setEditandoMotivo] = useState(false);
+  const [motivoDraft, setMotivoDraft] = useState('');
   // Bot está pausado se bot_pausado_ate está no futuro
   const botPausado = !!contact.bot_pausado_ate && new Date(contact.bot_pausado_ate).getTime() > Date.now();
   const activeTag = contact.tag_kanban &&
@@ -386,10 +390,35 @@ const KanbanCard = memo(({
               </>
             )}
 
-            {!collapsed && column === 'suporte' && contact.suporte_motivo && (
-              <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" /> {contact.suporte_motivo}
-              </p>
+            {!collapsed && column === 'suporte' && (
+              editandoMotivo ? (
+                <div className="mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3 text-blue-600 shrink-0" />
+                  <input
+                    autoFocus
+                    value={motivoDraft}
+                    onChange={e => setMotivoDraft(e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    onBlur={() => { onEditMotivo(contact, motivoDraft); setEditandoMotivo(false); }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { e.preventDefault(); onEditMotivo(contact, motivoDraft); setEditandoMotivo(false); }
+                      if (e.key === 'Escape') { e.preventDefault(); setEditandoMotivo(false); }
+                    }}
+                    placeholder="motivo do suporte…"
+                    maxLength={60}
+                    className="flex-1 min-w-0 text-xs text-blue-700 bg-blue-50 dark:bg-blue-950/40 border border-blue-300 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              ) : (
+                <p
+                  onDoubleClick={(e) => { e.stopPropagation(); setMotivoDraft(contact.suporte_motivo || ''); setEditandoMotivo(true); }}
+                  title="Duplo clique pra editar o motivo"
+                  className="text-xs text-blue-600 mt-1 flex items-center gap-1 cursor-text rounded px-0.5 -mx-0.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                >
+                  <AlertCircle className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{contact.suporte_motivo || <span className="italic text-blue-400">sem motivo — duplo clique pra adicionar</span>}</span>
+                </p>
+              )
             )}
 
             {!collapsed && column === 'suporte' && suporteLabel && (
@@ -798,6 +827,18 @@ export default function KanbanPage() {
     }
   };
 
+  // Editar o motivo do suporte (duplo clique no texto azul do card).
+  const handleEditMotivo = async (c: Contact, motivo: string) => {
+    const novo = motivo.trim();
+    if (novo === (c.suporte_motivo || '')) return; // nada mudou
+    const { error } = await supabase.from('contatos')
+      .update({ suporte_motivo: novo || null, updated_at: new Date().toISOString() })
+      .eq('id', c.id);
+    if (error) { toast.error('Não deu pra salvar o motivo: ' + error.message); return; }
+    toast.success('Motivo do suporte atualizado');
+    queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
+  };
+
   // Finalizar fechamento → retroage o contato ao estado anterior
   // (estado_antes_fechamento, com fallback por canal/ja_comprou na RPC).
   const handleFinalizarFechamento = async () => {
@@ -1013,6 +1054,7 @@ export default function KanbanPage() {
         onDisparoManual={openDisparoManual}
         onAgendarCustom={abrirAgendarCustom}
         onFinalizarFechamento={setFinalizarTarget}
+        onEditMotivo={handleEditMotivo}
         collapsed={collapsedIds.has(contact.id)}
         toggleCollapsed={toggleCollapsed}
         openPedido={openPedido}
