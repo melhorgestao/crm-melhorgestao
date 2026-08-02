@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { timeAgo } from '@/lib/format';
-import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Pause, Play, ShoppingCart, RefreshCw, Package, Minus, CalendarClock } from 'lucide-react';
+import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Headset, Play, ShoppingCart, RefreshCw, Package, Minus, CalendarClock } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -152,7 +152,7 @@ const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
   draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, setPararTarget,
   pausarBot, reativarBot, copyPhone, openChatwoot,
-  collapsed, toggleCollapsed, openPedido, onDisparoManual, onAgendarCustom
+  collapsed, toggleCollapsed, openPedido, onDisparoManual, onAgendarCustom, onFinalizarFechamento
 }: {
   contact: Contact;
   column: ColumnKey;
@@ -173,6 +173,7 @@ const KanbanCard = memo(({
   openPedido: (pedidoId: string | null, contatoId?: string) => void;
   onDisparoManual: (c: Contact, tipo: 'followup' | 'rmkt') => void;
   onAgendarCustom: (c: Contact) => void;
+  onFinalizarFechamento: (c: Contact) => void;
 }) => {
   // Bot está pausado se bot_pausado_ate está no futuro
   const botPausado = !!contact.bot_pausado_ate && new Date(contact.bot_pausado_ate).getTime() > Date.now();
@@ -425,10 +426,9 @@ const KanbanCard = memo(({
                 </Button>
               </>
             )}
-            {/* Agendar retorno manual (F-UP Custom). Fallback pro agent
-                off/mudo ou erro de agendamento: marca/edita a data em que o
-                bot deve retomar o lead. Só nas colunas do funil de venda. */}
-            {(column === 'follow_up' || column === 'em_fechamento') && (
+            {/* Agendar retorno manual (F-UP Custom). Só na coluna Follow-up —
+                não faz sentido em Fechamento. */}
+            {column === 'follow_up' && (
               <Button
                 variant="ghost" size="icon"
                 className={cn('h-7 w-7 hover:bg-violet-500/10',
@@ -439,10 +439,8 @@ const KanbanCard = memo(({
                 <CalendarClock className="w-3.5 h-3.5" />
               </Button>
             )}
-            {/* Demais colunas (não-suporte): pause/play.
-                Em em_fechamento o pause é útil pra intervenção humana quando
-                o agent está com problema — o trigger de invariante move o
-                card pra suporte imediatamente e o humano fecha pelo carrinho. */}
+            {/* Suporte/Reativar (comando /humano ↔ /voltar). Ícone de atendente
+                com headset (mais claro que "pause"). */}
             {column !== 'suporte' && (
               botPausado ? (
                 <Button
@@ -455,12 +453,23 @@ const KanbanCard = memo(({
               ) : (
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:bg-amber-500/10"
-                  title="Pausar bot — humano atendendo (/humano)"
+                  title="Levar pro suporte — humano atendendo (/humano)"
                   onClick={() => pausarBot(contact)}
                 >
-                  <Pause className="w-3.5 h-3.5" />
+                  <Headset className="w-3.5 h-3.5" />
                 </Button>
               )
+            )}
+            {/* Fechamento: X finaliza o fechamento e retroage o contato ao
+                estado anterior (com confirmação). */}
+            {column === 'em_fechamento' && (
+              <Button
+                variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                title="Finalizar fechamento — volta ao estado anterior"
+                onClick={() => onFinalizarFechamento(contact)}
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
             )}
             {/* X = parar campanha (F-UP ou RMKT) deste contato.
                 F-UP → volta pra Start (nunca-mais F-UP).
@@ -506,6 +515,7 @@ export default function KanbanPage() {
   const [fupFiltro, setFupFiltro] = useState<'todos' | 'custom' | 'wait' | '1' | '2' | '3'>('todos');
   // Agendamento manual F-UP Custom (calendário)
   const [agendarTarget, setAgendarTarget] = useState<Contact | null>(null);
+  const [finalizarTarget, setFinalizarTarget] = useState<Contact | null>(null);
   const [agendarDate, setAgendarDate] = useState<Date | undefined>(undefined);
 
   const toggleCollapsed = (id: string) => setCollapsedIds(prev => {
@@ -788,6 +798,25 @@ export default function KanbanPage() {
     }
   };
 
+  // Finalizar fechamento → retroage o contato ao estado anterior
+  // (estado_antes_fechamento, com fallback por canal/ja_comprou na RPC).
+  const handleFinalizarFechamento = async () => {
+    if (!finalizarTarget) return;
+    try {
+      const { data, error } = await supabase.rpc('finalizar_fechamento_contato' as any, {
+        p_contato_id: finalizarTarget.id,
+      });
+      if (error) throw error;
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error || 'não foi possível finalizar');
+      toast.success(`${finalizarTarget.nome}: fechamento finalizado → ${r.novo_estado}`);
+      setFinalizarTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
+    } catch (err: any) {
+      toast.error('Erro: ' + (err.message || err));
+    }
+  };
+
   // Suporte Finalizado → chama RPC que restaura estado_antes_suporte
   // (cobre cliente, wait_follow_up, rmkt, follow_up, em_fechamento, etc).
   const handleSuporteRealizado = async () => {
@@ -983,6 +1012,7 @@ export default function KanbanPage() {
         openChatwoot={openChatwoot}
         onDisparoManual={openDisparoManual}
         onAgendarCustom={abrirAgendarCustom}
+        onFinalizarFechamento={setFinalizarTarget}
         collapsed={collapsedIds.has(contact.id)}
         toggleCollapsed={toggleCollapsed}
         openPedido={openPedido}
@@ -1125,6 +1155,25 @@ export default function KanbanPage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handlePararCampanha} className="bg-destructive text-destructive-foreground">
               Parar {pararTarget?.mode === 'rmkt' ? 'RMKT' : 'F-UP'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmação: finalizar fechamento → retroage ao estado anterior */}
+      <AlertDialog open={!!finalizarTarget} onOpenChange={() => setFinalizarTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Finalizar fechamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Finalizar o fechamento de <strong>{finalizarTarget?.nome}</strong>? O contato sai de
+              Fechamento e <strong>volta ao estado anterior</strong> (de onde entrou no fechamento).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleFinalizarFechamento} className="bg-destructive text-destructive-foreground">
+              Finalizar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
