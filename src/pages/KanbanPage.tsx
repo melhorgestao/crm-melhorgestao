@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { timeAgo } from '@/lib/format';
-import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Headset, Play, ShoppingCart, RefreshCw, Package, Minus, CalendarClock } from 'lucide-react';
+import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Headset, Play, ShoppingCart, RefreshCw, Package, Minus, CalendarClock, Hourglass, ChevronDown } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -39,6 +39,20 @@ const COLUMN_STATES: Record<ColumnKey, readonly string[]> = {
   em_fechamento: ['em_fechamento'],
   suporte:       ['suporte'],
 };
+
+// Motivos pré-definidos do suporte / aguardando fechamento (dropdown no card).
+// "Personalizado" abre um campo de texto livre.
+const MOTIVOS_PRESET = ['Analisar receita', 'Reclamação', 'Aguardando resposta'] as const;
+
+// Formata "há Xh" / "há Xd Yh" a partir de uma data. Usado nos timers de
+// FECHAMENTO ("Em fechamento há Xh") e AGUARDANDO ("Aguardando há Xh").
+function fmtHoras(dateStr: string | null | undefined, prefix: string): string | null {
+  if (!dateStr) return null;
+  const h = (Date.now() - new Date(dateStr).getTime()) / 3600000;
+  if (h < 1) return `${prefix} <1h`;
+  if (h < 24) return `${prefix} ${Math.floor(h)}h`;
+  return `${prefix} ${Math.floor(h / 24)}d ${Math.floor(h % 24)}h`;
+}
 
 // Gaps de follow_up por tentativa (igual claim_proximo_lead_followup):
 // tentativa 0 → dispara já (o 4h de silêncio já foi no start->wait), 1 → 3d,
@@ -74,6 +88,7 @@ interface Contact {
   data_ultimo_rmkt?: string | null;
   data_suporte?: string | null;
   suporte_motivo?: string | null;
+  fechamento_aguardando?: boolean | null;
   bot_pausado_ate?: string | null;
   ultima_venda_em?: string | null;
   qtd_ultimo_pedido?: number | null;
@@ -152,7 +167,8 @@ const KanbanCard = memo(({
   contact, column, canDelete, isDraggable,
   draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, setPararTarget,
   pausarBot, reativarBot, copyPhone, openChatwoot,
-  collapsed, toggleCollapsed, openPedido, onDisparoManual, onAgendarCustom, onFinalizarFechamento, onEditMotivo
+  collapsed, toggleCollapsed, openPedido, onDisparoManual, onAgendarCustom, onFinalizarFechamento, onEditMotivo,
+  onMoverAguardando, onFinalizarAguardando
 }: {
   contact: Contact;
   column: ColumnKey;
@@ -175,7 +191,12 @@ const KanbanCard = memo(({
   onAgendarCustom: (c: Contact) => void;
   onFinalizarFechamento: (c: Contact) => void;
   onEditMotivo: (c: Contact, motivo: string) => void;
+  onMoverAguardando: (c: Contact) => void;
+  onFinalizarAguardando: (c: Contact) => void;
 }) => {
+  // Aguardando fechamento = ultima_interacao='suporte' + flag. Renderiza na
+  // coluna FECHAMENTO (column='em_fechamento') mas com comportamento de suporte.
+  const isAguardando = contact.fechamento_aguardando === true;
   // Edição inline do motivo do suporte (duplo clique no texto azul)
   const [editandoMotivo, setEditandoMotivo] = useState(false);
   const [motivoDraft, setMotivoDraft] = useState('');
@@ -242,14 +263,24 @@ const KanbanCard = memo(({
         };
       }
       case 'em_fechamento':
+        // Aguardando fechamento (suporte + flag): "Aguardando há Xh".
+        if (isAguardando) {
+          return {
+            time: fmtHoras(contact.data_suporte, 'Aguardando há'),
+            tentativa: null,
+            label: contact.suporte_motivo || 'aguardando fechamento',
+          };
+        }
+        // Em negociação: "Em fechamento há Xh" (não mais "sumiu há").
         return {
-          time: contact.data_em_fechamento ? timeAgo(contact.data_em_fechamento) : null,
+          time: fmtHoras(contact.data_em_fechamento, 'Em fechamento há'),
           tentativa: null,
           label: 'em negociação',
         };
       case 'suporte':
+        // Sem "sumiu há" no suporte — o timer "Xh no suporte" (abaixo) já cobre.
         return {
-          time: contact.data_suporte ? timeAgo(contact.data_suporte) : null,
+          time: null,
           tentativa: null,
           label: contact.suporte_motivo || 'suporte',
         };
@@ -271,7 +302,7 @@ const KanbanCard = memo(({
   const suporteLabel = horasNoSuporte >= 24
     ? `${Math.floor(horasNoSuporte / 24)}d ${Math.floor(horasNoSuporte % 24)}h no suporte`
     : horasNoSuporte >= 1 ? `${Math.floor(horasNoSuporte)}h no suporte`
-    : '';
+    : `${Math.max(1, Math.floor(horasNoSuporte * 60))}min no suporte`;
 
   return (
     <Card
@@ -390,7 +421,7 @@ const KanbanCard = memo(({
               </>
             )}
 
-            {!collapsed && column === 'suporte' && (
+            {!collapsed && (column === 'suporte' || isAguardando) && (
               editandoMotivo ? (
                 <div className="mt-1 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3 text-blue-600 shrink-0" />
@@ -404,20 +435,44 @@ const KanbanCard = memo(({
                       if (e.key === 'Enter') { e.preventDefault(); onEditMotivo(contact, motivoDraft); setEditandoMotivo(false); }
                       if (e.key === 'Escape') { e.preventDefault(); setEditandoMotivo(false); }
                     }}
-                    placeholder="motivo do suporte…"
+                    placeholder="motivo personalizado…"
                     maxLength={60}
                     className="flex-1 min-w-0 text-xs text-blue-700 bg-blue-50 dark:bg-blue-950/40 border border-blue-300 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-blue-400"
                   />
                 </div>
               ) : (
-                <p
-                  onDoubleClick={(e) => { e.stopPropagation(); setMotivoDraft(contact.suporte_motivo || ''); setEditandoMotivo(true); }}
-                  title="Duplo clique pra editar o motivo"
-                  className="text-xs text-blue-600 mt-1 flex items-center gap-1 cursor-text rounded px-0.5 -mx-0.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
-                >
-                  <AlertCircle className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{contact.suporte_motivo || <span className="italic text-blue-400">sem motivo — duplo clique pra adicionar</span>}</span>
-                </p>
+                <div className="mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3 text-blue-600 shrink-0" />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={e => e.stopPropagation()}
+                        title="Trocar motivo"
+                        className="flex-1 min-w-0 text-left text-xs text-blue-600 flex items-center gap-1 cursor-pointer rounded px-0.5 -mx-0.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                      >
+                        <span className="truncate">
+                          {contact.suporte_motivo || <span className="italic text-blue-400">definir motivo…</span>}
+                        </span>
+                        <ChevronDown className="w-3 h-3 shrink-0 opacity-60" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" onClick={e => e.stopPropagation()}>
+                      {MOTIVOS_PRESET.map(m => (
+                        <DropdownMenuItem key={m} onClick={() => onEditMotivo(contact, m)}>{m}</DropdownMenuItem>
+                      ))}
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const atual = contact.suporte_motivo || '';
+                          setMotivoDraft((MOTIVOS_PRESET as readonly string[]).includes(atual) ? '' : atual);
+                          setEditandoMotivo(true);
+                        }}
+                      >
+                        ✏️ Personalizado…
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               )
             )}
 
@@ -447,6 +502,13 @@ const KanbanCard = memo(({
                   <CheckCircle className="w-3.5 h-3.5" />
                 </Button>
                 <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-indigo-500 hover:bg-indigo-500/10"
+                  title="Mover pra Aguardando fechamento (aguardando pagamento/data)"
+                  onClick={() => onMoverAguardando(contact)}
+                >
+                  <Hourglass className="w-3.5 h-3.5" />
+                </Button>
+                <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
                   title="Registrar venda"
                   onClick={() => setVendaTarget(contact)}
@@ -469,8 +531,9 @@ const KanbanCard = memo(({
               </Button>
             )}
             {/* Suporte/Reativar (comando /humano ↔ /voltar). Ícone de atendente
-                com headset (mais claro que "pause"). */}
-            {column !== 'suporte' && (
+                com headset (mais claro que "pause"). Aguardando fechamento já
+                está com o bot pausado (estado suporte) — não mostra headset. */}
+            {column !== 'suporte' && !isAguardando && (
               botPausado ? (
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
@@ -489,16 +552,45 @@ const KanbanCard = memo(({
                 </Button>
               )
             )}
-            {/* Fechamento: X finaliza o fechamento e retroage o contato ao
-                estado anterior (com confirmação). */}
-            {column === 'em_fechamento' && (
-              <Button
-                variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                title="Finalizar fechamento — volta ao estado anterior"
-                onClick={() => onFinalizarFechamento(contact)}
-              >
-                <X className="w-3.5 h-3.5" />
-              </Button>
+            {/* Fechamento — em negociação: [⏳] mover pra Aguardando fechamento ·
+                [X] finaliza e retroage ao estado anterior (com confirmação). */}
+            {column === 'em_fechamento' && !isAguardando && (
+              <>
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-indigo-500 hover:bg-indigo-500/10"
+                  title="Mover pra Aguardando fechamento (aguardando pagamento/data)"
+                  onClick={() => onMoverAguardando(contact)}
+                >
+                  <Hourglass className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                  title="Finalizar fechamento — volta ao estado anterior"
+                  onClick={() => onFinalizarFechamento(contact)}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </>
+            )}
+            {/* Aguardando fechamento: [🛒] registrar venda · [X] finaliza
+                (não comprou) e volta ao estado anterior. */}
+            {isAguardando && (
+              <>
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
+                  title="Registrar venda"
+                  onClick={() => setVendaTarget(contact)}
+                >
+                  <ShoppingCart className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                  title="Finalizar aguardando — não comprou (volta ao estado anterior)"
+                  onClick={() => onFinalizarAguardando(contact)}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </>
             )}
             {/* X = parar campanha (F-UP ou RMKT) deste contato.
                 F-UP → volta pra Start (nunca-mais F-UP).
@@ -542,9 +634,13 @@ export default function KanbanPage() {
   const [pedidoAbertoId, setPedidoAbertoId] = useState<string | null>(null);
   // Filtro da coluna Follow-up: todos | custom | wait | 1 | 2 | 3 (tentativa)
   const [fupFiltro, setFupFiltro] = useState<'todos' | 'custom' | 'wait' | '1' | '2' | '3'>('todos');
+  // Filtro da coluna Fechamento: todos | negociacao | aguardando
+  const [fecFiltro, setFecFiltro] = useState<'todos' | 'negociacao' | 'aguardando'>('todos');
   // Agendamento manual F-UP Custom (calendário)
   const [agendarTarget, setAgendarTarget] = useState<Contact | null>(null);
   const [finalizarTarget, setFinalizarTarget] = useState<Contact | null>(null);
+  // X no card de "aguardando fechamento" (não comprou → finaliza suporte)
+  const [aguardandoTarget, setAguardandoTarget] = useState<Contact | null>(null);
   const [agendarDate, setAgendarDate] = useState<Date | undefined>(undefined);
 
   const toggleCollapsed = (id: string) => setCollapsedIds(prev => {
@@ -621,6 +717,7 @@ export default function KanbanPage() {
           follow_up_tentativas, ativacao_tentativas,
           data_start, data_ultima_entrada, data_wait_follow_up, followup_custom_em, data_ultimo_follow_up,
           data_em_fechamento, data_ultimo_rmkt, data_suporte, suporte_motivo,
+          fechamento_aguardando,
           bot_pausado_ate, ultima_venda_em, rmkt_consecutive_silenciosos,
           qtd_ultimo_pedido,
           instancias(nome, numero)
@@ -679,7 +776,21 @@ export default function KanbanPage() {
 
   const getColumnContacts = (col: ColumnKey) => {
     const states = COLUMN_STATES[col];
-    let list = contacts.filter(c => states.includes(c.ultima_interacao || ''));
+    // Coluna SUPORTE = suporte SEM flag de aguardando fechamento.
+    // Coluna FECHAMENTO = em_fechamento (negociação) OU suporte COM flag (aguardando).
+    let list = contacts.filter(c => {
+      const st = c.ultima_interacao || '';
+      if (col === 'suporte') return st === 'suporte' && !c.fechamento_aguardando;
+      if (col === 'em_fechamento') return st === 'em_fechamento' || (st === 'suporte' && !!c.fechamento_aguardando);
+      return states.includes(st);
+    });
+
+    // Filtro do dropdown da coluna Fechamento (negociação / aguardando).
+    if (col === 'em_fechamento' && fecFiltro !== 'todos') {
+      list = list.filter(c => fecFiltro === 'aguardando'
+        ? (c.ultima_interacao === 'suporte' && !!c.fechamento_aguardando)
+        : c.ultima_interacao === 'em_fechamento');
+    }
 
     // Filtro do dropdown da coluna Follow-up (Custom / Wait / 1|2|3 de 3).
     if (col === 'follow_up' && fupFiltro !== 'todos') {
@@ -763,10 +874,12 @@ export default function KanbanPage() {
         break;
       case 'em_fechamento':
         updates.data_em_fechamento = now;
+        updates.fechamento_aguardando = false; // negociação real, não aguardando
         break;
       case 'suporte':
         updates.data_suporte = now;
         updates.suporte_motivo = 'manual_kanban';
+        updates.fechamento_aguardando = false; // suporte de verdade
         break;
     }
 
@@ -837,6 +950,43 @@ export default function KanbanPage() {
     if (error) { toast.error('Não deu pra salvar o motivo: ' + error.message); return; }
     toast.success('Motivo do suporte atualizado');
     queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
+  };
+
+  // Mover pra "aguardando fechamento" (ampulheta ⏳ no card de suporte ou
+  // de negociação). Cliente esperando data de pagamento ou pagar o PIX.
+  // Fica com o bot pausado (estado suporte) mas aparece na coluna FECHAMENTO.
+  const moverParaAguardando = async (c: Contact) => {
+    try {
+      const { data, error } = await supabase.rpc('mover_para_aguardando_fechamento' as any, {
+        p_contato_id: c.id, p_motivo: null,
+      });
+      if (error) throw error;
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error || 'falha desconhecida');
+      toast.success(`${c.nome} → aguardando fechamento`);
+      queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
+    } catch (err: any) {
+      toast.error('Erro: ' + (err.message || err));
+    }
+  };
+
+  // X no card de aguardando (não comprou) → finaliza suporte e restaura o
+  // estado anterior. Mesma RPC do "suporte realizado" (limpa a flag também).
+  const handleFinalizarAguardando = async () => {
+    if (!aguardandoTarget) return;
+    try {
+      const { data, error } = await supabase.rpc('finalizar_suporte_contato' as any, {
+        p_contato_id: aguardandoTarget.id,
+      });
+      if (error) throw error;
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error || 'falha desconhecida');
+      toast.success(`${aguardandoTarget.nome}: aguardando finalizado → ${r.destino}`);
+      setAguardandoTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
+    } catch (err: any) {
+      toast.error('Erro: ' + (err.message || err));
+    }
   };
 
   // Finalizar fechamento → retroage o contato ao estado anterior
@@ -1055,6 +1205,8 @@ export default function KanbanPage() {
         onAgendarCustom={abrirAgendarCustom}
         onFinalizarFechamento={setFinalizarTarget}
         onEditMotivo={handleEditMotivo}
+        onMoverAguardando={moverParaAguardando}
+        onFinalizarAguardando={setAguardandoTarget}
         collapsed={collapsedIds.has(contact.id)}
         toggleCollapsed={toggleCollapsed}
         openPedido={openPedido}
@@ -1123,6 +1275,18 @@ export default function KanbanPage() {
                     </SelectContent>
                   </Select>
                 )}
+                {key === 'em_fechamento' && (
+                  <Select value={fecFiltro} onValueChange={(v) => setFecFiltro(v as typeof fecFiltro)}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="negociacao">🤝 Em negociação</SelectItem>
+                      <SelectItem value="aguardando">⏳ Aguardando fechamento</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="p-2 space-y-2 max-h-[60vh] overflow-y-auto">
                 {colContacts.length === 0 && (
@@ -1169,6 +1333,26 @@ export default function KanbanPage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleSuporteRealizado} className="bg-sf-green text-primary-foreground">
               Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmação de finalizar "aguardando fechamento" (não comprou) */}
+      <AlertDialog open={!!aguardandoTarget} onOpenChange={() => setAguardandoTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Finalizar aguardando fechamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Encerrar o aguardando de {aguardandoTarget?.nome}? Use quando o cliente
+              <strong> não vai comprar</strong>. O contato sai da coluna Fechamento e o
+              bot é reativado, voltando ao estado anterior.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleFinalizarAguardando} className="bg-destructive text-destructive-foreground">
+              Finalizar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
