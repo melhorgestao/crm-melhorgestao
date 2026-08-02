@@ -410,17 +410,14 @@ Pergunta: ${mensagens || '(vazio)'}`
       }
     }
 
-    // AUTO-FOTO (determinístico): o LLM nem sempre chama enviar_foto_produto.
-    // Se a RESPOSTA cita/indica um produto que ainda não teve foto enviada
-    // pra este contato, anexa a arte automaticamente (máx 2 por turno).
+    // AUTO-FOTO (determinístico): SÓ quando o LEAD cita/pede um produto
+    // específico na mensagem dele (com apelidos, ex. "cbd"→verde). Máx 2/turno.
+    // NÃO detecta na RESPOSTA do agente — fazia ele "alucinar" fotos de
+    // pomada/lubrificante quando a resposta apenas mencionava esses produtos
+    // (cardápio, discussão de tratamento) sem o lead ter pedido.
     // Não roda na 1ª interação (cardápio cita todos — viraria spam de fotos).
     if (!chainToClosing) {
-      // Detecta na PERGUNTA do lead (com apelidos, ex. "cbd"→verde) E na
-      // resposta — cobre o LLM responder genérico sem citar nome/mg.
-      const tagsNaResposta = [
-        ...detectarProdutosNoTexto(String(mensagens || ''), true),
-        ...detectarProdutosNoTexto(resposta),
-      ]
+      const tagsNaResposta = detectarProdutosNoTexto(String(mensagens || ''), true)
       for (const tag of tagsNaResposta) {
         if (fotosNovas.length >= 2) break
         if (fotosEnviadas.includes(tag)) continue

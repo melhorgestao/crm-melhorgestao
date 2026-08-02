@@ -222,16 +222,12 @@ Deno.serve(async (req) => {
       })
     }
 
-    // AUTO-FOTO (determinístico): o LLM nem sempre chama enviar_foto_produto.
-    // Se a resposta cita/indica produto que ainda não teve foto enviada pra
-    // este contato, anexa a arte automaticamente (máx 2 por turno).
+    // AUTO-FOTO (determinístico): SÓ quando o LEAD cita/pede um produto
+    // específico na mensagem dele. NÃO detecta na RESPOSTA do agente — fazia
+    // ele "alucinar" fotos (pomada/lubrificante) quando a resposta só
+    // mencionava o produto sem o cliente ter pedido.
     {
-      // Detecta na PERGUNTA do lead (com apelidos, ex. "cbd"→verde) E na
-      // resposta — cobre o LLM responder genérico sem citar nome/mg.
-      const tagsNaResposta = [
-        ...detectarProdutosNoTexto(String(mensagens || ''), true),
-        ...detectarProdutosNoTexto(resposta),
-      ]
+      const tagsNaResposta = detectarProdutosNoTexto(String(mensagens || ''), true)
       for (const tag of tagsNaResposta) {
         if (fotosNovas.length >= 2) break
         if (fotosEnviadas.includes(tag)) continue
