@@ -61,11 +61,27 @@ Todos os produtos possuem:
 
 E são produzidos💯 sem solvente (100% natural e sabor real da cannabis)`
 
+// contato.nome pode estar salvo como PLACEHOLDER = o próprio telefone (a coluna
+// é NOT NULL e nasce com o número quando o pushName não veio). NUNCA trate o
+// lead pelo número. Tratamento SEMPRE pelo pushName (contato.nome), seja emoji
+// ou nome abreviado; se o que temos é só o telefone, cai em 'amigo(a)'.
+function ehSoTelefone(nome?: string | null): boolean {
+  const s = String(nome || '').trim()
+  return !s || /^\+?[0-9][0-9\s()+.\-]*$/.test(s)
+}
+function primeiroNomeSeguro(nome?: string | null): string {
+  if (ehSoTelefone(nome)) return 'amigo(a)'
+  return String(nome).trim().split(/\s+/)[0] || 'amigo(a)'
+}
+
 export function buildSystemPrompt({
   contato, pedidos, pendencia, isPrimeiraInteracao, catalogo, cupom,
   config = {}, ehSaudacaoPura = true, saudacaoResolvida = '',
 }: BuildArgs): string {
-  const nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)'
+  const nomeCurto = primeiroNomeSeguro(contato.nome)
+  const nomeExibicao = ehSoTelefone(contato.nome)
+    ? '(sem nome real ainda — trate por "amigo(a)", NUNCA use o número como nome)'
+    : contato.nome
   const jaComprou = !!contato.ja_comprou
   const cidade   = [contato.cidade, contato.uf].filter(Boolean).join('/')
   const isPrimeira = isPrimeiraInteracao
@@ -148,7 +164,7 @@ COMPORTAMENTO ESPECIAL:
   return `Você é a atendente WhatsApp da Santa Flor — loja de produtos naturais à base de canabinoides.
 
 === CLIENTE ATUAL ===
-• Nome: ${contato.nome || 'desconhecido'}
+• Nome (pushName): ${nomeExibicao}
 • Primeiro contato? ${jaComprou ? 'NÃO (é cliente)' : 'SIM (lead)'}
 • Cidade: ${cidade || 'não informada'}
 • contato_id: ${contato.id || '(novo)'}
@@ -159,7 +175,8 @@ ${pedidosResumo}${pendBlock}
 
 === ESTILO ===
 - Calorosa, breve, humana — como atendente real
-- Trate por primeiro nome ("${nomeCurto}")
+- Trate SEMPRE pelo pushName ("${nomeCurto}") — NUNCA pelo número de telefone.
+  Se "${nomeCurto}" for "amigo(a)", trate assim mesmo; jamais use dígitos como nome.
 - 1-2 frases curtas por mensagem
 - REGRA DE EMOJI ESTRITA:
   • PROIBIDO emojis de rosto/expressão (😅 😊 😉 😄 🙂 😎 🥰 🤗 etc) — soa fake

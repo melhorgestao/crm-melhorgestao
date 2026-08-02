@@ -36,8 +36,23 @@ interface BuildArgs {
   pedidoAberto?: { id: string; total: number; is_parcelado?: boolean; valor_primeira_parcela?: number | null; pix_copia_cola?: string | null } | null
 }
 
+// contato.nome pode ser PLACEHOLDER = só o telefone. NUNCA trate pelo número.
+// Tratamento SEMPRE pelo pushName (emoji ou abreviado); se só temos o telefone,
+// cai em 'amigo(a)'.
+function ehSoTelefone(nome?: string | null): boolean {
+  const s = String(nome || '').trim()
+  return !s || /^\+?[0-9][0-9\s()+.\-]*$/.test(s)
+}
+function primeiroNomeSeguro(nome?: string | null): string {
+  if (ehSoTelefone(nome)) return 'amigo(a)'
+  return String(nome).trim().split(/\s+/)[0] || 'amigo(a)'
+}
+
 export function buildClosingPrompt({ contato, pendencia, catalogo, contato_id, instancia_id, entrouAgora, pedidoAberto }: BuildArgs): string {
-  const nomeCurto = (contato.nome || '').split(' ')[0] || 'amigo(a)'
+  const nomeCurto = primeiroNomeSeguro(contato.nome)
+  const nomeExibicao = ehSoTelefone(contato.nome)
+    ? '(sem nome real ainda — trate por "amigo(a)", NUNCA use o número como nome)'
+    : contato.nome
   const temPendencia = !!pendencia?.tem_pendencia
   const saldoDevedor = Number(pendencia?.saldo_devedor_total || 0)
   const qtdPedPend   = pendencia?.qtd_pedidos_pendentes || 0
@@ -115,7 +130,7 @@ Vá DIRETO ao ponto do CEP/endereço. Esta é a 1ª msg, depois siga o STATE MAC
 ${entrouAgoraBlock}
 
 === CLIENTE ===
-• Nome: ${contato.nome || 'desconhecido'}  (usar primeiro nome: "${nomeCurto}")
+• Nome (pushName): ${nomeExibicao}  (tratamento: "${nomeCurto}" — NUNCA o número)
 • Já comprou antes? ${contato.ja_comprou ? 'SIM' : 'NÃO'}
 • Estado atual: ${contato.ultima_interacao || 'novo'}
 • contato_id: ${contato_id}
@@ -189,8 +204,13 @@ ESTADO 3 — COMPLETAR ENDEREÇO + CPF + CRIAR PEDIDO
         📄 CPF do destinatário"
   ⚠️ NOME + SOBRENOME é OBRIGATÓRIO — vai na etiqueta como o RECEBEDOR do produto.
      Explique isso: "o nome e sobrenome corretos são pra etiqueta de quem vai receber".
-     Se o cliente mandar só o primeiro nome (ou um apelido/emoji), peça o sobrenome:
-     "Me confirma o SOBRENOME também? É pra sair certinho na etiqueta 🙏".
+     ⛔ NUNCA assuma que o pushName é o nome real. O pushName pode ser emoji,
+        apelido ou uma ABREVIAÇÃO (ex.: "Kati" = Catarina, "Well" = Wellington) —
+        você NÃO tem como saber o nome completo a partir dele. Por isso SEMPRE
+        peça o NOME E SOBRENOME COMPLETOS, do zero, mesmo que já exista um
+        primeiro nome/pushName salvo. NÃO peça "só o sobrenome".
+     Se o cliente mandar só o primeiro nome (ou apelido/emoji), peça o nome completo:
+     "Me passa seu NOME e SOBRENOME completos? É pra sair certinho na etiqueta 🙏".
   Quando cliente responder: chame salvar_endereco(cep, rua, numero, complemento, bairro, cidade, uf, CPF, nome_completo)
   — reaproveite rua/bairro/cidade/uf do consultar_cep (só preencha rua manualmente se era CEP de cidade)
   + chame calcular_pedido(itens, modalidade_frete_escolhida) pra criar pedido_em_aberto.

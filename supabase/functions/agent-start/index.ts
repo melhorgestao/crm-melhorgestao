@@ -28,6 +28,16 @@ const OPENROUTER_MODEL = 'openai/gpt-4o-mini'
 const MAX_TOOL_ITERATIONS = 5
 const LLM_TIMEOUT_MS = 45000
 
+// Primeiro nome pra tratamento — SEMPRE o pushName (contato.nome), NUNCA o
+// número. contato.nome pode estar salvo como placeholder = o próprio telefone
+// (coluna NOT NULL, nasce com o número quando o pushName não veio). Nesse caso
+// cai em 'amigo(a)' — jamais tratamos o lead pelos dígitos.
+function primeiroNomeSeguro(nome?: string | null): string {
+  const s = String(nome || '').trim()
+  if (!s || /^\+?[0-9][0-9\s()+.\-]*$/.test(s)) return 'amigo(a)'
+  return s.split(/\s+/)[0] || 'amigo(a)'
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -131,7 +141,7 @@ Deno.serve(async (req) => {
     function resolverSaudacao(): string {
       const canal = (contato.canal_atual || contato.canal_origem || 'BASE').toUpperCase()
       const saldo = Number((pendencia as any)?.saldo_devedor_total || 0)
-      const nome = (contato.nome || '').split(' ')[0] || 'amigo(a)'
+      const nome = primeiroNomeSeguro(contato.nome)
       let tpl: string
       const temPendencia = !!(pendencia as any)?.tem_pendencia
       if (contato.ja_comprou && temPendencia) {
@@ -235,7 +245,7 @@ REGRAS:
 - NÃO chame iniciar_fechamento.
 - Responda DIRETO à pergunta. Use no máximo 1 emoji funcional.
 
-Cliente: ${(contato.nome || '').split(' ')[0] || 'amigo(a)'}
+Cliente: ${primeiroNomeSeguro(contato.nome)}
 Pergunta: ${mensagens || '(vazio)'}`
 
         const respMessages: any[] = [
