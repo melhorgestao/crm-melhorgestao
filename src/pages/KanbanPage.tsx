@@ -435,11 +435,21 @@ const KanbanCard = memo(({
                       if (e.key === 'Enter') { e.preventDefault(); onEditMotivo(contact, motivoDraft); setEditandoMotivo(false); }
                       if (e.key === 'Escape') { e.preventDefault(); setEditandoMotivo(false); }
                     }}
-                    placeholder="motivo personalizado…"
+                    placeholder={isAguardando ? 'ex.: espera PIX, paga dia 10…' : 'motivo personalizado…'}
                     maxLength={60}
                     className="flex-1 min-w-0 text-xs text-blue-700 bg-blue-50 dark:bg-blue-950/40 border border-blue-300 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-blue-400"
                   />
                 </div>
+              ) : isAguardando ? (
+                // Aguardando fechamento: só nota de texto livre (sem dropdown).
+                <p
+                  onClick={(e) => { e.stopPropagation(); setMotivoDraft(contact.suporte_motivo || ''); setEditandoMotivo(true); }}
+                  title="Clique pra editar a nota"
+                  className="text-xs text-blue-600 mt-1 flex items-center gap-1 cursor-text rounded px-0.5 -mx-0.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                >
+                  <AlertCircle className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{contact.suporte_motivo || <span className="italic text-blue-400">clique pra adicionar nota…</span>}</span>
+                </p>
               ) : (
                 <div className="mt-1 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3 text-blue-600 shrink-0" />
