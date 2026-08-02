@@ -656,7 +656,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Monta body limpo (JSON.stringify garante escape de \\n, aspas, etc)\nconst body = {\n  contato_id: $('GET/CREATE Contato').item.json.id,\n  mensagens: $('PROCESS BATCH').item.json.mensagens_concat || '',\n  instancia_id: $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid\n};\nreturn [{ json: { body_str: JSON.stringify(body) } }];"
+        "jsCode": "// Monta body limpo (JSON.stringify garante escape de \\n, aspas, etc)\nconst body = {\n  contato_id: $('GET/CREATE Contato').item.json.id,\n  mensagens: $('PROCESS BATCH').item.json.mensagens_concat || '',\n  instancia_id: $('RESOLVE CONFIG INSTÂNCIA').item.json.instancia_uuid,\n  message_type: $('EXTRAI CAMPOS').item.json.message_type || ''\n};\nreturn [{ json: { body_str: JSON.stringify(body) } }];"
       },
       "id": "build-agent-body",
       "name": "BUILD AGENT BODY",
