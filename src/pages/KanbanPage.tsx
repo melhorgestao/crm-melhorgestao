@@ -408,8 +408,8 @@ const KanbanCard = memo(({
                 {/* Tempo no estado + (RMKT) ícone caixa com qtd → abre popup pedido */}
                 {stateInfo.time && (
                   <div className="flex items-center gap-2 mt-1.5 text-xs">
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Clock className="w-3 h-3" /> {stateInfo.time}
+                    <span className="flex items-center gap-1 text-muted-foreground whitespace-nowrap">
+                      <Clock className="w-3 h-3 shrink-0" /> {stateInfo.time}
                     </span>
                     {column === 'rmkt' && contact.qtd_ultimo_pedido != null && contact.qtd_ultimo_pedido > 0 && (
                       <button
@@ -1252,7 +1252,7 @@ export default function KanbanPage() {
             title={compact ? 'Mudar para modo confortável' : 'Mudar para modo compacto (mais cards na tela)'}
             onClick={() => setCompact(v => !v)}
           >
-            {compact ? <Rows3 className="w-4 h-4 mr-1.5" /> : <Rows2 className="w-4 h-4 mr-1.5" />}
+            {compact ? <Rows2 className="w-4 h-4 mr-1.5" /> : <Rows3 className="w-4 h-4 mr-1.5" />}
             {compact ? 'Confortável' : 'Compacto'}
           </Button>
           <Button
