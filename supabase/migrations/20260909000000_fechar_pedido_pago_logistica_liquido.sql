@@ -14,6 +14,10 @@
 --   FIX: desconto_total = taxa DeFlow (pix_taxa_cents), então vendaReal
 --   (valor_original − desconto) = líquido, igual ao caixa e às métricas.
 --
+-- BUG 3 (não baixava estoque): não criava pedido_itens → estoque nunca abatia
+--   nos pedidos DeFlow. FIX: cria pedido_itens (resolve produto_id pela tag,
+--   itens + brindes) e chama processar_pedido_estoque_trigger (FIFO idempotente).
+--
 -- Resto da função idêntico à 20260618030000.
 -- ============================================================================
 
@@ -140,6 +144,36 @@ BEGIN
     v_status_pgto,
     CURRENT_DATE
   ) RETURNING id INTO v_pedido_id;
+
+  -- BUG 3 (não baixava estoque): a fechar_pedido_pago não criava pedido_itens,
+  -- então o pedido DeFlow nunca abatia estoque. Os itens do rascunho têm `tag`
+  -- (não produto_id), então resolvemos o produto pela tag. Brindes entram como
+  -- is_free=true (envio real, também abatem). Depois chamamos a função
+  -- idempotente de abatimento (FIFO, trata "sem lote").
+  INSERT INTO public.pedido_itens (pedido_id, produto_id, quantidade, preco, is_free)
+  SELECT v_pedido_id, pr.id, COALESCE((it->>'qtd')::int, 1), 0, false
+    FROM jsonb_array_elements(v_rascunho.itens) it
+    CROSS JOIN LATERAL (
+      SELECT id FROM public.produtos WHERE tag = (it->>'tag')
+       ORDER BY ativo DESC, created_at ASC LIMIT 1
+    ) pr
+   WHERE COALESCE(it->>'tag', '') <> '';
+
+  INSERT INTO public.pedido_itens (pedido_id, produto_id, quantidade, preco, is_free)
+  SELECT v_pedido_id, pr.id, 1, 0, true
+    FROM jsonb_array_elements(COALESCE(v_rascunho.brindes, '[]'::jsonb)) br
+    CROSS JOIN LATERAL (
+      SELECT id FROM public.produtos WHERE tag = (br->>'tag')
+       ORDER BY ativo DESC, created_at ASC LIMIT 1
+    ) pr
+   WHERE COALESCE(br->>'tag', '') <> '';
+
+  BEGIN
+    PERFORM public.processar_pedido_estoque_trigger(v_pedido_id, v_uf);
+  EXCEPTION WHEN OTHERS THEN
+    -- estoque é best-effort: um erro aqui NÃO pode desfazer a venda paga.
+    NULL;
+  END;
 
   INSERT INTO public.lancamentos_socios (
     socio, tipo, valor, canal, contato_id, quantidade, modalidade,
