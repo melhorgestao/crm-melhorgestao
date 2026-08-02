@@ -70,6 +70,26 @@ function renderProdutos(val: any): string {
   return s;
 }
 
+// Extrai itens {nome, qtd} do campo produto (que pode ser JSON de vários itens).
+function parseProdutoItens(val: any): { nome: string; qtd: number }[] {
+  if (val == null) return [];
+  const s = String(val).trim();
+  if (!s) return [];
+  if (s.startsWith('[') || s.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(s);
+      const arr = Array.isArray(parsed) ? parsed : [parsed];
+      return arr.map((it: any) => {
+        const raw = it?.produto || it?.nome_oficial || it?.nome || '';
+        const display = raw ? getTagDisplayName(raw) : '';
+        return { nome: display || String(raw), qtd: Number(it?.quantidade) || 1 };
+      }).filter(x => x.nome);
+    } catch { /* ignore */ }
+  }
+  const disp = getTagDisplayName(s) || s;
+  return disp ? [{ nome: disp, qtd: 1 }] : [];
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -232,6 +252,71 @@ export default function Dashboard() {
         { etapa: 'RMKT', qtd: rmkt },
         { etapa: 'Venda', qtd: vendas || 0 },
       ];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Caixa do período (regime de caixa, igual à Métricas): VENDA + PARCELA_VENDA.
+  // Alimenta Composição de Clientes, Top Produtos e a lista de Movimentações —
+  // que antes vinham de pedidos.data_pago e ficavam vazias quando a venda do
+  // período era uma parcela de pedido pendente.
+  const { data: caixa = { porCanal: { ADS: 0, BASE: 0, REP: 0 }, topProdutos: [], movimentacoes: [] } } = useQuery({
+    queryKey: ['dashboard_caixa', dateFrom, dateTo],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('lancamentos_socios')
+        .select('valor, canal, data, realizado_em, tipo, contato_id, quantidade, contatos(nome), pedidos(produto)')
+        .in('tipo', ['VENDA', 'PARCELA_VENDA']);
+
+      const rows = (data || []).filter((r: any) => {
+        const ref = r.tipo === 'VENDA'
+          ? (r.realizado_em ? new Date(r.realizado_em).toISOString().slice(0, 10) : r.data)
+          : r.data;
+        return ref && ref >= dateFrom && ref <= dateTo;
+      }).map((r: any) => ({
+        ...r,
+        ref: r.tipo === 'VENDA' ? (r.realizado_em ? new Date(r.realizado_em).toISOString().slice(0, 10) : r.data) : r.data,
+      }));
+
+      // Composição de clientes = contatos distintos por canal (C-REP dobra em REP)
+      const setByCanal: Record<string, Set<string>> = { ADS: new Set(), BASE: new Set(), REP: new Set() };
+      // Top produtos = unidades por item (parseando o blob de produto)
+      const prodMap = new Map<string, number>();
+      const movimentacoes: any[] = [];
+
+      rows.forEach((r: any) => {
+        const canal = (r.canal === 'REP' || r.canal === 'C-REP') ? 'REP' : r.canal;
+        if (canal in setByCanal && r.contato_id) setByCanal[canal].add(r.contato_id);
+
+        // Unidades só de VENDA (parcela não repete unidades já contadas)
+        if (r.tipo === 'VENDA') {
+          parseProdutoItens(r.pedidos?.produto).forEach(it => {
+            prodMap.set(it.nome, (prodMap.get(it.nome) || 0) + it.qtd);
+          });
+        }
+
+        movimentacoes.push({
+          nome: r.contatos?.nome || '—',
+          produto: renderProdutos(r.pedidos?.produto),
+          valor: Number(r.valor || 0),
+          canal: r.canal || '—',
+          tipo: r.tipo,
+          ref: r.ref,
+        });
+      });
+
+      const topProdutos = [...prodMap.entries()]
+        .map(([nome, qtd]) => ({ produto: nome, qtd }))
+        .sort((a, b) => b.qtd - a.qtd)
+        .slice(0, 5);
+
+      movimentacoes.sort((a, b) => (a.ref < b.ref ? 1 : -1));
+
+      return {
+        porCanal: { ADS: setByCanal.ADS.size, BASE: setByCanal.BASE.size, REP: setByCanal.REP.size },
+        topProdutos,
+        movimentacoes: movimentacoes.slice(0, 60),
+      };
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -406,18 +491,7 @@ export default function Dashboard() {
       const NOMES_MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const months: { mes: string; valor: number }[] = monthTotals.map((valor, i) => ({ mes: NOMES_MES[i], valor }));
 
-      // Top produtos do período (por unidades vendidas nos pedidos pagos)
-      const prodMap = new Map<string, number>();
-      pedRange.forEach((p: any) => {
-        const nome = (p.produto || '—').trim() || '—';
-        prodMap.set(nome, (prodMap.get(nome) || 0) + (p.quantidade || 0));
-      });
-      const topProdutos = [...prodMap.entries()]
-        .map(([produto, qtd]) => ({ produto, qtd }))
-        .sort((a, b) => b.qtd - a.qtd)
-        .slice(0, 5);
-
-      return { dayStats, pedidosDia: pedRange, faturamentoMes, fatIndicator, monthlyChart: months, topProdutos };
+      return { dayStats, pedidosDia: pedRange, faturamentoMes, fatIndicator, monthlyChart: months };
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -426,12 +500,13 @@ export default function Dashboard() {
   const pedidosDia = dashboardData?.pedidosDia || [];
   const fatIndicator = dashboardData?.fatIndicator || { percent: 0, direction: 'neutral', label: 'vs ontem' };
   const monthlyChart = dashboardData?.monthlyChart || [];
-  const topProdutos = dashboardData?.topProdutos || [];
+  const topProdutos = caixa.topProdutos || [];
   const faturamentoMesVal = dashboardData?.faturamentoMes || 0;
+  // Clientes por origem no período — regime de caixa (consistente com o resto).
   const clientesComposicao = [
-    { nome: 'Novos', valor: dayStats.novos, cor: CANAL_CORES.ADS },
-    { nome: 'Recorrentes', valor: dayStats.recorrentes, cor: CANAL_CORES.BASE },
-    { nome: 'Representantes', valor: dayStats.representantes, cor: CANAL_CORES.REP },
+    { nome: 'Novos', valor: caixa.porCanal.ADS, cor: CANAL_CORES.ADS },
+    { nome: 'Recorrentes', valor: caixa.porCanal.BASE, cor: CANAL_CORES.BASE },
+    { nome: 'Representantes', valor: caixa.porCanal.REP, cor: CANAL_CORES.REP },
   ].filter(d => d.valor > 0);
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-64" /></div>;
@@ -440,9 +515,9 @@ export default function Dashboard() {
     { icon: DollarSign, label: 'Faturamento Total', value: formatBRL(dayStats.faturamento) },
     { icon: Tag, label: 'Ticket Médio', value: formatBRL(dayStats.ticket) },
     { icon: Package, label: 'Total de Produtos Vendidos', value: dayStats.produtos },
-    { icon: UserPlus, label: 'Clientes Novos', value: dayStats.novos },
-    { icon: RefreshCw, label: 'Clientes Recorrentes', value: dayStats.recorrentes },
-    { icon: Users, label: 'Clientes Representantes', value: dayStats.representantes },
+    { icon: UserPlus, label: 'Clientes Novos', value: caixa.porCanal.ADS },
+    { icon: RefreshCw, label: 'Clientes Recorrentes', value: caixa.porCanal.BASE },
+    { icon: Users, label: 'Clientes Representantes', value: caixa.porCanal.REP },
   ];
 
   const metaPercent = metaValor ? Math.min((faturamentoMesVal / metaValor) * 100, 100) : 0;
@@ -542,6 +617,27 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
+      {/* Funil do Pipeline — visão do funil acima dos gráficos de faturamento */}
+      <Card className="rounded-xl border-border/50 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-sm">Funil do Pipeline</CardTitle>
+          <p className="text-xs text-muted-foreground">Contatos por coluna do Kanban · Venda = pedidos pagos no período</p>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={pipelineBars} layout="vertical" margin={{ left: 4, right: 32, top: 4, bottom: 4 }}>
+              <XAxis type="number" hide />
+              <YAxis type="category" dataKey="etapa" width={90} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+              <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} formatter={(v: number) => [v, 'Contatos']} />
+              <Bar dataKey="qtd" radius={[0, 4, 4, 0]} maxBarSize={26} isAnimationActive animationDuration={700}>
+                {pipelineBars.map(b => <Cell key={b.etapa} fill={PIPELINE_CORES[b.etapa] || '#2a78d6'} />)}
+                <LabelList dataKey="qtd" position="right" className="fill-foreground" fontSize={12} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
       <div className="grid md:grid-cols-2 gap-6">
         <Card className="rounded-xl border-border/50 shadow-sm">
           <CardHeader><CardTitle className="text-sm">Faturamento x Mês</CardTitle></CardHeader>
@@ -584,53 +680,6 @@ export default function Dashboard() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <Card className="rounded-xl border-border/50 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm">Funil do Pipeline</CardTitle>
-            <p className="text-xs text-muted-foreground">Contatos por coluna do Kanban · Venda = pedidos pagos no período</p>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={pipelineBars} layout="vertical" margin={{ left: 4, right: 32, top: 4, bottom: 4 }}>
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="etapa" width={78} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} formatter={(v: number) => [v, 'Contatos']} />
-                <Bar dataKey="qtd" radius={[0, 4, 4, 0]} maxBarSize={26} isAnimationActive animationDuration={700}>
-                  {pipelineBars.map(b => <Cell key={b.etapa} fill={PIPELINE_CORES[b.etapa] || '#2a78d6'} />)}
-                  <LabelList dataKey="qtd" position="right" className="fill-foreground" fontSize={12} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl border-border/50 shadow-sm">
-          <CardHeader><CardTitle className="text-sm">Pedidos do Período</CardTitle></CardHeader>
-          <CardContent>
-            {pedidosDia.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Nenhum pedido no período</p>
-            ) : (
-              <div className="overflow-x-auto max-h-64 overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead><tr className="border-b"><th className="text-left py-1">Nome</th><th className="text-left py-1">Produto</th><th className="text-right py-1">Valor</th><th className="text-left py-1">Canal</th></tr></thead>
-                  <tbody>
-                    {pedidosDia.map(p => (
-                      <tr key={p.id} className="border-b border-border/50">
-                        <td className="py-1.5">{(p.contatos as any)?.nome || '—'}</td>
-                        <td className="py-1.5">{renderProdutos(p.produto)}</td>
-                        <td className="py-1.5 text-right">{formatBRL(Number(p.valor))}</td>
-                        <td className="py-1.5 uppercase">{p.canal}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
         {/* Top produtos do período */}
         <Card className="rounded-xl border-border/50 shadow-sm">
           <CardHeader>
@@ -664,7 +713,7 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground">Quem comprou no período, por origem</p>
           </CardHeader>
           <CardContent>
-            {(dayStats.novos + dayStats.recorrentes + dayStats.representantes) === 0 ? (
+            {clientesComposicao.length === 0 ? (
               <div className="h-[220px] flex items-center justify-center">
                 <p className="text-sm text-muted-foreground">Nenhum cliente no período</p>
               </div>
@@ -686,6 +735,49 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Movimentações do período (regime de caixa) — antes 'Pedidos do Período',
+          que ficava vazio quando a entrada vinha de parcela de pedido pendente. */}
+      <Card className="rounded-xl border-border/50 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-sm">Movimentações do Período</CardTitle>
+          <p className="text-xs text-muted-foreground">Entradas de caixa: vendas à vista e parcelas pagas no período</p>
+        </CardHeader>
+        <CardContent>
+          {caixa.movimentacoes.length === 0 ? (
+            <p className="text-muted-foreground text-sm py-4">Nenhuma entrada no período</p>
+          ) : (
+            <div className="overflow-x-auto max-h-72 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="text-left font-medium py-1.5">Cliente</th>
+                    <th className="text-left font-medium py-1.5">Produto</th>
+                    <th className="text-left font-medium py-1.5">Tipo</th>
+                    <th className="text-right font-medium py-1.5">Valor</th>
+                    <th className="text-left font-medium py-1.5 pl-3">Canal</th>
+                    <th className="text-left font-medium py-1.5">Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {caixa.movimentacoes.map((m: any, i: number) => (
+                    <tr key={i} className="border-b border-border/50">
+                      <td className="py-1.5">{m.nome}</td>
+                      <td className="py-1.5">{m.produto}</td>
+                      <td className="py-1.5">
+                        <span className="text-xs text-muted-foreground">{m.tipo === 'PARCELA_VENDA' ? 'Parcela' : 'À vista'}</span>
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums">{formatBRL(m.valor)}</td>
+                      <td className="py-1.5 pl-3 uppercase text-xs">{m.canal}</td>
+                      <td className="py-1.5 text-muted-foreground tabular-nums">{m.ref?.split('-').reverse().slice(0, 2).join('/')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
