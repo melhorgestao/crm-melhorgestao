@@ -9,7 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { formatBRL } from '@/lib/format';
 import { DollarSign, Tag, Package, UserPlus, RefreshCw, TrendingUp, TrendingDown, Target, CreditCard, Users } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell } from 'recharts';
+
+// Cor por canal (paleta categórica validada CVD-safe — slots 1/2/3 da dataviz).
+const CANAL_CORES: Record<string, string> = { ADS: '#2a78d6', BASE: '#eb6834', REP: '#1baf7a' };
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { getTagDisplayName } from '@/lib/productDisplayNames';
@@ -140,22 +143,29 @@ export default function Dashboard() {
   const { data: channelBars = [] } = useQuery({
     queryKey: ['dashboard_channels', dateFrom, dateTo],
     queryFn: async () => {
-      const channels = ['ADS', 'BASE', 'REP'];
+      // Faturamento por canal com a MESMA métrica de caixa real do widget:
+      //   VENDA        -> por realizado_em||data (pendente entra quando pagou)
+      //   PARCELA_VENDA-> por data
+      // C-REP é dobrado em REP (igual à contagem de representantes dos KPIs).
       const { data, error } = await supabase
-        .from('pedidos')
-        .select('valor, canal')
-        .in('canal', channels)
-        .neq('is_free', true)
-        .eq('status_pagamento', 'pago')
-        .gte('data_pago', dateFrom)
-        .lte('data_pago', dateTo);
-      
+        .from('lancamentos_socios')
+        .select('valor, canal, data, realizado_em, tipo')
+        .in('tipo', ['VENDA', 'PARCELA_VENDA']);
+
       if (error) throw error;
 
-      return channels.map(c => ({
-        canal: c,
-        valor: data?.filter(r => r.canal === c).reduce((s, r) => s + Number(r.valor), 0) || 0
-      }));
+      const channels = ['ADS', 'BASE', 'REP'] as const;
+      const totals: Record<string, number> = { ADS: 0, BASE: 0, REP: 0 };
+      (data || []).forEach((r: any) => {
+        const ref = r.tipo === 'VENDA'
+          ? (r.realizado_em ? new Date(r.realizado_em).toISOString().slice(0, 10) : r.data)
+          : r.data;
+        if (!ref || ref < dateFrom || ref > dateTo) return;
+        const key = (r.canal === 'REP' || r.canal === 'C-REP') ? 'REP' : r.canal;
+        if (key in totals) totals[key] += Number(r.valor || 0);
+      });
+
+      return channels.map(c => ({ canal: c, valor: totals[c] }));
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -477,15 +487,25 @@ export default function Dashboard() {
         <Card>
           <CardHeader><CardTitle className="text-sm">Faturamento por Canal</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={channelBars}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="canal" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v: number) => formatBRL(v)} />
-                <Bar dataKey="valor" fill="#2D5A27" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {channelBars.every(c => c.valor === 0) ? (
+              <div className="h-[250px] flex flex-col items-center justify-center text-center gap-1">
+                <p className="text-sm text-muted-foreground">Sem faturamento no período</p>
+                <p className="text-xs text-muted-foreground/60">Selecione um intervalo maior no topo</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={channelBars}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
+                  <XAxis dataKey="canal" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false}
+                    tickFormatter={v => v >= 1000 ? `R$${(v / 1000).toFixed(0)}k` : `R$${v}`} />
+                  <Tooltip formatter={(v: number) => formatBRL(v)} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
+                  <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={72}>
+                    {channelBars.map(c => <Cell key={c.canal} fill={CANAL_CORES[c.canal] || '#2a78d6'} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
