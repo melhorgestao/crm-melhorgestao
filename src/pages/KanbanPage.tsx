@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { timeAgo } from '@/lib/format';
-import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Headset, Play, ShoppingCart, RefreshCw, Package, Minus, CalendarClock, Hourglass, ChevronDown } from 'lucide-react';
+import { Copy, MoreVertical, Trash2, Phone, CheckCircle, AlertCircle, Clock, MessageSquare, X, Headset, Play, ShoppingCart, RefreshCw, Package, Minus, CalendarClock, Hourglass, ChevronDown, Rows2, Rows3 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -168,7 +168,7 @@ const KanbanCard = memo(({
   draggedCard, setDraggedCard, setDeleteTarget, setSuporteTarget, setVendaTarget, setPararTarget,
   pausarBot, reativarBot, copyPhone, openChatwoot,
   collapsed, toggleCollapsed, openPedido, onDisparoManual, onAgendarCustom, onFinalizarFechamento, onEditMotivo,
-  onMoverAguardando, onFinalizarAguardando
+  onMoverAguardando, onFinalizarAguardando, compact
 }: {
   contact: Contact;
   column: ColumnKey;
@@ -193,6 +193,7 @@ const KanbanCard = memo(({
   onEditMotivo: (c: Contact, motivo: string) => void;
   onMoverAguardando: (c: Contact) => void;
   onFinalizarAguardando: (c: Contact) => void;
+  compact: boolean;
 }) => {
   // Aguardando fechamento = ultima_interacao='suporte' + flag. Renderiza na
   // coluna FECHAMENTO (column='em_fechamento') mas com comportamento de suporte.
@@ -315,14 +316,15 @@ const KanbanCard = memo(({
       }}
       onDragEnd={() => setDraggedCard(null)}
       className={cn(
-        'group cursor-grab active:cursor-grabbing mb-2 transition-shadow hover:shadow-md',
+        'group cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md',
+        compact ? 'mb-1' : 'mb-2',
         draggedCard === contact.id && 'opacity-50',
         !isDraggable && 'cursor-default',
         suporteNivel === 'atrasado' && 'border-2 border-amber-500',
         suporteNivel === 'urgente'  && 'animate-pulse border-2 border-destructive'
       )}
     >
-      <CardContent className="p-3">
+      <CardContent className={compact ? 'p-2' : 'p-3'}>
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             {/* Tags + contador X/3 (junto da tag principal) + nome */}
@@ -390,8 +392,8 @@ const KanbanCard = memo(({
 
             {!collapsed && (
               <>
-                {/* Telefone (clicável = copia) + instância */}
-                <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                {/* Telefone (clicável = copia) + instância. Some no modo compacto. */}
+                {!compact && <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); copyPhone(contact.telefone || ''); }}
@@ -401,7 +403,7 @@ const KanbanCard = memo(({
                     <Phone className="w-3 h-3" />
                   </button>
                   <span>{contact.instancias?.nome || 'sem instância'}</span>
-                </div>
+                </div>}
 
                 {/* Tempo no estado + (RMKT) ícone caixa com qtd → abre popup pedido */}
                 {stateInfo.time && (
@@ -648,6 +650,14 @@ export default function KanbanPage() {
   const [tplIdx, setTplIdx] = useState(0);
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  // Densidade do board (persistida). Compacto esconde telefone/instância e
+  // aperta o espaçamento — útil em colunas com centenas de cards.
+  const [compact, setCompact] = useState<boolean>(() => {
+    try { return localStorage.getItem('kanban-compact') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('kanban-compact', compact ? '1' : '0'); } catch { /* ignore */ }
+  }, [compact]);
   const [pedidoAbertoId, setPedidoAbertoId] = useState<string | null>(null);
   // Filtro da coluna Follow-up: todos | custom | wait | 1 | 2 | 3 (tentativa)
   const [fupFiltro, setFupFiltro] = useState<'todos' | 'custom' | 'wait' | '1' | '2' | '3'>('todos');
@@ -1227,6 +1237,7 @@ export default function KanbanPage() {
         collapsed={collapsedIds.has(contact.id)}
         toggleCollapsed={toggleCollapsed}
         openPedido={openPedido}
+        compact={compact}
       />
     );
   };
@@ -1236,6 +1247,14 @@ export default function KanbanPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Kanban</h1>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline" size="sm" className="h-9"
+            title={compact ? 'Mudar para modo confortável' : 'Mudar para modo compacto (mais cards na tela)'}
+            onClick={() => setCompact(v => !v)}
+          >
+            {compact ? <Rows3 className="w-4 h-4 mr-1.5" /> : <Rows2 className="w-4 h-4 mr-1.5" />}
+            {compact ? 'Confortável' : 'Compacto'}
+          </Button>
           <Button
             variant="outline" size="icon" className="h-9 w-9"
             title="Atualizar Kanban"
