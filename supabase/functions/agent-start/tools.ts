@@ -156,11 +156,11 @@ export const TOOL_SCHEMAS = [
     type: 'function',
     function: {
       name: 'descadastrar_lead',
-      description: 'Use SÓ em recusa EXTREMA e clara: "não tenho interesse", "não quero mais", "para de me mandar mensagem", "me tira da lista", "não me manda mais nada". Tira o lead de circulação (NUNCA_MAIS) — sai do follow-up/RMKT, evitando bloqueio e denúncia por insistência. Depois só uma despedida curta e educada ("Tudo bem, não te incomodo mais! Qualquer dia, é só chamar. 🙏"). NÃO use por hesitação ("vou pensar", "depois eu vejo") — isso é agendar_retorno_cliente ou nada.',
+      description: 'Use quando o lead demonstrar DESINTERESSE ou ENGANO — não quer seguir agora: "não estou interessado", "não tenho interesse", "não quero", "não quero mais", "foi engano", "cliquei sem querer", "mandei sem querer", "não era pra você", "para de me mandar mensagem", "me tira da lista", "não me manda mais nada". Tira o lead de circulação (NUNCA_MAIS) — sai DEFINITIVAMENTE do follow-up/RMKT e não volta, evitando insistência e denúncia. Depois só uma despedida curta e educada ("Sem problema! Não te incomodo mais. Qualquer dia, é só chamar. 🙏"). NÃO use por HESITAÇÃO com intenção futura ("vou pensar", "depois eu vejo", "semana que vem eu chamo") — isso é agendar_retorno_cliente. Na dúvida entre desinteresse e hesitação, pergunte uma vez; se confirmar que não quer, descadastre.',
       parameters: {
         type: 'object',
         properties: {
-          motivo: { type: 'string', description: 'Motivo curto: sem_interesse | pediu_remocao | irritado_insistencia' },
+          motivo: { type: 'string', description: 'Motivo curto: sem_interesse | engano | pediu_remocao | irritado_insistencia' },
         },
         required: [],
       },
