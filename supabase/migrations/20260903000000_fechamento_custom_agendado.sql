@@ -212,6 +212,17 @@ GRANT EXECUTE ON FUNCTION public.confirmar_envio_lead(uuid)
   TO authenticated, anon, service_role;
 
 -- ----------------------------------------------------------------------------
+-- 3.5) Amplia os CHECKs pra aceitar o novo tipo/categoria 'fechamento'
+-- ----------------------------------------------------------------------------
+ALTER TABLE public.campanhas DROP CONSTRAINT IF EXISTS campanhas_tipo_check;
+ALTER TABLE public.campanhas ADD CONSTRAINT campanhas_tipo_check
+  CHECK (tipo IN ('ativacao', 'followup', 'rmkt', 'marketing', 'fechamento'));
+
+ALTER TABLE public.templates_msg DROP CONSTRAINT IF EXISTS templates_msg_categoria_check;
+ALTER TABLE public.templates_msg ADD CONSTRAINT templates_msg_categoria_check
+  CHECK (categoria IN ('ativacao', 'followup', 'rmkt', 'marketing', 'fechamento'));
+
+-- ----------------------------------------------------------------------------
 -- 4) Campanha "Fechamento Custom" + template de reengajamento
 -- ----------------------------------------------------------------------------
 DO $$
