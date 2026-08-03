@@ -139,11 +139,6 @@ export function CampanhaCard({ campanha, onOpenDetails, onToggleAtiva }: Props) 
           </div>
           <div className="min-w-0">
             <h3 className="font-bold truncate">{c.nome}</h3>
-            {c.tipo === 'fechamento' && (
-              <p className="text-[11px] text-muted-foreground leading-tight">
-                Reengaja leads agendados no fechamento · fora de RMKT e Follow-up
-              </p>
-            )}
           </div>
         </div>
         <Switch checked={c.ativa} onCheckedChange={() => onToggleAtiva(c)} />
