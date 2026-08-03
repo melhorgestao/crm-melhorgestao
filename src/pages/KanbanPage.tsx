@@ -89,6 +89,7 @@ interface Contact {
   data_suporte?: string | null;
   suporte_motivo?: string | null;
   fechamento_aguardando?: boolean | null;
+  fechamento_agendado_em?: string | null;
   bot_pausado_ate?: string | null;
   ultima_venda_em?: string | null;
   qtd_ultimo_pedido?: number | null;
@@ -197,7 +198,7 @@ const KanbanCard = memo(({
 }) => {
   // Aguardando fechamento = ultima_interacao='suporte' + flag. Renderiza na
   // coluna FECHAMENTO (column='em_fechamento') mas com comportamento de suporte.
-  const isAguardando = contact.fechamento_aguardando === true;
+  const isAguardando = !!contact.fechamento_agendado_em;
   // Edição inline do motivo do suporte (duplo clique no texto azul)
   const [editandoMotivo, setEditandoMotivo] = useState(false);
   const [motivoDraft, setMotivoDraft] = useState('');
@@ -264,10 +265,12 @@ const KanbanCard = memo(({
         };
       }
       case 'em_fechamento':
-        // Aguardando fechamento (suporte + flag): "Aguardando há Xh".
+        // Aguardando fechamento AGENDADO: "Agendado para DD/MM" (bot reengaja no dia).
         if (isAguardando) {
+          const d = contact.fechamento_agendado_em ? new Date(contact.fechamento_agendado_em) : null;
+          const dataStr = d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : null;
           return {
-            time: fmtHoras(contact.data_suporte, 'Aguardando há'),
+            time: dataStr ? `Agendado para ${dataStr}` : 'Aguardando fechamento',
             tentativa: null,
             label: contact.suporte_motivo || 'aguardando fechamento',
           };
@@ -387,6 +390,7 @@ const KanbanCard = memo(({
               {/* ADS só na coluna FECHAMENTO — é onde a origem do lead importa
                   pra decisão de venda. Nas outras colunas polui o card. */}
               {isAds && column === 'em_fechamento' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-purple-300 text-purple-600 dark:border-purple-800 dark:text-purple-300">ADS</Badge>}
+              {isAguardando && <Badge title="Aguardando fechamento agendado" className="bg-indigo-500 text-white text-[10px] px-1.5 py-0 font-bold">⏳ AGENDADO</Badge>}
               <p className="font-semibold text-sm truncate text-foreground">{contact.nome}</p>
             </div>
 
@@ -665,6 +669,9 @@ export default function KanbanPage() {
   const [fecFiltro, setFecFiltro] = useState<'todos' | 'negociacao' | 'aguardando'>('todos');
   // Agendamento manual F-UP Custom (calendário)
   const [agendarTarget, setAgendarTarget] = useState<Contact | null>(null);
+  // Agendamento de "aguardando fechamento" via ampulheta (calendário)
+  const [agendarFechTarget, setAgendarFechTarget] = useState<Contact | null>(null);
+  const [agendarFechDate, setAgendarFechDate] = useState<Date | undefined>(undefined);
   const [finalizarTarget, setFinalizarTarget] = useState<Contact | null>(null);
   // X no card de "aguardando fechamento" (não comprou → finaliza suporte)
   const [aguardandoTarget, setAguardandoTarget] = useState<Contact | null>(null);
@@ -744,7 +751,7 @@ export default function KanbanPage() {
           follow_up_tentativas, ativacao_tentativas,
           data_start, data_ultima_entrada, data_wait_follow_up, followup_custom_em, data_ultimo_follow_up,
           data_em_fechamento, data_ultimo_rmkt, data_suporte, suporte_motivo,
-          fechamento_aguardando,
+          fechamento_aguardando, fechamento_agendado_em,
           bot_pausado_ate, ultima_venda_em, rmkt_consecutive_silenciosos,
           qtd_ultimo_pedido,
           instancias(nome, numero)
@@ -803,20 +810,15 @@ export default function KanbanPage() {
 
   const getColumnContacts = (col: ColumnKey) => {
     const states = COLUMN_STATES[col];
-    // Coluna SUPORTE = suporte SEM flag de aguardando fechamento.
-    // Coluna FECHAMENTO = em_fechamento (negociação) OU suporte COM flag (aguardando).
-    let list = contacts.filter(c => {
-      const st = c.ultima_interacao || '';
-      if (col === 'suporte') return st === 'suporte' && !c.fechamento_aguardando;
-      if (col === 'em_fechamento') return st === 'em_fechamento' || (st === 'suporte' && !!c.fechamento_aguardando);
-      return states.includes(st);
-    });
+    let list = contacts.filter(c => states.includes(c.ultima_interacao || ''));
 
-    // Filtro do dropdown da coluna Fechamento (negociação / aguardando).
+    // Filtro do dropdown da coluna Fechamento:
+    //   aguardando  = em_fechamento COM data agendada (reengaja no dia)
+    //   negociação  = em_fechamento SEM data (negociando agora)
     if (col === 'em_fechamento' && fecFiltro !== 'todos') {
       list = list.filter(c => fecFiltro === 'aguardando'
-        ? (c.ultima_interacao === 'suporte' && !!c.fechamento_aguardando)
-        : c.ultima_interacao === 'em_fechamento');
+        ? !!c.fechamento_agendado_em
+        : !c.fechamento_agendado_em);
     }
 
     // Filtro do dropdown da coluna Follow-up (Custom / Wait / 1|2|3 de 3).
@@ -979,36 +981,48 @@ export default function KanbanPage() {
     queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
   };
 
-  // Mover pra "aguardando fechamento" (ampulheta ⏳ no card de suporte ou
-  // de negociação). Cliente esperando data de pagamento ou pagar o PIX.
-  // Fica com o bot pausado (estado suporte) mas aparece na coluna FECHAMENTO.
-  const moverParaAguardando = async (c: Contact) => {
+  // Ampulheta ⏳ (card de suporte ou de negociação) → abre o calendário pra
+  // AGENDAR o "aguardando fechamento". O bot fica ativo e reengaja no dia.
+  const moverParaAguardando = (c: Contact) => {
+    setAgendarFechDate(undefined);
+    setAgendarFechTarget(c);
+  };
+
+  // Confirma o agendamento do fechamento (data escolhida no calendário, ou
+  // "sem data" = retorno em 24h pela RPC).
+  const confirmarAgendarFechamento = async (semData: boolean) => {
+    if (!agendarFechTarget) return;
     try {
-      const { data, error } = await supabase.rpc('mover_para_aguardando_fechamento' as any, {
-        p_contato_id: c.id, p_motivo: null,
+      const { data, error } = await supabase.rpc('agendar_aguardando_fechamento' as any, {
+        p_contato_id: agendarFechTarget.id,
+        p_texto: null,
+        p_data: semData || !agendarFechDate ? null : agendarFechDate.toISOString(),
       });
       if (error) throw error;
       const r = data as any;
       if (!r?.ok) throw new Error(r?.error || 'falha desconhecida');
-      toast.success(`${c.nome} → aguardando fechamento`);
+      const quando = r.agendado_para ? new Date(r.agendado_para).toLocaleDateString('pt-BR') : '24h';
+      toast.success(`${agendarFechTarget.nome} → aguardando fechamento (${quando})`);
+      setAgendarFechTarget(null);
       queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
     } catch (err: any) {
       toast.error('Erro: ' + (err.message || err));
     }
   };
 
-  // X no card de aguardando (não comprou) → finaliza suporte e restaura o
-  // estado anterior. Mesma RPC do "suporte realizado" (limpa a flag também).
+  // X no card de aguardando (não comprou) → encerra o fechamento e retroage ao
+  // estado anterior (mesma RPC da negociação), limpando o agendamento.
   const handleFinalizarAguardando = async () => {
     if (!aguardandoTarget) return;
     try {
-      const { data, error } = await supabase.rpc('finalizar_suporte_contato' as any, {
+      const { data, error } = await supabase.rpc('finalizar_fechamento_contato' as any, {
         p_contato_id: aguardandoTarget.id,
       });
       if (error) throw error;
       const r = data as any;
-      if (!r?.ok) throw new Error(r?.error || 'falha desconhecida');
-      toast.success(`${aguardandoTarget.nome}: aguardando finalizado → ${r.destino}`);
+      if (!r?.ok) throw new Error(r?.error || 'não foi possível finalizar');
+      await supabase.from('contatos').update({ fechamento_agendado_em: null }).eq('id', aguardandoTarget.id);
+      toast.success(`${aguardandoTarget.nome}: aguardando finalizado → ${r.novo_estado}`);
       setAguardandoTarget(null);
       queryClient.invalidateQueries({ queryKey: ['kanban-v2'] });
     } catch (err: any) {
@@ -1584,6 +1598,52 @@ export default function KanbanPage() {
               onClick={confirmAgendarCustom}
             >
               {agendarTarget?.ultima_interacao === 'wait_follow_up_custom' ? 'Salvar data' : 'Agendar retorno'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Agendar "aguardando fechamento" (ampulheta) — calendário + sem data */}
+      <Dialog
+        open={!!agendarFechTarget}
+        onOpenChange={(o) => { if (!o) { setAgendarFechTarget(null); setAgendarFechDate(undefined); } }}
+      >
+        <DialogContent className="sm:max-w-fit">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Hourglass className="w-4 h-4 text-indigo-500" />
+              Aguardando fechamento
+            </DialogTitle>
+            <DialogDescription>
+              <span className="font-medium text-foreground">{agendarFechTarget?.nome}</span> — escolha quando o bot deve voltar pra fechar. O lead sai da negociação ativa e o bot reengaja sozinho no dia.
+              <span className="block mt-1 text-xs text-muted-foreground">
+                Sem data definida → o bot retorna em 24h.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-center">
+            <Calendar
+              mode="single"
+              locale={ptBR}
+              selected={agendarFechDate}
+              onSelect={setAgendarFechDate}
+              weekStartsOn={0}
+              disabled={(d) => { const t = new Date(); t.setHours(0, 0, 0, 0); return d < t; }}
+              initialFocus
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="ghost" onClick={() => confirmarAgendarFechamento(true)}>
+              Sem data definida (24h)
+            </Button>
+            <Button
+              className="bg-indigo-500 hover:bg-indigo-500/90 text-white"
+              disabled={!agendarFechDate}
+              onClick={() => confirmarAgendarFechamento(false)}
+            >
+              Agendar fechamento
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Sparkles, Repeat, TrendingUp, Clock, Send, ChevronRight, Megaphone, ChevronDown } from 'lucide-react';
+import { Sparkles, Repeat, TrendingUp, Clock, Send, ChevronRight, Megaphone, ChevronDown, Hourglass } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
@@ -34,7 +34,7 @@ function rangePeriodo(p: PeriodoKey): { startIso: string; endIso?: string } {
 export interface CampanhaRow {
   id: string;
   nome: string;
-  tipo: 'ativacao' | 'followup' | 'rmkt' | 'marketing';
+  tipo: 'ativacao' | 'followup' | 'rmkt' | 'marketing' | 'fechamento';
   ativa: boolean;
   pausa_global: boolean;
   horario_inicio: string;
@@ -66,6 +66,7 @@ const TIPO_META: Record<CampanhaRow['tipo'], { icon: any; label: string; color: 
   followup:  { icon: Repeat,      label: 'Follow-up', color: 'text-blue-500'    },
   rmkt:      { icon: TrendingUp,  label: 'RMKT',      color: 'text-purple-500'  },
   marketing: { icon: Megaphone,   label: 'Marketing', color: 'text-emerald-500' },
+  fechamento:{ icon: Hourglass,   label: 'Fechamento',color: 'text-indigo-500'  },
 };
 
 export function CampanhaCard({ campanha, onOpenDetails, onToggleAtiva }: Props) {
@@ -138,6 +139,11 @@ export function CampanhaCard({ campanha, onOpenDetails, onToggleAtiva }: Props) 
           </div>
           <div className="min-w-0">
             <h3 className="font-bold truncate">{c.nome}</h3>
+            {c.tipo === 'fechamento' && (
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                Reengaja leads agendados no fechamento · fora de RMKT e Follow-up
+              </p>
+            )}
           </div>
         </div>
         <Switch checked={c.ativa} onCheckedChange={() => onToggleAtiva(c)} />

@@ -207,6 +207,20 @@ export const CLOSING_TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'agendar_fechamento',
+      description: 'Use quando o lead JÁ ESTÁ FECHANDO (você já pediu/está pedindo os dados) mas ele diz que precisa ESPERAR pra concluir, dando um prazo: "só consigo mês que vem", "dia 15 eu fecho", "próxima quarta te confirmo", "semana que vem eu pago", "quando cair meu pagamento". Agenda o RETORNO de fechamento nesse prazo — o lead fica "Aguardando fechamento" e o bot volta a falar sozinho no dia pra concluir. Sem prazo específico ("depois", "mais tarde") → retorno em 24h. Depois só se despeça confirmando ("Combinado! Te chamo [prazo] pra fecharmos 😊"). NÃO use se o lead quer fechar AGORA (siga o fechamento) nem por desinteresse (descadastrar_lead). Passe o prazo o mais literal possível.',
+      parameters: {
+        type: 'object',
+        properties: {
+          prazo: { type: 'string', description: 'O prazo dito pelo lead, literal. Ex: "mês que vem", "dia 15", "próxima quarta", "semana que vem". Vazio/"depois" → retorno em 24h.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'descadastrar_lead',
       description: 'Use SÓ em recusa EXTREMA e clara: "não tenho interesse", "não quero mais", "para de me mandar mensagem", "me tira da lista". Tira o lead de circulação (NUNCA_MAIS) — sai do follow-up/RMKT, evitando bloqueio e denúncia por insistência. Depois só uma despedida curta e educada. NÃO use por hesitação ("vou pensar", "deixa pra depois") — isso é agendar_retorno_cliente ou nada. NÃO confunda com escalar_suporte (irritação que quer humano).',
       parameters: {
@@ -408,6 +422,18 @@ export async function executeClosingTool(ctx: ToolCtx): Promise<any> {
         // (parse_prazo_followup). Se não entender, agenda +3 dias de fallback.
         const { data, error } = await supabase.rpc('agendar_followup_custom', {
           p_contato_id: contato_id, p_texto: prazo,
+        })
+        if (error) return { error: error.message }
+        return data ?? { ok: true }
+      }
+
+      case 'agendar_fechamento': {
+        // Lead já em fechamento pediu prazo → Aguardando fechamento AGENDADO.
+        // Fica em em_fechamento (bot ativo), o rail de follow-up reengaja no dia.
+        // Sem prazo → +24h (tratado na RPC).
+        const prazo = String(args.prazo || '').trim()
+        const { data, error } = await supabase.rpc('agendar_aguardando_fechamento', {
+          p_contato_id: contato_id, p_texto: prazo || null,
         })
         if (error) return { error: error.message }
         return data ?? { ok: true }

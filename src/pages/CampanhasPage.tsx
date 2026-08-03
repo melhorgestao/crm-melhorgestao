@@ -121,9 +121,10 @@ export default function CampanhasPage() {
       ) : (
         <div className="space-y-6">
           {([
-            { key: 'marketing', label: 'MARKETING', tipos: ['ativacao', 'marketing'] },
-            { key: 'followup',  label: 'FOLLOW-UP', tipos: ['followup'] },
-            { key: 'rmkt',      label: 'RMKT',      tipos: ['rmkt'] },
+            { key: 'marketing',  label: 'MARKETING',  tipos: ['ativacao', 'marketing'] },
+            { key: 'followup',   label: 'FOLLOW-UP',  tipos: ['followup'] },
+            { key: 'fechamento', label: 'FECHAMENTO', tipos: ['fechamento'] },
+            { key: 'rmkt',       label: 'RMKT',       tipos: ['rmkt'] },
           ] as const).map(secao => {
             const grupo = campanhas!.filter(c => (secao.tipos as readonly string[]).includes(c.tipo));
             if (grupo.length === 0) return null;
