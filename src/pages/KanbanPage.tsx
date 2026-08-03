@@ -526,7 +526,7 @@ const KanbanCard = memo(({
                 </Button>
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-indigo-500 hover:bg-indigo-500/10"
-                  title="Mover pra Aguardando fechamento (aguardando pagamento/data)"
+                  title="Fechamento Agendado"
                   onClick={() => onMoverAguardando(contact)}
                 >
                   <Hourglass className="w-3.5 h-3.5" />
@@ -554,9 +554,9 @@ const KanbanCard = memo(({
               </Button>
             )}
             {/* Suporte/Reativar (comando /humano ↔ /voltar). Ícone de atendente
-                com headset (mais claro que "pause"). Aguardando fechamento já
-                está com o bot pausado (estado suporte) — não mostra headset. */}
-            {column !== 'suporte' && !isAguardando && (
+                com headset (mais claro que "pause"). Aparece em todas as colunas
+                exceto suporte — inclusive no Fechamento Agendado (bot ativo). */}
+            {column !== 'suporte' && (
               botPausado ? (
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
@@ -581,7 +581,7 @@ const KanbanCard = memo(({
               <>
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-indigo-500 hover:bg-indigo-500/10"
-                  title="Mover pra Aguardando fechamento (aguardando pagamento/data)"
+                  title="Fechamento Agendado"
                   onClick={() => onMoverAguardando(contact)}
                 >
                   <Hourglass className="w-3.5 h-3.5" />
@@ -595,10 +595,17 @@ const KanbanCard = memo(({
                 </Button>
               </>
             )}
-            {/* Aguardando fechamento: [🛒] registrar venda · [X] finaliza
-                (não comprou) e volta ao estado anterior. */}
+            {/* Fechamento Agendado: [📅] editar agendamento · [🛒] registrar
+                venda · [X] finaliza (não comprou) e volta ao estado anterior. */}
             {isAguardando && (
               <>
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-indigo-500 hover:bg-indigo-500/10"
+                  title="Editar agendamento do fechamento"
+                  onClick={() => onMoverAguardando(contact)}
+                >
+                  <CalendarClock className="w-3.5 h-3.5" />
+                </Button>
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
                   title="Registrar venda"
@@ -984,7 +991,8 @@ export default function KanbanPage() {
   // Ampulheta ⏳ (card de suporte ou de negociação) → abre o calendário pra
   // AGENDAR o "aguardando fechamento". O bot fica ativo e reengaja no dia.
   const moverParaAguardando = (c: Contact) => {
-    setAgendarFechDate(undefined);
+    // pré-seleciona a data já agendada (modo edição), senão vazio
+    setAgendarFechDate(c.fechamento_agendado_em ? new Date(c.fechamento_agendado_em) : undefined);
     setAgendarFechTarget(c);
   };
 
@@ -1333,7 +1341,7 @@ export default function KanbanPage() {
                     <SelectContent>
                       <SelectItem value="todos">Todos</SelectItem>
                       <SelectItem value="negociacao">🤝 Em negociação</SelectItem>
-                      <SelectItem value="aguardando">⏳ Aguardando fechamento (Suporte)</SelectItem>
+                      <SelectItem value="aguardando">⏳ Fechamento Agendado</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
