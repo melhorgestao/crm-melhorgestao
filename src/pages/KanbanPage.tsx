@@ -1318,10 +1318,10 @@ export default function KanbanPage() {
                     <SelectContent>
                       <SelectItem value="todos">Todos os F-up</SelectItem>
                       <SelectItem value="custom">🗓️ Custom (agendado)</SelectItem>
-                      <SelectItem value="wait">⏳ Wait (aguardando 1º)</SelectItem>
+                      <SelectItem value="wait">Wait (aguardando 1º)</SelectItem>
                       <SelectItem value="1">1/3 (F-UP + Wait)</SelectItem>
                       <SelectItem value="2">2/3 (F-UP + Wait)</SelectItem>
-                      <SelectItem value="3">3/3 (F-UP + Wait)</SelectItem>
+                      <SelectItem value="3">3/3 (F-UP) — 24h antes do fim</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
