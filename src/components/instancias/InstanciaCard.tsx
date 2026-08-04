@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Crown, Settings, Pause, Play, MessageCircleMore, MessageSquare } from 'lucide-react';
+import { Crown, Settings, Pause, Play, MessageCircleMore, MessageSquare, ArrowDown, ArrowUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { getConnectionState } from '@/lib/evolutionApi';
 
@@ -38,14 +40,17 @@ const STATUS_LABEL: Record<string, string> = {
   pausado_admin: 'Pausada (admin)',
 };
 
+type Periodo = 'hoje' | 'ontem' | 'semana' | 'mes';
+
 export function InstanciaCard({ instancia, onOpenDetails, onTogglePause, onToggleMudo }: Props) {
   const i = instancia;
+  const [periodo, setPeriodo] = useState<Periodo>('hoje');
 
   // métricas
   const { data: metricas } = useQuery({
-    queryKey: ['instancia_metricas', i.id],
+    queryKey: ['instancia_metricas', i.id, periodo],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('instancia_metricas', { p_id: i.id });
+      const { data, error } = await supabase.rpc('instancia_metricas' as any, { p_id: i.id, p_periodo: periodo });
       if (error) throw error;
       return data as { clientes: number; ads: number; base: number; rep: number; conv_in: number; conv_out: number };
     },
@@ -127,15 +132,30 @@ export function InstanciaCard({ instancia, onOpenDetails, onTogglePause, onToggl
         <Row label="REP/C-REP" value={metricas?.rep ?? '—'} />
       </div>
 
-      {/* Conversas hoje */}
+      {/* Conversas por período */}
       <div className="bg-muted/50 rounded-lg px-3 py-2 mb-3 flex items-center justify-between text-sm">
-        <div className="flex items-center gap-1.5">
-          <MessageCircleMore className="w-4 h-4 text-muted-foreground" />
-          <span className="text-muted-foreground">Conversas hoje</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <MessageCircleMore className="w-4 h-4 text-muted-foreground shrink-0" />
+          <span className="text-muted-foreground">Conversas</span>
+          <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
+            <SelectTrigger className="h-6 w-[104px] text-xs px-2 py-0 border-none bg-transparent hover:bg-muted focus:ring-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="hoje">Hoje</SelectItem>
+              <SelectItem value="ontem">Ontem</SelectItem>
+              <SelectItem value="semana">Essa semana</SelectItem>
+              <SelectItem value="mes">Esse mês</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <div className="flex gap-3 font-semibold tabular-nums">
-          <span title="recebidas">{metricas?.conv_in ?? '—'} ↙</span>
-          <span title="enviadas">{metricas?.conv_out ?? '—'} ↗</span>
+        <div className="flex gap-3 font-semibold tabular-nums shrink-0">
+          <span className="flex items-center gap-0.5 text-emerald-600" title="Recebidas — o lead te escreveu (1 por conversa, mesmo respondendo)">
+            <ArrowDown className="w-3.5 h-3.5" />{metricas?.conv_in ?? '—'}
+          </span>
+          <span className="flex items-center gap-0.5 text-blue-600" title="Abertas — você iniciou a conversa (disparo/proativo, sem o lead ter escrito)">
+            <ArrowUp className="w-3.5 h-3.5" />{metricas?.conv_out ?? '—'}
+          </span>
         </div>
       </div>
 
