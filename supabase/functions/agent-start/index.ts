@@ -16,7 +16,7 @@
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { buildSystemPrompt, type Contato } from './prompt.ts'
+import { buildSystemPrompt, formatarCardapio, type Contato } from './prompt.ts'
 import { TOOL_SCHEMAS, executeTool, resolverFotoProduto, detectarProdutosNoTexto } from './tools.ts'
 
 const corsHeaders = {
@@ -230,9 +230,7 @@ Deno.serve(async (req) => {
       // aumentar a largura da bolha do WhatsApp e melhorar leitura.
       const bloco2Header = String(apresentacaoCfg.bloco2_header || '📋 *Nosso cardápio:*')
       const bloco2Footer = String(apresentacaoCfg.bloco2_footer || '')
-      const linhasCardapio = (catalogo || [])
-        .map(p => `${p.emoji || '•'} ${p.nome_oficial}\n   R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
-        .join('\n\n') || '(catálogo vazio)'
+      const linhasCardapio = formatarCardapio(catalogo)
       const bloco2 = [bloco2Header, '', linhasCardapio, bloco2Footer ? '\n' + bloco2Footer : ''].join('\n').trim()
 
       const bloco3 = String(apresentacaoCfg.bloco3_bonus

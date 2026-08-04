@@ -35,6 +35,34 @@ interface ProdutoCat {
   emoji?: string
 }
 
+// Formata o cardápio pra WhatsApp de forma LIMPA e legível.
+// Problema antigo: nome longo do óleo ("CBD Full Spectrum 4.000 mg /30 mls")
+// quebrava no meio, isolando "mg" e deixando "/30 mls" confuso.
+// Solução: nome-base na 1ª linha (curto) + "dosagem · volume — preço" numa 2ª
+// linha compacta. Produtos sem dosagem (gummy, pomada...) ficam em 1 linha só.
+export function formatarCardapio(catalogo: ProdutoCat[]): string {
+  const precoBR = (v: number) =>
+    `R$ ${Number(v || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`
+  const linha = (p: ProdutoCat) => {
+    const emoji = p.emoji || '•'
+    const nome = String(p.nome_oficial || '').trim()
+    const preco = precoBR(Number(p.preco || 0))
+    // separa base + especificação a partir do 1º "<número> mg"
+    const m = nome.match(/^(.*?)(\d[\d.,]*\s*mg.*)$/i)
+    if (m && m[1].trim()) {
+      const base = m[1].trim()
+      const spec = m[2]
+        .replace(/(\d)\s*mg/i, '$1mg')                 // "4.000 mg" → "4.000mg"
+        .replace(/\s*\/\s*(\d+)\s*m?ls?\b/i, ' · $1ml') // "/30 mls" → " · 30ml"
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+      return `${emoji} ${base}\n${spec} — ${preco}`
+    }
+    return `${emoji} ${nome} — ${preco}`
+  }
+  return (catalogo || []).map(linha).join('\n\n') || '(catálogo vazio)'
+}
+
 interface Cupom {
   nome: string
   desconto_pct: number
@@ -94,10 +122,8 @@ export function buildSystemPrompt({
     .map(p => `- #${p.order_number} (${p.data}) ${p.produto} x${p.quantidade} R$${p.valor} [${p.status_pedido}]`)
     .join('\n') || '(nenhum pedido anterior)'
 
-  // Lista de produtos formatada
-  const linhasCardapio = (catalogo || [])
-    .map(p => `${p.emoji || '•'} ${p.nome_oficial}\n   R$ ${Number(p.preco || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`)
-    .join('\n\n') || '(catálogo vazio)'
+  // Lista de produtos formatada (layout limpo pro WhatsApp)
+  const linhasCardapio = formatarCardapio(catalogo)
 
   const clienteBlock = jaComprou ? `
 
