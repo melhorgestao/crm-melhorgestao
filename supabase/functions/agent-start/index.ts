@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         .eq('contato_id', contato_id)
         .order('recebida_em', { ascending: false }).limit(20),
       supabase.from('produtos')
-        .select('tag,nome_oficial,preco,emoji')
+        .select('tag,nome_oficial,preco,emoji,grupo_id')
         .eq('ativo', true)
         .order('preco', { ascending: true }),
       supabase.rpc('cupom_para_contato', { p_contato_id: contato_id }),
@@ -110,7 +110,21 @@ Deno.serve(async (req) => {
     const pendencia = pendenciaRes.data ?? {}
     const msgsOutCount = msgOutRes.count ?? 0
     const history = (historyRes.data ?? []).slice().reverse()
-    const catalogo = (catalogoRes.data ?? []) as Array<{ tag?: string; nome_oficial?: string; preco?: number; emoji?: string }>
+    const catalogo = (catalogoRes.data ?? []) as Array<{ tag?: string; nome_oficial?: string; preco?: number; emoji?: string; grupo_id?: string | null }>
+    // Ordena o cardápio: óleos medicinais primeiro, e os grupos de acessório
+    // (vapor / refil / pen / bateria) SEMPRE por último — pra não misturar
+    // bateria no meio dos óleos. Dentro de cada bloco, mantém por preço asc.
+    try {
+      const { data: gruposData } = await supabase.from('produtos_grupos').select('id,nome')
+      const nomeGrupo = new Map<string, string>((gruposData ?? []).map((g: any) => [g.id, String(g.nome || '')]))
+      const ehAcessorio = (p: { grupo_id?: string | null; tag?: string; nome_oficial?: string }) => {
+        const alvo = `${nomeGrupo.get(p.grupo_id || '') || ''} ${p.tag || ''} ${p.nome_oficial || ''}`.toLowerCase()
+        return /vapor|refil|\bpen\b|bateria/.test(alvo)
+      }
+      catalogo.sort((a, b) =>
+        (ehAcessorio(a) ? 1 : 0) - (ehAcessorio(b) ? 1 : 0)
+        || (Number(a.preco || 0) - Number(b.preco || 0)))
+    } catch (_) { /* se falhar, mantém a ordem por preço */ }
     const cupom = cupomRes.data as { nome: string; desconto_pct: number; expira_em?: string | null } | null
     const config = (configRes.data ?? {}) as Record<string, any>
     const apresentacaoCfg = (apresentacaoCfgRes.data ?? {}) as Record<string, any>

@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
         .eq('id', contato_id).maybeSingle(),
       supabase.rpc('consultar_pendencia_contato', { p_contato_id: contato_id }).maybeSingle(),
       supabase.from('produtos')
-        .select('tag,nome_oficial,preco,emoji')
+        .select('tag,nome_oficial,preco,emoji,grupo_id')
         .eq('ativo', true)
         .order('preco', { ascending: true }),
       supabase.from('mensagens_buffer')
@@ -94,6 +94,18 @@ Deno.serve(async (req) => {
     const fotosEnviadas: string[] = Array.isArray((contato as any).fotos_enviadas) ? (contato as any).fotos_enviadas : []
     const pendencia = pendenciaRes.data ?? {}
     const catalogo: ProdutoCat[] = (catalogoRes.data ?? []) as ProdutoCat[]
+    // Vapor / refil / pen / bateria por último (não misturar com os óleos).
+    try {
+      const { data: gruposData } = await supabase.from('produtos_grupos').select('id,nome')
+      const nomeGrupo = new Map<string, string>((gruposData ?? []).map((g: any) => [g.id, String(g.nome || '')]))
+      const ehAcessorio = (p: any) => {
+        const alvo = `${nomeGrupo.get(p.grupo_id || '') || ''} ${p.tag || ''} ${p.nome_oficial || ''}`.toLowerCase()
+        return /vapor|refil|\bpen\b|bateria/.test(alvo)
+      }
+      catalogo.sort((a: any, b: any) =>
+        (ehAcessorio(a) ? 1 : 0) - (ehAcessorio(b) ? 1 : 0)
+        || (Number(a.preco || 0) - Number(b.preco || 0)))
+    } catch (_) { /* mantém ordem por preço se falhar */ }
     const history = (historyRes.data ?? []).slice().reverse()
     const pedidoAberto = pedidoAbertoRes.data ?? null
 
