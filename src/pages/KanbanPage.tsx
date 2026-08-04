@@ -513,8 +513,31 @@ const KanbanCard = memo(({
               (touch, sem hover) ficam sempre visíveis. opacity-0 preserva o
               espaço → sem "pulo" de layout ao revelar. */}
           <div className="flex items-center gap-1 shrink-0 opacity-100 transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
-            {/* Suporte: [✓] realizado · [🛒] registrar venda. Sem pause/play
-                (bot já está pausado neste estado). */}
+            {/* [SUP] Suporte/Reativar (/humano ↔ /voltar) — SEMPRE o 1º à
+                esquerda em todas as colunas (menos a própria Suporte). Ícone de
+                atendente com headset. Aparece inclusive no Fechamento Agendado. */}
+            {column !== 'suporte' && (
+              botPausado ? (
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
+                  title="Reativar bot (/voltar)"
+                  onClick={() => reativarBot(contact)}
+                >
+                  <Play className="w-3.5 h-3.5" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:bg-amber-500/10"
+                  title="Levar pro suporte — humano atendendo (/humano)"
+                  onClick={() => pausarBot(contact)}
+                >
+                  <Headset className="w-3.5 h-3.5" />
+                </Button>
+              )
+            )}
+            {/* Suporte: [✓] realizado · [⏳] agendar fechamento · [🛒] registrar
+                venda. O carrinho fica SÓ aqui (bot mudo no suporte evita fechar
+                simultaneamente com o agente). */}
             {column === 'suporte' && (
               <>
                 <Button
@@ -540,8 +563,7 @@ const KanbanCard = memo(({
                 </Button>
               </>
             )}
-            {/* Agendar retorno manual (F-UP Custom). Só na coluna Follow-up —
-                não faz sentido em Fechamento. */}
+            {/* Follow-up: [📅] agendar retorno manual (F-UP Custom). */}
             {column === 'follow_up' && (
               <Button
                 variant="ghost" size="icon"
@@ -553,30 +575,7 @@ const KanbanCard = memo(({
                 <CalendarClock className="w-3.5 h-3.5" />
               </Button>
             )}
-            {/* Suporte/Reativar (comando /humano ↔ /voltar). Ícone de atendente
-                com headset (mais claro que "pause"). Aparece em todas as colunas
-                exceto suporte — inclusive no Fechamento Agendado (bot ativo). */}
-            {column !== 'suporte' && (
-              botPausado ? (
-                <Button
-                  variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
-                  title="Reativar bot (/voltar)"
-                  onClick={() => reativarBot(contact)}
-                >
-                  <Play className="w-3.5 h-3.5" />
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:bg-amber-500/10"
-                  title="Levar pro suporte — humano atendendo (/humano)"
-                  onClick={() => pausarBot(contact)}
-                >
-                  <Headset className="w-3.5 h-3.5" />
-                </Button>
-              )
-            )}
-            {/* Fechamento — em negociação: [⏳] mover pra Aguardando fechamento ·
-                [X] finaliza e retroage ao estado anterior (com confirmação). */}
+            {/* Fechamento — em negociação: [⏳] agendar fechamento · [X] finaliza. */}
             {column === 'em_fechamento' && !isAguardando && (
               <>
                 <Button
@@ -595,8 +594,8 @@ const KanbanCard = memo(({
                 </Button>
               </>
             )}
-            {/* Fechamento Agendado: [📅] editar agendamento · [🛒] registrar
-                venda · [X] finaliza (não comprou) e volta ao estado anterior. */}
+            {/* Fechamento Agendado: [📅] editar agendamento · [X] finaliza (não
+                comprou). SEM carrinho — venda só pelo Suporte. */}
             {isAguardando && (
               <>
                 <Button
@@ -605,13 +604,6 @@ const KanbanCard = memo(({
                   onClick={() => onMoverAguardando(contact)}
                 >
                   <CalendarClock className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  variant="ghost" size="icon" className="h-7 w-7 text-sf-green hover:bg-sf-green/10"
-                  title="Registrar venda"
-                  onClick={() => setVendaTarget(contact)}
-                >
-                  <ShoppingCart className="w-3.5 h-3.5" />
                 </Button>
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
