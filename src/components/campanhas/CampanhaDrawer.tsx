@@ -428,7 +428,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                 />
                 <p className="text-[10px] text-muted-foreground">
                   Base do intervalo entre envios (o sistema aplica a variação abaixo).
-                  <strong> Ativação: 5min</strong>. <strong>RMKT/Follow-up: 30min</strong> recomendado. Pode ir de 1 a 1440 (24h).
+                  <strong> Ativação: 5min</strong>. <strong>Follow-up / Fechamento Custom / RMKT: mínimo 15min</strong> recomendado (leads quentes; o jitter mantém humano). Pode ir de 1 a 1440 (24h).
                 </p>
                 {campanha.ultima_execucao_em && (
                   <p className="text-[10px] text-muted-foreground">
