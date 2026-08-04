@@ -115,6 +115,23 @@ perguntar de produto específico.
   // Textos editáveis via UI (com fallback hardcoded)
   const textoApresentacao = String(config.texto_apresentacao || CARDAPIO)
   const cardapioHeader    = String(config.cardapio_header   || '📋 *Nosso cardápio:*')
+
+  // CARDÁPIO OFICIAL — fonte de verdade dos preços (tabela produtos). SEMPRE no
+  // prompt: é daqui que sai TODO preço citado. Corrige alucinação de preço
+  // (antes o agente buscava preço nos chunks do buscar_conhecimento) e permite
+  // reenviar o cardápio quando o cliente pede, mesmo fora da 1ª interação.
+  const catalogoBlock = `
+
+=== 📋 CARDÁPIO OFICIAL — FONTE DE VERDADE DOS PREÇOS ===
+Esta é a ÚNICA tabela de preços válida. Todo preço que você citar vem EXATAMENTE daqui:
+${cardapioHeader}
+${linhasCardapio}
+
+REGRAS DE PREÇO (inquebráveis):
+- NUNCA invente, estime, arredonde ou "lembre" preço. Preço vem SÓ da tabela acima.
+- NUNCA use preço vindo do buscar_conhecimento (os chunks podem estar velhos). buscar_conhecimento serve pra indicação/patologia/ingredientes/FAQ — NUNCA pra preço.
+- Produto que NÃO está na tabela acima → não tem preço pra passar: diga que vai confirmar e chame escalar_suporte (motivo='fora_do_escopo').
+- Quando o cliente pedir "cardápio", "tabela", "portfólio", "lista de produtos", "o que vocês têm", "preços", "quanto custa" → ENVIE a lista acima (emoji + nome + preço). NUNCA se recuse a mandar o cardápio.`
   // Regras de bônus vêm dos chunks RAG quando cliente perguntar — não enviamos hardcoded aqui.
 
   // Bloco final muda conforme primeira mensagem do cliente:
@@ -169,7 +186,7 @@ COMPORTAMENTO ESPECIAL:
 • Cidade: ${cidade || 'não informada'}
 • contato_id: ${contato.id || '(novo)'}
 • Estado atual: ${contato.ultima_interacao || 'novo'}
-${clienteBlock}${welcomeBlock}
+${clienteBlock}${welcomeBlock}${catalogoBlock}
 === HISTÓRICO DE PEDIDOS ===
 ${pedidosResumo}${pendBlock}
 
@@ -220,7 +237,7 @@ ${pedidosResumo}${pendBlock}
    "Legal — qual sua necessidade principal? (dor, ansiedade, sono, dermatológico…)".
 
 === REGRAS DE TOOLS ===
-1. SEMPRE chame buscar_conhecimento antes de responder sobre produto, preço, bônus, FAQ, indicação por patologia.
+1. SEMPRE chame buscar_conhecimento antes de responder sobre produto, indicação por patologia, ingredientes, bônus, FAQ. NÃO use buscar_conhecimento pra PREÇO — preço vem SÓ do CARDÁPIO OFICIAL acima.
 2. Para frete/prazo, USE consultar_cep (peça o CEP se não tiver).
 3. Para "onde tá meu pedido?", USE consultar_rastreio.
 4. Para "qual meu último pedido?" / valores, USE consultar_pedido.

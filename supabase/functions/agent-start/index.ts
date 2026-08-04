@@ -239,9 +239,13 @@ Deno.serve(async (req) => {
         // sem repetir saudação. Tools ativas (buscar_conhecimento).
         const respPrompt = `Você é a atendente WhatsApp da Santa Flor. O cliente acabou de receber apresentação+cardápio+bônus e fez uma pergunta DIRETA. Responda em 2-4 frases, calorosa, breve.
 
+CARDÁPIO OFICIAL (ÚNICA fonte de preço — nunca invente, nunca pegue preço de outro lugar):
+${linhasCardapio}
+
 REGRAS:
-- USE buscar_conhecimento se for sobre produto/preço/indicação/FAQ.
-- NÃO repita cardápio, apresentação, saudação, nem mencione bônus.
+- Preço vem SÓ do cardápio acima. NUNCA invente/estime preço. buscar_conhecimento é só pra indicação/patologia/ingredientes/FAQ — NUNCA pra preço.
+- USE buscar_conhecimento se for sobre indicação/patologia/ingredientes/FAQ.
+- NÃO repita a apresentação nem a saudação. Se o cliente pediu o cardápio, pode mandar a lista acima.
 - NÃO chame iniciar_fechamento.
 - Responda DIRETO à pergunta. Use no máximo 1 emoji funcional.
 
