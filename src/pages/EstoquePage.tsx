@@ -1050,9 +1050,9 @@ export default function EstoquePage() {
         <TabsContent value="cadastro" className="space-y-4">
           <div className="flex justify-between items-center">
             <p className="text-sm text-muted-foreground">
-              {selectedGroupInCadastro 
-                ? `Produtos do grupo: ${selectedGroupInCadastro.nome}` 
-                : `${produtos.length} produtos cadastrados`}
+              {selectedGroupInCadastro
+                ? <>Produtos do grupo: <span className="font-semibold text-foreground">{selectedGroupInCadastro.nome}</span></>
+                : <><span className="font-semibold text-foreground tabular-nums">{produtos.length}</span> produtos cadastrados</>}
             </p>
             <div className="flex gap-2">
               {selectedGroupInCadastro && (
@@ -1060,7 +1060,7 @@ export default function EstoquePage() {
                   Voltar
                 </Button>
               )}
-              <Button onClick={() => { resetForm(); setEditProduct(null); setShowAddProduct(true); }} className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground">
+              <Button onClick={() => { resetForm(); setEditProduct(null); setShowAddProduct(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full">
                 <Plus className="w-4 h-4 mr-2" /> Novo Produto
               </Button>
             </div>
@@ -1070,7 +1070,7 @@ export default function EstoquePage() {
           {!selectedGroupInCadastro && (
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <h3 className="font-semibold text-sm flex items-center gap-1"><MapPin className="w-4 h-4" /> UFs de Estoque</h3>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> UFs de Estoque</span>
                 <div className="flex gap-2">
                   <Button variant="link" size="sm" onClick={() => setShowAddUf(true)}>
                     <Plus className="w-3 h-3 mr-1" /> Nova UF
@@ -1121,31 +1121,31 @@ export default function EstoquePage() {
           {!selectedGroupInCadastro && (
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <h3 className="font-semibold text-sm">Grupos (clique para ver produtos)</h3>
-                <Button variant="link" size="sm" onClick={() => setShowCreateGroup(true)}>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grupos · clique para ver produtos</span>
+                <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setShowCreateGroup(true)}>
                   <Plus className="w-3 h-3 mr-1" /> Novo Grupo
                 </Button>
               </div>
-              <div className="overflow-x-auto">
+              <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b font-bold">
-                      <th className="text-left py-2">Grupo</th>
-                      <th className="text-left py-2">Produtos</th>
-                      <th className="text-left py-2">Ações</th>
+                    <tr className="border-b border-border/60 bg-muted/30 text-[11px] uppercase tracking-wider text-muted-foreground">
+                      <th className="text-left font-semibold px-4 py-2.5">Grupo</th>
+                      <th className="text-left font-semibold px-4 py-2.5">Produtos</th>
+                      <th className="text-left font-semibold px-4 py-2.5">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     {grupos
                       .slice(pageGrupos * PAGE_SIZE_GRUPOS, (pageGrupos + 1) * PAGE_SIZE_GRUPOS)
                       .map(g => (
-                      <tr key={g.id} className="border-b border-border/50 cursor-pointer hover:bg-muted/50" onClick={() => { setSelectedGroupInCadastro(g); setPageProdutosCadastro(0); }}>
-                        <td className="py-2 flex items-center gap-2">
-                          <div className="w-4 h-4 rounded" style={{ backgroundColor: g.cor_grupo || '#f8fafc' }} />
+                      <tr key={g.id} className="border-b border-border/40 last:border-0 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => { setSelectedGroupInCadastro(g); setPageProdutosCadastro(0); }}>
+                        <td className="px-4 py-2.5 flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full ring-1 ring-border/50" style={{ backgroundColor: g.cor_grupo || '#f8fafc' }} />
                           <span className="font-medium">{g.nome}</span>
                         </td>
-                        <td className="py-2">{produtos.filter(p => p.grupo_id === g.id).length}</td>
-                        <td className="py-2">
+                        <td className="px-4 py-2.5 tabular-nums">{produtos.filter(p => p.grupo_id === g.id).length}</td>
+                        <td className="px-4 py-2.5">
                           <div className="flex gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); openEditGroup(g); }}>
                               <Edit2 className="w-4 h-4" />
@@ -1175,45 +1175,48 @@ export default function EstoquePage() {
           )}
 
           {/* Lista de produtos em tabela */}
-          <h3 className="font-semibold text-sm mb-4 mt-8">Produtos</h3>
-          <div className="overflow-x-auto">
+          <h3 className="font-display font-bold text-lg mb-3 mt-8">Produtos</h3>
+          <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b font-bold">
-                  <th className="text-left py-2">Nome Oficial</th>
-                  <th className="text-left py-2">Tag</th>
-                  <th className="text-left py-2">Grupo</th>
-                  <th className="text-right py-2">Preço</th>
-                  <th className="text-left py-2">Status</th>
-                  <th className="text-left py-2">Ações</th>
+                <tr className="border-b border-border/60 bg-muted/30 text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <th className="text-left font-semibold px-4 py-2.5">Nome Oficial</th>
+                  <th className="text-left font-semibold px-4 py-2.5">Tag</th>
+                  <th className="text-left font-semibold px-4 py-2.5">Grupo</th>
+                  <th className="text-right font-semibold px-4 py-2.5">Preço</th>
+                  <th className="text-left font-semibold px-4 py-2.5">Status</th>
+                  <th className="text-left font-semibold px-4 py-2.5">Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {(selectedGroupInCadastro 
+                {(selectedGroupInCadastro
                   ? produtos.filter(p => p.grupo_id === selectedGroupInCadastro.id)
                   : produtos
                 ).slice(pageProdutosCadastro * PAGE_SIZE_PRODUTOS_CADASTRO, (pageProdutosCadastro + 1) * PAGE_SIZE_PRODUTOS_CADASTRO).map(p => (
-                  <tr key={p.id} className="border-b border-border/50">
-                    <td className="py-2 font-medium">{p.nome_oficial}</td>
-                    <td className="py-2">{p.tag}</td>
-                    <td className="py-2">
+                  <tr key={p.id} className="border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors">
+                    <td className="px-4 py-2.5 font-medium">{p.nome_oficial}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{p.tag}</td>
+                    <td className="px-4 py-2.5">
                       {p.produtos_grupos?.nome || (
-                        <Badge variant="outline" className="text-xs">Sem grupo</Badge>
+                        <span className="text-[10px] text-muted-foreground">Sem grupo</span>
                       )}
                     </td>
-                    <td className="py-2 text-right tabular-nums">
+                    <td className="px-4 py-2.5 text-right tabular-nums">
                       {p.preco != null ? `R$ ${Number(p.preco).toFixed(2).replace('.', ',')}` : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
-                    <td className="py-2">
-                      <Badge
-                        variant={p.ativo ? 'default' : 'secondary'}
-                        className={cn('cursor-pointer', !p.ativo && 'bg-red-100 text-red-700')}
+                    <td className="px-4 py-2.5">
+                      <button
                         onClick={() => toggleProductStatus(p)}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium border transition-colors',
+                          p.ativo ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-muted text-muted-foreground border-border/60'
+                        )}
                       >
+                        <span className={cn('w-1.5 h-1.5 rounded-full', p.ativo ? 'bg-emerald-500' : 'bg-muted-foreground/50')} />
                         {p.ativo ? 'Ativo' : 'Inativo'}
-                      </Badge>
+                      </button>
                     </td>
-                    <td className="py-2">
+                    <td className="px-4 py-2.5">
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditProduct(p)}>
                           <Edit2 className="w-4 h-4" />
