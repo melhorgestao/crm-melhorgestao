@@ -41,13 +41,15 @@ BEGIN
   GET DIAGNOSTICS v_hit = ROW_COUNT;
   IF v_hit THEN RETURN jsonb_build_object('ok', true, 'tipo', 'fechamento'); END IF;
 
-  -- CUSTOM: acabou de disparar o follow-up personalizado (retorno agendado, o
-  -- lead AINDA NÃO demonstrou intenção de compra). CONTINUA em follow_up — só
-  -- vai pra em_fechamento se demonstrar intenção (o router trata na resposta).
-  -- O custom É um toque de follow-up: CONSOME a cadência (conta 2/3, teto 3).
+  -- CUSTOM: acabou de disparar o follow-up personalizado (lead disse "vou
+  -- pensar" e agendou retorno; AINDA NÃO demonstrou intenção de compra).
+  -- CONTINUA em follow_up — só vai pra em_fechamento se demonstrar intenção.
+  -- REGRA: o custom normalmente substitui o toque de 4h, então conta direto
+  -- como FOLLOW-UP 2/3 — sobra só o último (+7d, o de desconto especial).
+  -- GREATEST evita regressão se por acaso já estava em 3.
   UPDATE public.contatos
      SET ultima_interacao        = 'follow_up',
-         follow_up_tentativas     = LEAST(COALESCE(follow_up_tentativas, 0) + 1, 3),
+         follow_up_tentativas     = GREATEST(COALESCE(follow_up_tentativas, 0), 2),
          data_ultimo_follow_up    = NOW(),
          followup_custom_em       = NULL,
          follow_up_reservado_ate  = NULL,
