@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { CANAL_HEX } from '@/lib/canal';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,11 +16,11 @@ import { Button } from '@/components/ui/button';
 import { formatBRL, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
-// Paleta consistente por canal/categoria
+// Canal: cores canônicas (mesmas em Dashboard/Pedidos). Demais categorias locais.
 const COLORS = {
-  BASE: '#10b981',     // emerald
-  ADS: '#8b5cf6',      // violet
-  REP: '#f97316',      // orange
+  ADS: CANAL_HEX.ADS,   // azul
+  BASE: CANAL_HEX.BASE, // laranja
+  REP: CANAL_HEX.REP,   // verde-água
   FREE: '#0ea5e9',     // sky
   ETIQUETA: '#ef4444', // red
   LOGISTICA: '#dc2626',// red darker

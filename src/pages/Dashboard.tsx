@@ -11,8 +11,7 @@ import { cn } from '@/lib/utils';
 import { DollarSign, Tag, Package, UserPlus, RefreshCw, TrendingUp, TrendingDown, Target, CreditCard, Users } from 'lucide-react';
 import { XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell, LabelList, AreaChart, Area } from 'recharts';
 
-// Cor por canal (paleta categórica validada CVD-safe — slots 1/2/3 da dataviz).
-const CANAL_CORES: Record<string, string> = { ADS: '#2a78d6', BASE: '#eb6834', REP: '#1baf7a' };
+import { CANAL_HEX as CANAL_CORES } from '@/lib/canal';
 
 // Funil do pipeline (colunas do Kanban + Venda). Cores alinhadas ao acento de
 // cada coluna do Kanban; Venda em verde (resultado).

@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { formatBRL, formatDateShort } from '@/lib/format';
 import { Copy, Download, Trophy, ClipboardCopy, StickyNote, Package, Check, MoreHorizontal, Layers, Percent } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { canalHex } from '@/lib/canal';
 import { getTagDisplayName } from '@/lib/productDisplayNames';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -32,15 +33,17 @@ const valorTotalLista = (p: any): number => {
 };
 
 // ---- UI helpers (linguagem visual moderna, cookbook) -----------------------
-const CANAL_TINT: Record<string, string> = {
-  ADS: 'bg-violet-500/12 text-violet-700 ring-violet-500/20',
-  BASE: 'bg-slate-500/12 text-slate-600 ring-slate-500/20',
-  REP: 'bg-sky-500/12 text-sky-700 ring-sky-500/20',
-  'C-REP': 'bg-sky-500/12 text-sky-700 ring-sky-500/20',
-};
 function CanalPill({ canal }: { canal?: string }) {
   const c = (canal || '—').toUpperCase();
-  return <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1', CANAL_TINT[c] || 'bg-muted text-muted-foreground ring-border')}>{c}</span>;
+  const hex = canalHex(c);
+  return (
+    <span
+      className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+      style={{ background: `${hex}1f`, color: hex, borderColor: `${hex}55` }}
+    >
+      {c}
+    </span>
+  );
 }
 function StatusPill({ status }: { status?: string }) {
   const cfg = status === 'entregue'
@@ -53,6 +56,63 @@ function StatusPill({ status }: { status?: string }) {
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
       {cfg.label}
     </span>
+  );
+}
+
+// Medalha/posição do ranking (top 3 = ouro/prata/bronze).
+function RankBadge({ pos }: { pos: number }) {
+  const medals: Record<number, { ic: string; ring: string; bg: string }> = {
+    1: { ic: '🥇', ring: '#E0B000', bg: '#FFD70018' },
+    2: { ic: '🥈', ring: '#9aa3ad', bg: '#c0c8d012' },
+    3: { ic: '🥉', ring: '#c17a49', bg: '#cd7f3218' },
+  };
+  const m = medals[pos];
+  if (m) return (
+    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full text-base shrink-0"
+      style={{ background: m.bg, boxShadow: `inset 0 0 0 1.5px ${m.ring}` }}>{m.ic}</span>
+  );
+  return <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted text-xs font-semibold text-muted-foreground shrink-0 tabular-nums">{pos}</span>;
+}
+
+// Leaderboard com barras proporcionais ao topo (comparável entre páginas).
+function RankBoard({ title, icon, items, page, setPage, perPage, value, format, bar }: {
+  title: string; icon: string; items: any[]; page: number; setPage: (f: (p: number) => number) => void;
+  perPage: number; value: (r: any) => number; format: (n: number) => string; bar: string;
+}) {
+  const globalMax = items.length ? value(items[0]) : 1;
+  const slice = items.slice((page - 1) * perPage, page * perPage);
+  return (
+    <Card className="rounded-2xl border-border/60 shadow-sm">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2"><span>{icon}</span>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {slice.length === 0 && <p className="text-muted-foreground text-sm py-8 text-center">Nenhum dado no período</p>}
+        {slice.map((r, i) => {
+          const pos = (page - 1) * perPage + i + 1;
+          const v = value(r);
+          const pct = globalMax > 0 ? Math.max(5, (v / globalMax) * 100) : 0;
+          return (
+            <div key={i} className="flex items-center gap-3 py-2 border-b border-border/40 last:border-0">
+              <RankBadge pos={pos} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-sm font-medium truncate">{r.nome}</span>
+                  <span className="text-sm font-semibold tabular-nums shrink-0">{format(v)}</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${pct}%`, background: bar }} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        <div className="flex gap-2 mt-3 justify-end">
+          <Button variant="outline" size="sm" className="rounded-lg" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Anterior</Button>
+          <Button variant="outline" size="sm" className="rounded-lg" disabled={page * perPage >= items.length} onClick={() => setPage(p => p + 1)}>Próxima</Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -939,38 +999,18 @@ export default function PedidosPage() {
             </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader><CardTitle className="text-sm">🥇 Top por Valor Total</CardTitle></CardHeader>
-              <CardContent>
-                {rankValor.slice((rankPageV - 1) * RANK_PER_PAGE, rankPageV * RANK_PER_PAGE).map((r, i) => (
-                  <div key={i} className="flex justify-between py-1.5 border-b border-border/50">
-                    <span className="text-sm font-medium">{(rankPageV - 1) * RANK_PER_PAGE + i + 1}. {r.nome}</span>
-                    <span className="text-sm font-bold text-primary">{formatBRL(r.totalValor)}</span>
-                  </div>
-                ))}
-                {rankValor.length === 0 && <p className="text-muted-foreground text-sm">Nenhum dado</p>}
-                <div className="flex gap-2 mt-2 justify-end">
-                  <Button variant="outline" size="sm" disabled={rankPageV <= 1} onClick={() => setRankPageV(p => p - 1)}>Anterior</Button>
-                  <Button variant="outline" size="sm" disabled={rankPageV * RANK_PER_PAGE >= rankValor.length} onClick={() => setRankPageV(p => p + 1)}>Próxima</Button>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-sm">🥈 Top por Quantidade</CardTitle></CardHeader>
-              <CardContent>
-                {rankQtd.slice((rankPageQ - 1) * RANK_PER_PAGE, rankPageQ * RANK_PER_PAGE).map((r, i) => (
-                  <div key={i} className="flex justify-between py-1.5 border-b border-border/50">
-                    <span className="text-sm font-medium">{(rankPageQ - 1) * RANK_PER_PAGE + i + 1}. {r.nome}</span>
-                    <span className="text-sm font-bold text-primary">{r.totalQtd} pedidos</span>
-                  </div>
-                ))}
-                {rankQtd.length === 0 && <p className="text-muted-foreground text-sm">Nenhum dado</p>}
-                <div className="flex gap-2 mt-2 justify-end">
-                  <Button variant="outline" size="sm" disabled={rankPageQ <= 1} onClick={() => setRankPageQ(p => p - 1)}>Anterior</Button>
-                  <Button variant="outline" size="sm" disabled={rankPageQ * RANK_PER_PAGE >= rankQtd.length} onClick={() => setRankPageQ(p => p + 1)}>Próxima</Button>
-                </div>
-              </CardContent>
-            </Card>
+            <RankBoard
+              title="Top por Valor" icon="💰" items={rankValor}
+              page={rankPageV} setPage={setRankPageV} perPage={RANK_PER_PAGE}
+              value={r => r.totalValor} format={formatBRL}
+              bar="linear-gradient(90deg, #2D5A27, #C9A84C)"
+            />
+            <RankBoard
+              title="Top por Quantidade" icon="📦" items={rankQtd}
+              page={rankPageQ} setPage={setRankPageQ} perPage={RANK_PER_PAGE}
+              value={r => r.totalQtd} format={n => `${n} ped.`}
+              bar="linear-gradient(90deg, #2a78d6, #1baf7a)"
+            />
           </div>
         </TabsContent>
       </Tabs>
