@@ -13,9 +13,12 @@
 -- ('wait_follow_up' | 'follow_up'). em_fechamento e wait_follow_up_custom têm
 -- seus próprios branches ANTES dele. Idempotente (CREATE OR REPLACE).
 --
--- Além disso: o follow-up CUSTOM (wait_follow_up_custom) é uma promessa de
--- retomar pra FECHAR. Ao disparar, o lead agora vai pra em_fechamento (coluna
--- Fechamento / negociação), não mais pra follow_up — o bot fecha na resposta.
+-- Distinção importante (comportamento MANTIDO):
+--   * follow-up CUSTOM (wait_follow_up_custom): retorno agendado, lead ainda
+--     NÃO demonstrou intenção de compra → ao disparar CONTINUA em follow_up.
+--     Só vai pra fechamento se demonstrar intenção (router trata na resposta).
+--   * fechamento CUSTOM (em_fechamento + fechamento_agendado_em): lead JÁ
+--     demonstrou intenção e só agendou retorno → permanece em em_fechamento.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.confirmar_envio_lead(p_contato_id uuid)
@@ -38,13 +41,13 @@ BEGIN
   GET DIAGNOSTICS v_hit = ROW_COUNT;
   IF v_hit THEN RETURN jsonb_build_object('ok', true, 'tipo', 'fechamento'); END IF;
 
-  -- CUSTOM: acabou de disparar o follow-up personalizado (promessa de retomar
-  -- pra fechar). Vai pra em_fechamento (coluna Fechamento, negociação) — o bot
-  -- fecha na resposta. SEM tag agendada. Não volta pra cadência de follow-up.
+  -- CUSTOM: acabou de disparar o follow-up personalizado (retorno agendado, o
+  -- lead AINDA NÃO demonstrou intenção de compra). CONTINUA em follow_up — só
+  -- vai pra em_fechamento se demonstrar intenção (o router trata na resposta).
   UPDATE public.contatos
-     SET ultima_interacao        = 'em_fechamento',
-         data_em_fechamento       = NOW(),
-         fechamento_agendado_em    = NULL,
+     SET ultima_interacao        = 'follow_up',
+         follow_up_tentativas     = GREATEST(COALESCE(follow_up_tentativas, 0), 1),
+         data_ultimo_follow_up    = NOW(),
          followup_custom_em       = NULL,
          follow_up_reservado_ate  = NULL,
          updated_at               = NOW()
