@@ -648,34 +648,37 @@ export default function Dashboard() {
               const hex = TILE_HEX[i] || '#2D5A27';
               return (
                 <Card key={i}
-                  style={{ animationDelay: `${i * 55}ms`, background: `linear-gradient(145deg, ${hex}12, transparent 62%)` }}
+                  style={{ animationDelay: `${i * 55}ms`, background: `linear-gradient(140deg, ${hex}2e, ${hex}0f 58%, transparent)` }}
                   className="sf-rise group rounded-2xl border border-border/60 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-                  <div className="pointer-events-none absolute -right-3 -bottom-4 opacity-[0.06]" style={{ color: hex }}><Icon className="w-24 h-24" /></div>
+                  {/* marca-d'água menor, centralizada à direita */}
+                  <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 opacity-[0.10] transition-transform duration-300 group-hover:scale-105" style={{ color: hex }}>
+                    <Icon className="w-16 h-16" strokeWidth={1.5} />
+                  </div>
                   <CardContent className="relative p-4">
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 mb-3">
                       <span className={cn('inline-flex items-center justify-center w-9 h-9 rounded-xl ring-1 shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3', TINTS[i] || 'bg-primary/10 ring-primary/20 text-primary')}>
                         <Icon className="w-[18px] h-[18px]" />
                       </span>
+                      <span className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{s.label}</span>
                     </div>
                     <p className="font-display text-2xl leading-none font-semibold tracking-tight tabular-nums"><CountUp end={s.raw} format={s.fmt} /></p>
-                    <span className="mt-1.5 block text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{s.label}</span>
                   </CardContent>
                 </Card>
               );
             })}
 
-            {/* Pendentes — acento âmbar/laranja */}
-            <Card style={{ animationDelay: '330ms', background: 'linear-gradient(145deg, #f9731618, transparent 62%)' }}
+            {/* Pendentes — acento laranja */}
+            <Card style={{ animationDelay: '330ms', background: 'linear-gradient(140deg, #f973162e, #f973160f 58%, transparent)' }}
               className="sf-rise group rounded-2xl border border-orange-300/50 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-              <div className="pointer-events-none absolute -right-3 -bottom-4 opacity-[0.07] text-orange-500"><CreditCard className="w-24 h-24" /></div>
+              <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 opacity-[0.10] text-orange-500 transition-transform duration-300 group-hover:scale-105"><CreditCard className="w-16 h-16" strokeWidth={1.5} /></div>
               <CardContent className="relative p-4">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 mb-3">
                   <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl ring-1 ring-orange-500/25 bg-gradient-to-br from-orange-400/25 to-orange-500/5 text-orange-600 shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3">
                     <CreditCard className="w-[18px] h-[18px]" />
                   </span>
+                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">Pendentes</span>
                 </div>
                 <p className="font-display text-2xl leading-none font-semibold tracking-tight tabular-nums text-orange-700"><CountUp end={pendentesTotal} format={formatBRL} /></p>
-                <span className="mt-1.5 block text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">Pendentes</span>
               </CardContent>
             </Card>
           </div>
