@@ -565,13 +565,14 @@ export default function Dashboard() {
 
       {(() => {
         // Acento por métrica (chip do ícone) — dá vida sem poluir.
+        // Chip com gradiente sutil + cor de ring por métrica (sofisticação).
         const TINTS = [
           '', // 0 = herói (Faturamento)
-          'bg-amber-500/12 text-amber-600',   // Ticket
-          'bg-sky-500/12 text-sky-600',       // Produtos
-          'bg-emerald-500/12 text-emerald-600', // Novos
-          'bg-violet-500/12 text-violet-600',   // Recorrentes
-          'bg-teal-500/12 text-teal-600',       // Representantes
+          'bg-gradient-to-br from-amber-400/25 to-amber-500/5 ring-amber-500/25 text-amber-600',     // Ticket
+          'bg-gradient-to-br from-sky-400/25 to-sky-500/5 ring-sky-500/25 text-sky-600',             // Produtos
+          'bg-gradient-to-br from-emerald-400/25 to-emerald-500/5 ring-emerald-500/25 text-emerald-600', // Novos
+          'bg-gradient-to-br from-violet-400/25 to-violet-500/5 ring-violet-500/25 text-violet-600',   // Recorrentes
+          'bg-gradient-to-br from-teal-400/25 to-teal-500/5 ring-teal-500/25 text-teal-600',           // Representantes
         ];
         const hero = statCards[0];
         const HeroIcon = hero.icon;
@@ -586,7 +587,7 @@ export default function Dashboard() {
               <div className="pointer-events-none absolute right-5 bottom-3 opacity-[0.06]"><HeroIcon className="w-24 h-24" /></div>
               <CardContent className="relative p-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/15 backdrop-blur">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-white/30 to-white/5 ring-1 ring-white/25 backdrop-blur shadow-sm">
                     <HeroIcon className="w-4 h-4" />
                   </span>
                   <span className="text-[11px] uppercase tracking-[0.14em] text-white/70">{hero.label}</span>
@@ -607,10 +608,10 @@ export default function Dashboard() {
               const Icon = s.icon;
               return (
                 <Card key={i} style={{ animationDelay: `${i * 55}ms` }}
-                  className="sf-rise rounded-2xl border border-border/60 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+                  className="sf-rise group rounded-2xl border border-border/60 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <span className={cn('inline-flex items-center justify-center w-9 h-9 rounded-xl', TINTS[i] || 'bg-primary/10 text-primary')}>
+                      <span className={cn('inline-flex items-center justify-center w-9 h-9 rounded-xl ring-1 shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3', TINTS[i] || 'bg-primary/10 ring-primary/20 text-primary')}>
                         <Icon className="w-[18px] h-[18px]" />
                       </span>
                     </div>
@@ -623,10 +624,10 @@ export default function Dashboard() {
 
             {/* Pendentes — acento âmbar */}
             <Card style={{ animationDelay: '330ms' }}
-              className="sf-rise rounded-2xl border border-orange-300/50 bg-orange-50/40 dark:bg-orange-950/10 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+              className="sf-rise group rounded-2xl border border-orange-300/50 bg-orange-50/40 dark:bg-orange-950/10 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-orange-500/12 text-orange-600">
+                  <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl ring-1 ring-orange-500/25 bg-gradient-to-br from-orange-400/25 to-orange-500/5 text-orange-600 shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3">
                     <CreditCard className="w-[18px] h-[18px]" />
                   </span>
                 </div>
