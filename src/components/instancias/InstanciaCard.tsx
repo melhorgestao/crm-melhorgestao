@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Crown, Settings, Pause, Play, MessageCircleMore, MessageSquare, ArrowDown, Send } from 'lucide-react';
+import { Crown, Settings, Pause, Play, MessageCircleMore, MessageSquare, ArrowDown, Send, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { getConnectionState } from '@/lib/evolutionApi';
+import { CANAL_HEX } from '@/lib/canal';
 
 export interface InstanciaRow {
   id: string;
@@ -91,15 +92,23 @@ export function InstanciaCard({ instancia, onOpenDetails, onTogglePause, onToggl
 
   const isOn = i.status === 'ativo';
 
+  const connected = i.status === 'ativo' && evoState === 'open';
+  const stats = [
+    { label: 'Clientes', value: metricas?.clientes, hex: '#059669' },
+    { label: 'ADS', value: metricas?.ads, hex: CANAL_HEX.ADS },
+    { label: 'BASE', value: metricas?.base, hex: CANAL_HEX.BASE },
+    { label: 'REP/C-REP', value: metricas?.rep, hex: CANAL_HEX.REP },
+  ];
+
   return (
-    <div className="border rounded-2xl p-4 bg-card hover:shadow-md transition-shadow">
+    <div className="border border-border/60 rounded-2xl p-4 bg-card hover:shadow-lg hover:-translate-y-0.5 transition-all">
       {/* Header */}
-      <div className="flex items-start justify-between gap-2 mb-3">
+      <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span className={cn('w-3 h-3 rounded-full shrink-0', dotClass)} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="font-bold truncate">Instância {i.nome}</h3>
+              <h3 className="font-display font-bold truncate">Instância {i.nome}</h3>
               {i.alerta_admin && (
                 <span title="Destino dos alertas" className="shrink-0">
                   <Crown className="w-4 h-4 text-sf-gold" />
@@ -121,15 +130,33 @@ export function InstanciaCard({ instancia, onOpenDetails, onTogglePause, onToggl
         </Button>
       </div>
 
-      {/* Status text */}
-      <p className="text-xs text-muted-foreground mb-3">{statusText}</p>
+      {/* Status pill */}
+      <div className="mb-3">
+        <span className={cn(
+          'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium border',
+          connected ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            : i.status === 'ativo' ? 'bg-amber-50 text-amber-700 border-amber-200'
+            : 'bg-muted text-muted-foreground border-border/60'
+        )}>
+          <span className={cn('w-1.5 h-1.5 rounded-full', dotClass)} />
+          {statusText}
+        </span>
+      </div>
 
-      {/* Counts contatos */}
-      <div className="space-y-1 text-sm mb-3">
-        <Row label="Clientes" value={metricas?.clientes ?? '—'} valueClass="text-sf-green font-semibold" />
-        <Row label="ADS" value={metricas?.ads ?? '—'} />
-        <Row label="BASE" value={metricas?.base ?? '—'} />
-        <Row label="REP/C-REP" value={metricas?.rep ?? '—'} />
+      {/* Counts contatos — tiles com cores de canal unificadas */}
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        {stats.map(s => (
+          <div
+            key={s.label}
+            className="rounded-xl border border-border/40 px-3 py-2"
+            style={{ background: `linear-gradient(140deg, ${s.hex}24, ${s.hex}0a 60%, transparent)` }}
+          >
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.hex }} />{s.label}
+            </p>
+            <p className="text-lg font-display font-bold tabular-nums leading-tight">{s.value ?? '—'}</p>
+          </div>
+        ))}
       </div>
 
       {/* Conversas por período */}
@@ -167,7 +194,7 @@ export function InstanciaCard({ instancia, onOpenDetails, onTogglePause, onToggl
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium flex items-center gap-1.5">
-              🤫 Agente Mudo
+              <MicOff className={cn('w-3.5 h-3.5', i.agente_mudo ? 'text-amber-600' : 'text-muted-foreground')} /> Agente Mudo
               {i.agente_mudo && (
                 <span className="text-[10px] font-bold uppercase bg-amber-500 text-white rounded px-1.5 py-0.5">ativo</span>
               )}
@@ -185,24 +212,16 @@ export function InstanciaCard({ instancia, onOpenDetails, onTogglePause, onToggl
         <Button
           variant={isOn ? 'outline' : 'default'}
           size="sm"
-          className={cn('flex-1', isOn ? '' : 'bg-sf-green hover:bg-sf-green/90')}
+          className={cn('flex-1 rounded-lg', isOn ? '' : 'text-white border-0 shadow-md shadow-emerald-900/15 transition-transform hover:scale-[1.02] active:scale-95')}
+          style={isOn ? undefined : { background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' }}
           onClick={() => onTogglePause(i)}
         >
           {isOn ? <><Pause className="w-3.5 h-3.5 mr-1" /> Pausar</> : <><Play className="w-3.5 h-3.5 mr-1" /> Reativar</>}
         </Button>
-        <Button variant="outline" size="sm" onClick={() => onOpenDetails(i)}>
+        <Button variant="outline" size="sm" className="rounded-lg" onClick={() => onOpenDetails(i)}>
           Detalhes
         </Button>
       </div>
-    </div>
-  );
-}
-
-function Row({ label, value, valueClass }: { label: string; value: any; valueClass?: string }) {
-  return (
-    <div className="flex justify-between items-center">
-      <span className="text-muted-foreground">{label}:</span>
-      <span className={cn('tabular-nums', valueClass)}>{value}</span>
     </div>
   );
 }

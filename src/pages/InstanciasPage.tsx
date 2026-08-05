@@ -84,13 +84,20 @@ export default function InstanciasPage() {
   return (
     <div className="space-y-4 pb-24">
       <div className="flex items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">Instâncias</h1>
-          <p className="text-xs text-muted-foreground">
-            {isLoading ? 'carregando…' : `${ativas} ativa${ativas !== 1 ? 's' : ''} • ${pausadas} pausada${pausadas !== 1 ? 's' : ''}`}
-          </p>
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-2xl font-display font-bold tracking-tight">Instâncias</h1>
+          {!isLoading && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-medium text-emerald-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {ativas} ativa{ativas !== 1 ? 's' : ''}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted border border-border/60 px-2 py-0.5 font-medium text-muted-foreground">
+                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" /> {pausadas} pausada{pausadas !== 1 ? 's' : ''}
+              </span>
+            </div>
+          )}
         </div>
-        <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)}>
+        <Button variant="outline" size="sm" className="rounded-full" onClick={() => setConfigOpen(true)}>
           <Settings2 className="w-4 h-4 mr-1" /> Configurações
         </Button>
       </div>
@@ -121,7 +128,8 @@ export default function InstanciasPage() {
       {/* FAB */}
       <Button
         onClick={() => setCreateOpen(true)}
-        className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-sf-green hover:bg-sf-green/90 text-primary-foreground z-50"
+        className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-xl shadow-emerald-900/25 text-white z-50 transition-transform hover:scale-105 active:scale-95 border-0"
+        style={{ background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' }}
         size="icon"
       >
         <Plus className="w-6 h-6" />
