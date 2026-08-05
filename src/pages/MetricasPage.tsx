@@ -10,7 +10,7 @@ import { ExternalLink, ArrowRight } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
-import { PieChart, Pie, Cell, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Info, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatBRL, formatPercent } from '@/lib/format';
@@ -997,8 +997,13 @@ export default function MetricasPage() {
     </TooltipProvider>
   );
 
-  const MetricCard = ({ label, value, color = 'bg-card', tip, onClick }: { label: string; value: string; color?: string; tip?: React.ReactNode; onClick?: () => void }) => (
-    <Card className={cn('rounded-2xl border-border/60 shadow-sm transition-all duration-200', color, onClick && 'cursor-pointer hover:shadow-md hover:-translate-y-0.5')} onClick={onClick}>
+  // Fundo suave (gradiente discreto, nunca branco chapado). accent = cor da métrica.
+  const softBg = (accent?: string) => accent
+    ? `linear-gradient(140deg, ${accent}22, ${accent}0a 58%, transparent)`
+    : 'linear-gradient(140deg, hsl(150 16% 95%), transparent 62%)';
+
+  const MetricCard = ({ label, value, color = '', tip, onClick, accent }: { label: string; value: string; color?: string; tip?: React.ReactNode; onClick?: () => void; accent?: string }) => (
+    <Card style={{ background: softBg(accent) }} className={cn('rounded-2xl border-border/60 shadow-sm transition-all duration-200', color, onClick && 'cursor-pointer hover:shadow-md hover:-translate-y-0.5')} onClick={onClick}>
       <CardContent className="p-3">
         <div className="flex items-center gap-1.5">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
@@ -1009,8 +1014,30 @@ export default function MetricasPage() {
     </Card>
   );
 
-  const TopCard = ({ label, value, delta, color, tip, onClick }: { label: string; value: string; delta: DeltaInfo; color: string; tip?: React.ReactNode; onClick?: () => void }) => (
-    <Card className={cn('rounded-2xl border-border/60 shadow-sm transition-all duration-200', color, onClick && 'cursor-pointer hover:shadow-md hover:-translate-y-0.5')} onClick={onClick}>
+  const TopCard = ({ label, value, delta, color = '', tip, onClick, accent, hero }: { label: string; value: string; delta: DeltaInfo; color?: string; tip?: React.ReactNode; onClick?: () => void; accent?: string; hero?: boolean }) => {
+    if (hero) {
+      return (
+        <Card onClick={onClick} style={{ background: 'linear-gradient(140deg, hsl(113 40% 27%), hsl(150 45% 15%))' }}
+          className={cn('rounded-2xl border-0 text-white shadow-xl relative overflow-hidden transition-all duration-200', onClick && 'cursor-pointer hover:shadow-2xl hover:-translate-y-0.5')}>
+          <div className="pointer-events-none absolute -right-8 -top-10 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
+          <CardContent className="relative p-4">
+            <div className="flex items-center gap-1.5">
+              <p className="text-[11px] uppercase tracking-wide text-white/70 font-medium">{label}</p>
+              {tip && <span onClick={e => e.stopPropagation()}><InfoTip>{tip}</InfoTip></span>}
+            </div>
+            <p className="font-display text-[1.9rem] leading-none font-bold tabular-nums mt-1.5">{value}</p>
+            {delta && delta.direction !== 'neutral' && (
+              <div className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium backdrop-blur">
+                {delta.direction === 'up' ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                <span>{delta.percent.toFixed(0)}% vs mês anterior</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      );
+    }
+    return (
+    <Card style={{ background: softBg(accent) }} className={cn('rounded-2xl border-border/60 shadow-sm transition-all duration-200', color, onClick && 'cursor-pointer hover:shadow-md hover:-translate-y-0.5')} onClick={onClick}>
       <CardContent className="p-4">
         <div className="flex items-center gap-1.5">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{label}</p>
@@ -1026,7 +1053,8 @@ export default function MetricasPage() {
         {!delta && <p className="text-[10px] text-muted-foreground mt-1">— sem dado anterior pra comparar</p>}
       </CardContent>
     </Card>
-  );
+    );
+  };
 
   // Helpers para abrir o dialog
   const showFormula = (title: string, body: React.ReactNode) => setDetail({ type: 'formula', title, body });
@@ -1054,10 +1082,10 @@ export default function MetricasPage() {
   const formulaIcm = (
     <div className="text-sm">
       <FormulaRow label="Custo ADS" value={formatBRL(data.custoAds)} />
-      <FormulaRow label="÷ (Lucro + Custo ADS)" value={formatBRL((data.lucro || 0) + (data.custoAds || 0))} />
+      <FormulaRow label="÷ Margem total antes do ADS (Lucro + Custo ADS)" value={formatBRL((data.lucro || 0) + (data.custoAds || 0))} />
       <FormulaRow label="× 100" value="" />
       <FormulaRow label="ICM" value={`${data.icm?.toFixed(2)}%`} isResult />
-      <p className="text-xs text-muted-foreground mt-3">Índice de Custo de Marketing — quanto menor, melhor. Alerta acima de 20%.</p>
+      <p className="text-xs text-muted-foreground mt-3">Índice de Consumo de Margem — quanto da margem total (antes do custo de ADS) o marketing consome. Quanto menor, melhor. Alerta acima de 20%.</p>
     </div>
   );
   const formulaCpa = (
@@ -1179,7 +1207,7 @@ export default function MetricasPage() {
               label="💰 Faturamento Total (vendas no período)"
               value={formatBRL(data.fatTotal)}
               delta={deltas.fat}
-              color="bg-card border-l-4 border-l-primary"
+              accent="#2D5A27"
               tip="Soma de pedidos do mês de criação (pagos + pendentes, exclui FREE). Atribui a venda ao mês em que foi feita."
               onClick={() => showPedidos('Pedidos do período (Faturamento)', {})}
             />
@@ -1187,7 +1215,7 @@ export default function MetricasPage() {
               label="📦 Total de Produtos"
               value={String(data.prodTotalRealistico ?? data.prodTotal)}
               delta={deltas.prod}
-              color="bg-card border-l-4 border-l-primary"
+              accent="#0ea5e9"
               tip="Unidades movimentadas no período: pagos + pendentes + FREE. Reflete operação real."
               onClick={() => showPedidos('Pedidos do período (Produtos)', {})}
             />
@@ -1195,7 +1223,7 @@ export default function MetricasPage() {
               label="💵 Lucro"
               value={formatBRL(data.lucro)}
               delta={deltas.lucro}
-              color="bg-card border-l-4 border-l-primary"
+              hero
               tip="Faturamento (com pendentes) − Custos do período."
               onClick={() => showFormula('Lucro do período', formulaLucro)}
             />
@@ -1277,7 +1305,16 @@ export default function MetricasPage() {
                 config={{ total: { label: 'Faturamento', color: 'hsl(var(--primary))' } }}
                 className="aspect-[3/1] w-full"
               >
-                <LineChart data={monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <AreaChart data={monthlyData} margin={{ top: 8, right: 10, left: 0, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="metFatArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.28} />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                    <filter id="metLineShadow" x="-20%" y="-40%" width="140%" height="180%">
+                      <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="hsl(113 40% 22%)" floodOpacity="0.35" />
+                    </filter>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="mes" tickLine={false} axisLine={false} fontSize={11} />
                   <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tickLine={false} axisLine={false} fontSize={11} width={40} />
@@ -1292,8 +1329,8 @@ export default function MetricasPage() {
                       );
                     }}
                   />
-                  <Line type="monotone" dataKey="total" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ fill: 'hsl(var(--primary))', r: 4 }} activeDot={{ r: 6 }} />
-                </LineChart>
+                  <Area type="monotone" dataKey="total" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#metFatArea)" dot={{ fill: 'hsl(var(--primary))', r: 3 }} activeDot={{ r: 6 }} style={{ filter: 'url(#metLineShadow)' }} />
+                </AreaChart>
               </ChartContainer>
             </CardContent>
           </Card>
@@ -1364,33 +1401,33 @@ export default function MetricasPage() {
               <MetricCard
                 label="Fat. Total (vendas no período)"
                 value={formatBRL(data.fatTotal)}
-                color="bg-card border border-purple-200"
+                accent="#8b5cf6"
                 tip="Soma de pedidos do mês de criação (pagos + pendentes, exclui FREE). Atribui a venda ao mês em que foi feita, independente do pagamento."
                 onClick={() => showPedidos('Faturamento Total (pagos + pendentes)', {})}
               />
-              <Card className="bg-card border-2 border-emerald-300 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all rounded-2xl" onClick={() => setDetail({ type: 'recebimentos', title: 'Recebimentos do mês (vendas + parcelas)', filter: {} })}>
+              <Card style={{ background: softBg('#10b981') }} className="border-2 border-emerald-300 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all rounded-2xl" onClick={() => setDetail({ type: 'recebimentos', title: 'Recebimentos do mês (vendas + parcelas)', filter: {} })}>
                 <CardContent className="p-3">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-xs text-muted-foreground">💰 Em Caixa</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">💰 Em Caixa</p>
                     <span onClick={e => e.stopPropagation()}><InfoTip>Dinheiro que entrou no mês — vendas à vista pagas no mês + parcelas pagas no mês (mesmo de pedidos criados antes). Fonte: lancamentos_socios. Regime de CAIXA, independente do mês de criação do pedido.</InfoTip></span>
                   </div>
-                  <p className="text-lg font-bold text-emerald-700">{formatBRL(data.caixaTotal || 0)}</p>
+                  <p className="font-display text-lg font-semibold tabular-nums text-emerald-700 mt-0.5">{formatBRL(data.caixaTotal || 0)}</p>
                   <p className="text-[10px] text-muted-foreground">Recebido (à vista + parcelas)</p>
                 </CardContent>
               </Card>
-              <Card className="bg-card border-2 border-purple-300 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all rounded-2xl" onClick={() => showPedidos('Pedidos Pendentes (todos)', { isPendente: true })}>
+              <Card style={{ background: softBg('#8b5cf6') }} className="border-2 border-purple-300 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all rounded-2xl" onClick={() => showPedidos('Pedidos Pendentes (todos)', { isPendente: true })}>
                 <CardContent className="p-3">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-xs text-muted-foreground">💳 Pendentes</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">💳 Pendentes</p>
                     <span onClick={e => e.stopPropagation()}><InfoTip>Saldo a receber dos pedidos pendentes (todos os períodos). Apenas visualização — já está incluso no Fat. Total acima.</InfoTip></span>
                   </div>
-                  <p className="text-lg font-bold text-purple-700">{formatBRL(pendentesTotal)}</p>
+                  <p className="font-display text-lg font-semibold tabular-nums text-purple-700 mt-0.5">{formatBRL(pendentesTotal)}</p>
                   <p className="text-[10px] text-muted-foreground">Global — independente do período</p>
                 </CardContent>
               </Card>
-              <MetricCard label="Fat. Base" value={formatBRL(data.fatBase)} color="bg-card border border-purple-200" tip="Soma valor de pedidos do canal BASE no período." onClick={() => showPedidos('Faturamento BASE', { canal: 'BASE' })} />
-              <MetricCard label="Fat. ADS" value={formatBRL(data.fatAds)} color="bg-card border border-purple-200" tip="Soma valor de pedidos do canal ADS no período." onClick={() => showPedidos('Faturamento ADS', { canal: 'ADS' })} />
-              <MetricCard label="Fat. Rep" value={formatBRL(data.fatRep)} color="bg-card border border-purple-200" tip="Soma valor de pedidos do canal REP no período." onClick={() => showPedidos('Faturamento REP', { canal: 'REP' })} />
+              <MetricCard label="Fat. Base" value={formatBRL(data.fatBase)} accent={CANAL_HEX.BASE} tip="Soma valor de pedidos do canal BASE no período." onClick={() => showPedidos('Faturamento BASE', { canal: 'BASE' })} />
+              <MetricCard label="Fat. ADS" value={formatBRL(data.fatAds)} accent={CANAL_HEX.ADS} tip="Soma valor de pedidos do canal ADS no período." onClick={() => showPedidos('Faturamento ADS', { canal: 'ADS' })} />
+              <MetricCard label="Fat. Rep" value={formatBRL(data.fatRep)} accent={CANAL_HEX.REP} tip="Soma valor de pedidos do canal REP no período." onClick={() => showPedidos('Faturamento REP', { canal: 'REP' })} />
             </div>
           </div>
 
@@ -1519,7 +1556,7 @@ export default function MetricasPage() {
               INDICADORES <span className="text-xs font-medium text-muted-foreground">· {opG ? opG.nome : 'todos os grupos'}</span>
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <MetricCard label="ICM" value={formatPercent(opG ? opG.icm : data.icm)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? 'ICM do grupo: ADS rateado ÷ (Lucro do grupo + ADS rateado) × 100.' : 'Índice de Custo de Marketing: Custo ADS ÷ (Lucro + Custo ADS) × 100. Quanto menor, melhor.'}
+              <MetricCard label="ICM" value={formatPercent(opG ? opG.icm : data.icm)} accent="#C9A84C" tip={opG ? 'ICM do grupo: ADS rateado ÷ (Lucro do grupo + ADS rateado) × 100.' : 'Índice de Consumo de Margem: quanto da margem (antes do ADS) o custo de ADS consome. Custo ADS ÷ (Lucro + Custo ADS) × 100. Quanto menor, melhor.'}
                 onClick={() => opG
                   ? showFormula(`ICM · ${opG.nome}`, (
                       <div className="text-sm">
@@ -1529,7 +1566,7 @@ export default function MetricasPage() {
                         <FormulaRow label="ICM do grupo" value={formatPercent(opG.icm)} isResult />
                       </div>
                     ))
-                  : showFormula('ICM — Índice de Custo de Marketing', formulaIcm)} />
+                  : showFormula('ICM — Índice de Consumo de Margem', formulaIcm)} />
               <MetricCard label="CPA Un. ADS" value={formatBRL(opG ? opG.cpaUnAds : data.cpaUnAds)} color="bg-card border-l-4 border-l-sf-gold" tip={opG ? 'CPA do grupo: ADS rateado do grupo ÷ unidades ADS do grupo.' : 'Custo ADS por unidade vendida ADS: Custo ADS ÷ Unidades ADS.'}
                 onClick={() => opG
                   ? showFormula(`CPA Un. ADS · ${opG.nome}`, (
