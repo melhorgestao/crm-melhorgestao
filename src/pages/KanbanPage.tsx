@@ -1308,7 +1308,10 @@ export default function KanbanPage() {
               <div className="p-3 border-b border-border/60 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dot, boxShadow: `0 0 8px ${dot}66` }} />
+                    <span className="relative flex w-2 h-2 shrink-0">
+                      <span className="sf-ping absolute inline-flex w-full h-full rounded-full" style={{ background: dot }} />
+                      <span className="relative inline-flex w-2 h-2 rounded-full" style={{ background: dot, boxShadow: `0 0 8px ${dot}66` }} />
+                    </span>
                     <h3 className="font-display text-sm font-semibold tracking-wide">{label}</h3>
                   </div>
                   <Badge variant="secondary" className="text-xs tabular-nums rounded-full px-2">{colContacts.length}</Badge>
