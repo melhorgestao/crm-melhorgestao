@@ -63,7 +63,7 @@ export function GlobalConfigModal({ open, onClose }: Props) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Configurações Globais</DialogTitle>
+          <DialogTitle className="font-display tracking-tight">Configurações Globais</DialogTitle>
           <DialogDescription>Credenciais usadas por todas as instâncias.</DialogDescription>
         </DialogHeader>
 
@@ -134,7 +134,7 @@ export function GlobalConfigModal({ open, onClose }: Props) {
 
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-              <Button className="flex-1 bg-sf-green hover:bg-sf-green/90" onClick={save} disabled={saving}>
+              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={save} disabled={saving}>
                 {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 Salvar
               </Button>

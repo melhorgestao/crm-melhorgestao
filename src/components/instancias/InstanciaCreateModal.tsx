@@ -162,7 +162,7 @@ export function InstanciaCreateModal({ open, onClose }: Props) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Nova Instância</DialogTitle>
+          <DialogTitle className="font-display tracking-tight">Nova Instância</DialogTitle>
           <DialogDescription>Cria na Evolution + adiciona ao CRM em um fluxo só.</DialogDescription>
         </DialogHeader>
 
@@ -201,7 +201,7 @@ export function InstanciaCreateModal({ open, onClose }: Props) {
             </label>
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-              <Button className="flex-1 bg-sf-green hover:bg-sf-green/90" onClick={handleCreate}>
+              <Button className="flex-1 text-white border-0 shadow-md shadow-emerald-900/15" style={{ background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' }} onClick={handleCreate}>
                 Criar e Conectar <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
@@ -210,7 +210,7 @@ export function InstanciaCreateModal({ open, onClose }: Props) {
 
         {step === 'creating' && (
           <div className="py-8 text-center space-y-3">
-            <Loader2 className="w-8 h-8 animate-spin text-sf-green mx-auto" />
+            <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mx-auto" />
             <p className="text-sm">Criando na Evolution e registrando no CRM…</p>
           </div>
         )}
@@ -230,12 +230,12 @@ export function InstanciaCreateModal({ open, onClose }: Props) {
 
         {step === 'done' && (
           <div className="py-6 text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-sf-green/20 flex items-center justify-center mx-auto">
-              <QrCode className="w-8 h-8 text-sf-green" />
+            <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+              <QrCode className="w-8 h-8 text-emerald-600" />
             </div>
-            <p className="font-semibold">Conectada e ativa nos workflows!</p>
+            <p className="font-display font-semibold">Conectada e ativa nos workflows!</p>
             <p className="text-xs text-muted-foreground">Instância {nomeCrm} pronta pra receber e enviar mensagens.</p>
-            <Button className="w-full bg-sf-green hover:bg-sf-green/90" onClick={onClose}>Fechar</Button>
+            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={onClose}>Fechar</Button>
           </div>
         )}
 

@@ -12,6 +12,7 @@ import { Eye, EyeOff, RefreshCw, QrCode, RotateCcw, Trash2, Loader2, MessageSqua
 import { getConnectionState, fetchQrCode, restartInstance, deleteInstance, connectChatwoot } from '@/lib/evolutionApi';
 import { getChatwootConfig, findInboxByName } from '@/lib/chatwootApi';
 import type { InstanciaRow } from './InstanciaCard';
+import { cn } from '@/lib/utils';
 
 interface Props {
   open: boolean;
@@ -233,20 +234,28 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Instância {instancia.nome}</SheetTitle>
+          <SheetTitle className="font-display tracking-tight">Instância {instancia.nome}</SheetTitle>
         </SheetHeader>
 
         <div className="space-y-6 py-4">
           {/* Status */}
           <section className="space-y-2">
             <p className="text-xs uppercase text-muted-foreground tracking-wide">Status</p>
-            <div className="flex items-center justify-between border rounded-lg p-3">
+            <div className="flex items-center justify-between border border-border/60 rounded-xl p-3">
               <div>
-                <p className="text-sm font-semibold">
-                  {instancia.status === 'ativo'
-                    ? (evoState === 'open' ? '🟢 Conectada' : evoState === 'connecting' ? '🟡 Conectando' : evoState === 'close' ? '🔴 Sem conexão' : '⚪ Verificando…')
-                    : `⚫ ${instancia.status}`}
-                </p>
+                {(() => {
+                  const open = instancia.status === 'ativo' && evoState === 'open';
+                  const conn = instancia.status === 'ativo' && evoState === 'connecting';
+                  const label = instancia.status === 'ativo'
+                    ? (evoState === 'open' ? 'Conectada' : evoState === 'connecting' ? 'Conectando' : evoState === 'close' ? 'Sem conexão' : 'Verificando…')
+                    : instancia.status;
+                  const dot = open ? 'bg-emerald-500 animate-pulse' : conn ? 'bg-amber-400 animate-pulse' : instancia.status === 'ativo' ? 'bg-red-500' : 'bg-gray-400';
+                  return (
+                    <p className="text-sm font-semibold flex items-center gap-2">
+                      <span className={cn('w-2 h-2 rounded-full', dot)} /> {label}
+                    </p>
+                  );
+                })()}
                 {instancia.motivo_pausa && <p className="text-xs text-muted-foreground">{instancia.motivo_pausa}</p>}
                 {instancia.pausado_ate && <p className="text-xs text-muted-foreground">Pausada até {new Date(instancia.pausado_ate).toLocaleString('pt-BR')}</p>}
               </div>
@@ -339,7 +348,7 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
               <Checkbox checked={editAtivo} onCheckedChange={v => setEditAtivo(!!v)} />
               <span>Ativa (campo ativo — workflows também filtram)</span>
             </label>
-            <Button className="w-full" onClick={saveChanges}>Salvar alterações</Button>
+            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={saveChanges}>Salvar alterações</Button>
           </section>
 
           {/* Chatwoot */}
@@ -431,7 +440,7 @@ export function InstanciaDrawer({ open, onClose, instancia }: Props) {
                 <Button variant="outline" className="flex-1" onClick={() => handlePause(24 * 7, 'admin: pausa indefinida')}>Pausar 7d</Button>
               </div>
             ) : (
-              <Button variant="default" className="w-full bg-sf-green hover:bg-sf-green/90" onClick={handleReativar}>Reativar agora</Button>
+              <Button variant="default" className="w-full text-white border-0" style={{ background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' }} onClick={handleReativar}>Reativar agora</Button>
             )}
           </section>
 
