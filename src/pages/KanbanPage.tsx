@@ -24,10 +24,10 @@ import { PedidoDetailModal } from '@/components/pedidos/PedidoDetailModal';
 // Follow-Up unifica 2 estados (wait_follow_up + follow_up) — distinção fica
 // na tag do card (WAIT vs F-UP).
 const KANBAN_COLUMNS = [
-  { key: 'suporte',        label: 'SUPORTE',   accent: 'border-t-blue-500' },
-  { key: 'follow_up',      label: 'FOLLOW-UP', accent: 'border-t-orange-500' },
-  { key: 'em_fechamento',  label: 'FECHAMENTO', accent: 'border-t-primary' },
-  { key: 'rmkt',           label: 'RMKT',      accent: 'border-t-purple-500' },
+  { key: 'suporte',        label: 'SUPORTE',   accent: 'border-t-blue-500',   dot: '#3b82f6' },
+  { key: 'follow_up',      label: 'FOLLOW-UP', accent: 'border-t-orange-500', dot: '#f97316' },
+  { key: 'em_fechamento',  label: 'FECHAMENTO', accent: 'border-t-primary',   dot: '#2D5A27' },
+  { key: 'rmkt',           label: 'RMKT',      accent: 'border-t-purple-500', dot: '#a855f7' },
 ] as const;
 
 type ColumnKey = typeof KANBAN_COLUMNS[number]['key'];
@@ -319,7 +319,7 @@ const KanbanCard = memo(({
       }}
       onDragEnd={() => setDraggedCard(null)}
       className={cn(
-        'group cursor-grab active:cursor-grabbing transition-all duration-150 hover:shadow-md hover:-translate-y-0.5',
+        'group cursor-grab active:cursor-grabbing rounded-xl border-border/60 transition-all duration-150 hover:shadow-md hover:-translate-y-0.5',
         compact ? 'mb-1' : 'mb-2',
         draggedCard === contact.id && 'opacity-50',
         !isDraggable && 'cursor-default',
@@ -1259,7 +1259,7 @@ export default function KanbanPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Kanban</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Kanban</h1>
         <div className="flex items-center gap-2">
           <Button
             variant="outline" size="sm" className="h-9"
@@ -1292,12 +1292,12 @@ export default function KanbanPage() {
       </div>
 
       <div className="flex gap-4 overflow-x-auto kanban-scroll pb-4" style={{ minHeight: 500 }}>
-        {KANBAN_COLUMNS.map(({ key, label, accent }) => {
+        {KANBAN_COLUMNS.map(({ key, label, dot }) => {
           const colContacts = getColumnContacts(key);
           return (
             <div
               key={key}
-              className={cn('flex-shrink-0 w-72 bg-muted/50 rounded-lg border-t-4', accent)}
+              className="flex-shrink-0 w-72 bg-card/50 backdrop-blur-sm rounded-2xl border border-border/60 shadow-sm"
               onDragOver={e => e.preventDefault()}
               onDrop={e => {
                 e.preventDefault();
@@ -1305,9 +1305,12 @@ export default function KanbanPage() {
                 if (id) handleDrop(id, key);
               }}
             >
-              <div className="p-3 border-b border-border space-y-2">
+              <div className="p-3 border-b border-border/60 space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-xs tracking-wider text-muted-foreground">{label}</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dot, boxShadow: `0 0 8px ${dot}66` }} />
+                    <h3 className="font-display text-sm font-semibold tracking-wide">{label}</h3>
+                  </div>
                   <Badge variant="secondary" className="text-xs tabular-nums rounded-full px-2">{colContacts.length}</Badge>
                 </div>
                 {key === 'follow_up' && (
