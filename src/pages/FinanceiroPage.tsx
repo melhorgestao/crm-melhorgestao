@@ -1257,7 +1257,7 @@ export default function FinanceiroPage() {
       </div>
 
       {/* FAB */}
-      <Button onClick={() => { resetForm(); setShowForm(true); }} className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-sf-green hover:bg-sf-green/90 text-primary-foreground z-50" size="icon">
+      <Button onClick={() => { resetForm(); setShowForm(true); }} className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-emerald-600 hover:bg-emerald-700 text-white z-50" size="icon">
         <Plus className="w-6 h-6" />
       </Button>
 
@@ -1311,7 +1311,7 @@ export default function FinanceiroPage() {
             </div>
             <Button
               id="btn-criar-caixa"
-              className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
               disabled={savingCaixa || !novaCaixaApelido.trim()}
               onClick={async () => {
                 setSavingCaixa(true);
@@ -1347,7 +1347,7 @@ export default function FinanceiroPage() {
               <p className="text-xs text-muted-foreground mt-1">Máximo: {formatBRL(lucroMax)}</p>
               {lucroError && <p className="text-xs text-destructive mt-1 font-semibold">{lucroError}</p>}
             </div>
-            <Button type="button" onClick={handleRealizarLucro} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground">Confirmar</Button>
+            <Button type="button" onClick={handleRealizarLucro} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Confirmar</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1381,7 +1381,7 @@ export default function FinanceiroPage() {
               <Label>Valor (R$)</Label>
               <Input placeholder="0,00" value={transferValue} onChange={e => setTransferValue(e.target.value)} />
             </div>
-            <Button className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground" onClick={handleTransfer}>Confirmar</Button>
+            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleTransfer}>Confirmar</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1434,16 +1434,24 @@ export default function FinanceiroPage() {
                   <Label className="text-xs text-muted-foreground uppercase tracking-wide">Sócio / Caixa</Label>
                   <div className="flex flex-wrap gap-2 mt-1">
                     {socios.map(s => (
-                      <Button key={s.key} variant={formSocio === s.key ? 'default' : 'outline'} className="min-h-[44px] flex-1" onClick={() => setFormSocio(s.key)}>{s.nome}</Button>
+                      <Button
+                        key={s.key}
+                        variant="outline"
+                        className={cn('min-h-[44px] flex-1 rounded-lg font-medium',
+                          formSocio === s.key && 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600')}
+                        onClick={() => setFormSocio(s.key)}
+                      >
+                        {s.nome}
+                      </Button>
                     ))}
                     {caixas.map(c => (
                       <Button
                         key={c.codigo}
-                        variant={formSocio === c.codigo ? 'default' : 'outline'}
+                        variant="outline"
                         className={cn(
-                          'min-h-[44px] flex-1',
+                          'min-h-[44px] flex-1 rounded-lg font-medium',
                           formSocio === c.codigo
-                            ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                            ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600'
                             : 'border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30'
                         )}
                         onClick={() => setFormSocio(c.codigo)}
@@ -1611,7 +1619,7 @@ export default function FinanceiroPage() {
                       </div>
                       <div className="flex gap-2">
                         <Button
-                          className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px] flex-1"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px] flex-1"
                           onClick={handleSaveClient}
                         >
                           <Check className="w-4 h-4 mr-1" /> Salvar Cliente
@@ -1723,7 +1731,7 @@ export default function FinanceiroPage() {
             {editItem && <div><Label>Descrição</Label><Input value={formDescricao} onChange={e => setFormDescricao(e.target.value)} className="min-h-[44px]" /></div>}
 
             {!isMobile && (
-              <Button onClick={editItem ? handleEdit : handleSubmitForm} disabled={submitting} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]">
+              <Button onClick={editItem ? handleEdit : handleSubmitForm} disabled={submitting} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]">
                 {submitting ? 'Salvando...' : editItem ? 'Salvar' : 'Adicionar'}
               </Button>
             )}
@@ -1731,7 +1739,7 @@ export default function FinanceiroPage() {
 
           {isMobile && (
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border z-50">
-              <Button onClick={editItem ? handleEdit : handleSubmitForm} disabled={submitting} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]">
+              <Button onClick={editItem ? handleEdit : handleSubmitForm} disabled={submitting} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]">
                 {submitting ? 'Salvando...' : editItem ? 'Salvar' : 'Adicionar'}
               </Button>
             </div>
