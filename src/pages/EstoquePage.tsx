@@ -1189,8 +1189,8 @@ export default function EstoquePage() {
                 <span className="text-xs text-muted-foreground"><span className="font-semibold text-foreground tabular-nums">{produtos.length}</span> produtos cadastrados</span>
               )}
             </div>
-            <Button onClick={() => { resetForm(); setEditProduct(null); setShowAddProduct(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full">
-              <Plus className="w-4 h-4 mr-2" /> Novo Produto
+            <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => { resetForm(); setEditProduct(null); setShowAddProduct(true); }}>
+              <Plus className="w-3 h-3 mr-1" /> Novo Produto
             </Button>
           </div>
           <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
