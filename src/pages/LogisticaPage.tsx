@@ -1408,7 +1408,13 @@ toast.success('Pedido marcado como postado');
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 -mx-1 sm:mx-0">
         {filteredPedidos.map(p => (
-          <Card key={p.id} className={cn('rounded-2xl border relative overflow-hidden min-w-0 transition-all hover:shadow-md', p.status_pagamento === 'pendente' ? 'border-amber-300 border-dashed bg-amber-50/30' : 'border-border/60')}>
+          <Card
+            key={p.id}
+            className={cn('rounded-2xl border relative overflow-hidden min-w-0 transition-all hover:shadow-lg hover:-translate-y-0.5', p.status_pagamento === 'pendente' ? 'border-amber-300 border-dashed' : 'border-border/60')}
+            style={{ background: p.status_pagamento === 'pendente'
+              ? 'linear-gradient(160deg, #fffbeb, #fef3c7aa 70%, transparent)'
+              : 'linear-gradient(160deg, hsl(150 32% 98%), hsl(150 18% 95%))' }}
+          >
             <CardContent className="p-3 sm:p-4 space-y-2 min-w-0">
               <div className="flex justify-between items-start gap-2">
                 <div className="flex items-center gap-2 min-w-0">
@@ -1499,10 +1505,11 @@ toast.success('Pedido marcado como postado');
                     <SelectItem value="entrega_maos">Entrega em Mãos</SelectItem>
                   </SelectContent>
                 </Select>
-                {getFreteDisplayValue(p) && (
-                  <strong className="text-foreground text-[12px]">
+                {/* Valor do frete: SÓ após etiqueta gerada (valor real cobrado). */}
+                {temEtiqueta(p) && getFreteDisplayValue(p) != null && (
+                  <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-[11px] font-bold tabular-nums">
                     {formatBRL(Number(getFreteDisplayValue(p)))}
-                  </strong>
+                  </span>
                 )}
                 {miniExcedeu(p) && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 border border-amber-300 px-2 py-0.5 text-[10px] font-semibold">
@@ -1513,7 +1520,7 @@ toast.success('Pedido marcado como postado');
 
               {!p.uf_postagem ? (
                 <div className="space-y-2">
-                  <Label className="text-xs">Origem:</Label>
+                  <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Origem</Label>
                   <div className="flex flex-col gap-2">
                     <Select onValueChange={v => {
                       const hasRegions = ufRegioes.some(r => r.uf === v);
@@ -1524,7 +1531,7 @@ toast.success('Pedido marcado como postado');
                         setPedidos(prev => prev.map(ped => ped.id === p.id ? { ...ped, temp_uf: v } : ped));
                       }
                     }}>
-                      <SelectTrigger className="min-h-[44px]"><SelectValue placeholder="Selecionar UF" /></SelectTrigger>
+                      <SelectTrigger className="min-h-[44px] rounded-xl bg-background/70"><SelectValue placeholder="Selecionar UF" /></SelectTrigger>
                       <SelectContent>
                         {estoqueUfs.map(uf => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}
                       </SelectContent>
@@ -1545,7 +1552,7 @@ toast.success('Pedido marcado como postado');
                 </div>
               ) : isAdmin ? (
                 <div className="space-y-2">
-                  <Label className="text-xs">UF Postagem/Região:</Label>
+                  <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">UF Postagem / Região</Label>
                   {temEtiqueta(p) ? (
                     <div className="flex items-center gap-2">
                       <Badge className="bg-primary/10 text-primary border-primary/20 text-[11px] font-bold">{p.uf_postagem}</Badge>
@@ -1559,7 +1566,7 @@ toast.success('Pedido marcado como postado');
                           setPedidos(prev => prev.map(ped => ped.id === p.id ? { ...ped, temp_uf: v } : ped));
                         }
                       }}>
-                        <SelectTrigger className="min-h-[44px]"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="min-h-[44px] rounded-xl bg-background/70"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {estoqueUfs.map(uf => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}
                         </SelectContent>
@@ -1641,7 +1648,8 @@ toast.success('Pedido marcado como postado');
                         </Button>
                         <Button
                           size="sm"
-                          className="min-h-[44px] bg-green-600 hover:bg-green-700 text-primary-foreground"
+                          className="min-h-[44px] px-5 font-medium text-white border-0 shadow-md shadow-emerald-900/15 transition-transform hover:scale-[1.03] active:scale-95"
+                          style={{ background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' }}
                           disabled={payingId === p.id}
                           onClick={() => pagarEtiqueta(p)}
                         >
@@ -1649,17 +1657,27 @@ toast.success('Pedido marcado como postado');
                           Pagar
                         </Button>
                       </>
+                    ) : podeGerar ? (
+                      <Button
+                        size="sm"
+                        className="min-h-[44px] px-6 font-medium text-white border-0 shadow-md shadow-emerald-900/15 transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-60 disabled:hover:scale-100"
+                        style={{ background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' }}
+                        disabled={generatingId === p.id || payingId !== null}
+                        onClick={() => gerarEtiqueta(p)}
+                      >
+                        {generatingId === p.id ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Printer className="w-4 h-4 mr-1" />}
+                        Gerar etiqueta
+                      </Button>
                     ) : (
                       <Button
                         size="sm"
-                        className="min-h-[44px]"
-                        disabled={!podeGerar || generatingId === p.id || payingId !== null}
-                        onClick={() => gerarEtiqueta(p)}
-                        variant={podeGerar ? "default" : "secondary"}
+                        variant="secondary"
+                        className="min-h-[44px] px-5 text-muted-foreground"
+                        disabled
                         title={isMelhorEnvio ? 'Integração Melhor Envio em breve' : (!p.uf_postagem ? 'Selecione UF de postagem' : '')}
                       >
-                        {generatingId === p.id ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : !podeGerar ? <Lock className="w-4 h-4 mr-1" /> : <Printer className="w-4 h-4 mr-1" />}
-                        Gerar
+                        <Lock className="w-4 h-4 mr-1" />
+                        {!p.uf_postagem ? 'Selecione UF' : 'Gerar'}
                       </Button>
                     )}
                   </div>
