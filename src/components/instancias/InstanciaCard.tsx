@@ -156,7 +156,7 @@ export function InstanciaCard({ instancia, onOpenDetails, onTogglePause, onToggl
           <span className="flex items-center gap-0.5 text-blue-600" title="Abertas — conversas que você abriu A FRIO (saída sem o lead ter escrito no período)">
             <ArrowUp className="w-3.5 h-3.5" />{metricas?.conv_out ?? '—'}
           </span>
-          <span className="flex items-center gap-0.5 text-violet-600" title="Disparos — follow-up/RMKT enviados no período (volume real, independente de o lead ter respondido)">
+          <span className="flex items-center gap-0.5 text-violet-600" title="Disparos — follow-up / RMKT / fechamento custom enviados no período (volume real, independente de o lead ter respondido)">
             <Send className="w-3 h-3" />{metricas?.disparos ?? '—'}
           </span>
         </div>
