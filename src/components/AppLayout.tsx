@@ -31,7 +31,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <img
             src={logoSrc}
             alt="Santa Flor"
-            className="w-10 h-10 object-contain cursor-pointer rounded"
+            className="w-11 h-11 object-contain cursor-pointer rounded mix-blend-multiply"
             onClick={() => fileRef.current?.click()}
             title="Clique para trocar o logo"
           />
@@ -52,7 +52,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <div className="absolute inset-0 bg-foreground/20" onClick={() => setSidebarOpen(false)} />
           <aside className="absolute left-0 top-0 bottom-0 w-56 bg-card border-r border-border flex flex-col">
             <div className="p-4 border-b border-border flex items-center gap-3">
-              <img src={logoSrc} alt="Santa Flor" className="w-10 h-10 object-contain" />
+              <img src={logoSrc} alt="Santa Flor" className="w-11 h-11 object-contain mix-blend-multiply" />
               <span className="font-bold text-foreground text-sm">Santa Flor</span>
             </div>
             <AppSidebarNav isAdmin={isAdmin} profile={profile} onNavigate={() => setSidebarOpen(false)} />
