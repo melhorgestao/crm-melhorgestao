@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { formatBRL } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { DollarSign, Tag, Package, UserPlus, RefreshCw, TrendingUp, TrendingDown, Target, CreditCard, Users } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell, LabelList } from 'recharts';
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell, LabelList, AreaChart, Area } from 'recharts';
 
 // Cor por canal (paleta categórica validada CVD-safe — slots 1/2/3 da dataviz).
 const CANAL_CORES: Record<string, string> = { ADS: '#2a78d6', BASE: '#eb6834', REP: '#1baf7a' };
@@ -30,12 +30,18 @@ function MetaRing({ percent, size = 116, stroke = 11 }: { percent: number; size?
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-muted" />
+        <defs>
+          <linearGradient id="meta-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={atingiu ? '#16a34a' : '#2D5A27'} />
+            <stop offset="100%" stopColor="#C9A84C" />
+          </linearGradient>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-muted/70" />
         <circle
           cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} strokeLinecap="round"
-          stroke={atingiu ? '#008300' : '#2D5A27'}
+          stroke="url(#meta-grad)"
           strokeDasharray={c} strokeDashoffset={offset}
-          style={{ transition: 'stroke-dashoffset 700ms ease' }}
+          style={{ transition: 'stroke-dashoffset 800ms cubic-bezier(0.22,1,0.36,1)', filter: 'drop-shadow(0 0 6px hsl(113 38% 25% / 0.35))' }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -542,43 +548,83 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {statCards.map((s, i) => (
-          <Card key={i} style={{ animationDelay: `${i * 55}ms` }} className={cn('sf-rise rounded-xl border-border/50 shadow-sm transition-all duration-150 hover:shadow-md hover:-translate-y-0.5', i === 0 && 'ring-1 ring-primary/25')}>
-            <CardContent className="pt-4 pb-3 px-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary shrink-0">
-                  <s.icon className="w-4 h-4" />
-                </span>
-                <span className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{s.label}</span>
-              </div>
-              <p className="font-display text-[1.7rem] leading-none font-semibold tracking-tight tabular-nums">{s.value}</p>
-              {i === 0 && fatIndicator.direction !== 'neutral' && (
-                <div className={cn('flex items-center gap-1 text-xs mt-1 font-medium',
-                  fatIndicator.direction === 'up' ? 'text-emerald-600' : 'text-destructive')}>
-                  {fatIndicator.direction === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  <span>{fatIndicator.percent.toFixed(0)}% {fatIndicator.label}</span>
+      {(() => {
+        // Acento por métrica (chip do ícone) — dá vida sem poluir.
+        const TINTS = [
+          '', // 0 = herói (Faturamento)
+          'bg-amber-500/12 text-amber-600',   // Ticket
+          'bg-sky-500/12 text-sky-600',       // Produtos
+          'bg-emerald-500/12 text-emerald-600', // Novos
+          'bg-violet-500/12 text-violet-600',   // Recorrentes
+          'bg-teal-500/12 text-teal-600',       // Representantes
+        ];
+        const hero = statCards[0];
+        const HeroIcon = hero.icon;
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* HERÓI — Faturamento Total, gradiente de marca */}
+            <Card
+              style={{ animationDelay: '0ms', background: 'linear-gradient(140deg, hsl(113 40% 27%), hsl(150 45% 15%))' }}
+              className="sf-rise col-span-2 rounded-2xl border-0 text-white shadow-xl shadow-primary/25 relative overflow-hidden"
+            >
+              <div className="pointer-events-none absolute -right-10 -top-14 w-52 h-52 rounded-full bg-white/10 blur-2xl" />
+              <div className="pointer-events-none absolute right-6 bottom-4 opacity-[0.07]"><HeroIcon className="w-28 h-28" /></div>
+              <CardContent className="relative p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-white/15 backdrop-blur">
+                    <HeroIcon className="w-[18px] h-[18px]" />
+                  </span>
+                  <span className="text-[11px] uppercase tracking-[0.14em] text-white/70">{hero.label}</span>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-        {/* Pendentes card */}
-        <Card style={{ animationDelay: '330ms' }} className="sf-rise rounded-xl border-border/50 shadow-sm ring-1 ring-orange-300/50 transition-all duration-150 hover:shadow-md hover:-translate-y-0.5">
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-orange-500/10 text-orange-600 shrink-0">
-                <CreditCard className="w-4 h-4" />
-              </span>
-              <span className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">Pendentes</span>
-            </div>
-            <p className="font-display text-[1.7rem] leading-none font-semibold tracking-tight tabular-nums text-orange-700">{formatBRL(pendentesTotal)}</p>
-          </CardContent>
-        </Card>
-      </div>
+                <p className="font-display text-[2.6rem] leading-none font-bold tracking-tight tabular-nums">{hero.value}</p>
+                {fatIndicator.direction !== 'neutral' && (
+                  <div className="mt-3 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium backdrop-blur">
+                    {fatIndicator.direction === 'up' ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                    <span>{fatIndicator.percent.toFixed(0)}% {fatIndicator.label}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Demais KPIs — tiles modernos com acento por métrica */}
+            {statCards.slice(1).map((s, idx) => {
+              const i = idx + 1;
+              const Icon = s.icon;
+              return (
+                <Card key={i} style={{ animationDelay: `${i * 55}ms` }}
+                  className="sf-rise rounded-2xl border border-border/60 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={cn('inline-flex items-center justify-center w-9 h-9 rounded-xl', TINTS[i] || 'bg-primary/10 text-primary')}>
+                        <Icon className="w-[18px] h-[18px]" />
+                      </span>
+                    </div>
+                    <p className="font-display text-2xl leading-none font-semibold tracking-tight tabular-nums">{s.value}</p>
+                    <span className="mt-1.5 block text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{s.label}</span>
+                  </CardContent>
+                </Card>
+              );
+            })}
+
+            {/* Pendentes — acento âmbar */}
+            <Card style={{ animationDelay: '330ms' }}
+              className="sf-rise rounded-2xl border border-orange-300/50 bg-orange-50/40 dark:bg-orange-950/10 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-orange-500/12 text-orange-600">
+                    <CreditCard className="w-[18px] h-[18px]" />
+                  </span>
+                </div>
+                <p className="font-display text-2xl leading-none font-semibold tracking-tight tabular-nums text-orange-700">{formatBRL(pendentesTotal)}</p>
+                <span className="mt-1.5 block text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">Pendentes</span>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
 
       {/* Meta Mensal Widget */}
-      <Card className="rounded-xl border-border/50 shadow-sm">
+      <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardContent className="pt-4 pb-4 px-4">
           <div className="flex items-center gap-2 mb-3">
             <Target className="w-4 h-4 text-primary" />
@@ -616,7 +662,7 @@ export default function Dashboard() {
       </Card>
 
       {/* Funil do Pipeline — visão do funil acima dos gráficos de faturamento */}
-      <Card className="rounded-xl border-border/50 shadow-sm">
+      <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm">Funil do Pipeline</CardTitle>
           <p className="text-xs text-muted-foreground">Contatos por coluna do Kanban · Venda = pedidos pagos no período</p>
@@ -637,21 +683,29 @@ export default function Dashboard() {
       </Card>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <Card className="rounded-xl border-border/50 shadow-sm">
+        <Card className="rounded-2xl border-border/60 shadow-sm">
           <CardHeader><CardTitle className="text-sm">Faturamento x Mês</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={monthlyChart}>
-                <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v: number) => formatBRL(v)} />
-                <Line type="monotone" dataKey="valor" stroke="#2D5A27" strokeWidth={2} dot={{ fill: '#2D5A27' }} />
-              </LineChart>
+              <AreaChart data={monthlyChart} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="fatArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2D5A27" stopOpacity={0.28} />
+                    <stop offset="100%" stopColor="#2D5A27" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
+                <XAxis dataKey="mes" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
+                <Tooltip formatter={(v: number) => [formatBRL(v), '']} cursor={{ stroke: '#2D5A27', strokeOpacity: 0.3 }} />
+                <Area type="monotone" dataKey="valor" stroke="#2D5A27" strokeWidth={2.5}
+                  fill="url(#fatArea)" dot={false} activeDot={{ r: 5, fill: '#2D5A27', stroke: '#fff', strokeWidth: 2 }} animationDuration={700} />
+              </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card className="rounded-xl border-border/50 shadow-sm">
+        <Card className="rounded-2xl border-border/60 shadow-sm">
           <CardHeader><CardTitle className="text-sm">Faturamento por Canal</CardTitle></CardHeader>
           <CardContent>
             {channelBars.every(c => c.valor === 0) ? (
@@ -679,7 +733,7 @@ export default function Dashboard() {
 
       <div className="grid gap-6">
         {/* Top produtos do período */}
-        <Card className="rounded-xl border-border/50 shadow-sm">
+        <Card className="rounded-2xl border-border/60 shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm">Top Produtos</CardTitle>
             <p className="text-xs text-muted-foreground">Mais vendidos no período (unidades)</p>
@@ -708,7 +762,7 @@ export default function Dashboard() {
 
       {/* Movimentações do período (regime de caixa) — antes 'Pedidos do Período',
           que ficava vazio quando a entrada vinha de parcela de pedido pendente. */}
-      <Card className="rounded-xl border-border/50 shadow-sm">
+      <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm">Movimentações do Período</CardTitle>
           <p className="text-xs text-muted-foreground">Entradas de caixa: vendas à vista e parcelas pagas no período</p>
