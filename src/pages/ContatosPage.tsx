@@ -859,22 +859,29 @@ export default function ContatosPage() {
             </div>
 
             {hasNextPage && (
-              <Button 
-                variant="ghost" 
-                className="w-full text-xs text-muted-foreground py-4"
-                onClick={() => fetchNextPage()}
-                disabled={isFetchingNextPage}
-              >
-                {isFetchingNextPage ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Carregar mais...
-              </Button>
+              <div className="flex justify-center pt-3 pb-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full px-5 text-xs text-muted-foreground gap-2 shadow-sm"
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                >
+                  {isFetchingNextPage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  {isFetchingNextPage ? 'Carregando…' : (
+                    totalContatos !== undefined
+                      ? `Carregar mais · ${(totalContatos - contatos.length).toLocaleString('pt-BR')} restantes`
+                      : 'Carregar mais'
+                  )}
+                </Button>
+              </div>
             )}
           </div>
         )}
       </div>
 
       {/* FAB - Add Contact */}
-      <Button onClick={() => { resetNewContactForm(); setShowNewContact(true); }} className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-sf-green hover:bg-sf-green/90 text-primary-foreground z-50" size="icon">
+      <Button onClick={() => { resetNewContactForm(); setShowNewContact(true); }} className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-xl shadow-emerald-900/25 text-white z-50 transition-transform hover:scale-105 active:scale-95 border-0" style={{ background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' }} size="icon" aria-label="Novo contato">
         <Plus className="w-6 h-6" />
       </Button>
 
@@ -883,7 +890,7 @@ export default function ContatosPage() {
         <DialogContent className={cn(
           isMobile ? 'fixed inset-0 max-w-none w-full h-full rounded-none m-0 translate-x-0 translate-y-0 top-0 left-0 flex flex-col' : 'max-w-md max-h-[80vh] overflow-y-auto'
         )}>
-          <DialogHeader><DialogTitle>Novo Contato</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-display tracking-tight">Novo Contato</DialogTitle></DialogHeader>
           <div className={cn('space-y-3', isMobile ? 'flex-1 overflow-y-auto pb-20 px-1' : '')}>
               <>
                 <div>
@@ -1002,7 +1009,7 @@ export default function ContatosPage() {
                 </div>
                 <div className="flex gap-2 mt-2">
                   <Button
-                    className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px] flex-1"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px] flex-1"
                     disabled={newSubmitting}
                     onClick={handleCreateContact}
                   >
@@ -1016,7 +1023,7 @@ export default function ContatosPage() {
           {isMobile && (
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border z-50">
               <Button
-                className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]"
                 disabled={newSubmitting}
                 onClick={handleCreateContact}
               >
@@ -1034,7 +1041,7 @@ export default function ContatosPage() {
           isMobile ? 'fixed inset-0 max-w-none w-full h-full rounded-none m-0 translate-x-0 translate-y-0 top-0 left-0 flex flex-col' : 'max-w-md max-h-[80vh] overflow-y-auto'
         )}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 font-display tracking-tight">
               {selected?.nome}
               {selected?.tag_kanban === 'VIP' && <Badge className="bg-sf-gold">VIP</Badge>}
             </DialogTitle>
@@ -1215,7 +1222,7 @@ export default function ContatosPage() {
               <Textarea value={editObs} onChange={e => setEditObs(e.target.value)} className="mt-1" rows={3} />
             </div>
 
-            <Button onClick={saveContact} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]">
+            <Button onClick={saveContact} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]">
               <Check className="w-4 h-4 mr-1" /> Salvar
             </Button>
 
@@ -1247,7 +1254,7 @@ export default function ContatosPage() {
       {/* Merge dialog */}
       <Dialog open={showMerge} onOpenChange={setShowMerge}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Mesclar Contatos</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-display tracking-tight">Mesclar Contatos</DialogTitle></DialogHeader>
           {mergeContacts.length === 2 && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">O contato mais antigo será mantido. Todos os pedidos e registros do duplicado serão transferidos.</p>
@@ -1265,7 +1272,7 @@ export default function ContatosPage() {
                   <p className="text-xs text-muted-foreground">{formatDateShort(mergeContacts[1].created_at)}</p>
                 </div>
               </div>
-              <Button onClick={handleMerge} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground">Confirmar Mesclagem</Button>
+              <Button onClick={handleMerge} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Confirmar Mesclagem</Button>
             </div>
           )}
         </DialogContent>

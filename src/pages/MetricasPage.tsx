@@ -340,7 +340,7 @@ export default function MetricasPage() {
     // Pesado? Não — historico total da Santa Flor é pequeno.
     const { data: allPaid } = await supabase
       .from('pedidos')
-      .select('contato_id, data_pago, valor, valor_original, desconto_total, contatos(canal_origem)')
+      .select('contato_id, data, data_pago, valor, valor_original, desconto_total, contatos(canal_origem)')
       .eq('status_pagamento', 'pago')
       .neq('is_free', true)
       .not('contato_id', 'is', null)
@@ -349,14 +349,14 @@ export default function MetricasPage() {
     if (!allPaid) return;
 
     // Agrupa por contato_id
-    type ContatoStats = { pedidos: Array<{ data_pago: string; valor_real: number }>; canal_origem: string | null };
+    type ContatoStats = { pedidos: Array<{ data_pago: string; data_venda: string; valor_real: number }>; canal_origem: string | null };
     const byContato = new Map<string, ContatoStats>();
     (allPaid as any[]).forEach(p => {
       if (!p.contato_id || !p.data_pago) return;
       const valorReal = (Number(p.valor_original ?? p.valor) || 0) - (Number(p.desconto_total) || 0);
       const canal = p.contatos?.canal_origem || null;
       if (!byContato.has(p.contato_id)) byContato.set(p.contato_id, { pedidos: [], canal_origem: canal });
-      byContato.get(p.contato_id)!.pedidos.push({ data_pago: p.data_pago, valor_real: valorReal });
+      byContato.get(p.contato_id)!.pedidos.push({ data_pago: p.data_pago, data_venda: p.data || p.data_pago, valor_real: valorReal });
     });
 
     const isDireto = (canal: string | null) => canal !== 'REP' && canal !== 'C-REP';
@@ -404,14 +404,16 @@ export default function MetricasPage() {
     });
     const tempoMedioRecompra = gapCount > 0 ? totalGaps / gapCount : 0;
 
-    // Taxa de Recompra do Período: % dos clientes do período que JÁ eram clientes antes
+    // Taxa de Recompra do Período: % dos clientes que fizeram uma VENDA no período
+    // e que já eram clientes antes. Usa data da venda (não data_pago) — assim
+    // pendências antigas quitadas agora não contam como "cliente do período".
     const contatosPeriodo = new Set<string>();
     const contatosComCompraAnterior = new Set<string>();
     diretosMap.forEach(({ id, stats }) => {
-      const fezNoPeriodo = stats.pedidos.some(p => p.data_pago >= start && p.data_pago < end);
+      const fezNoPeriodo = stats.pedidos.some(p => p.data_venda >= start && p.data_venda < end);
       if (!fezNoPeriodo) return;
       contatosPeriodo.add(id);
-      const tinhaCompraAntes = stats.pedidos.some(p => p.data_pago < start);
+      const tinhaCompraAntes = stats.pedidos.some(p => p.data_venda < start);
       if (tinhaCompraAntes) contatosComCompraAnterior.add(id);
     });
     const taxaRecompraPeriodo = contatosPeriodo.size > 0
