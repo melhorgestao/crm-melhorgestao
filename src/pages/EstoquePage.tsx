@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
@@ -52,6 +52,16 @@ function softTile(hex?: string | null): string {
 // Cor forte legível pro número/dot (a própria cor, só validada).
 function tileAccent(hex?: string | null): string {
   return hex && /^#([0-9a-f]{6})$/i.test(hex) ? hex : '#64748b';
+}
+
+// Linha rótulo → valor pros popups de detalhe (movimentações).
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2">
+      <span className="text-xs uppercase tracking-wider text-muted-foreground shrink-0">{label}</span>
+      <span className="font-medium text-right">{value}</span>
+    </div>
+  );
 }
 
 const CORES_CARDS = [
@@ -207,7 +217,7 @@ export default function EstoquePage() {
     
     const { data: movs } = await supabase
       .from('estoque_movimentacoes')
-      .select(`*,produtos(nome_oficial,tag),lotes(lote_codigo),${MOV_PEDIDO_EMBED}`)
+      .select(`*,produtos(nome_oficial,tag,emoji),lotes(lote_codigo),${MOV_PEDIDO_EMBED}`)
       .gte('data', dataLimiteMov)
       .order('data', { ascending: false })
       .limit(PAGE_SIZE_MOVIMENTACOES);
@@ -674,7 +684,7 @@ export default function EstoquePage() {
     const dataLimiteMov = getDataLimiteMov();
     let query = supabase
       .from('estoque_movimentacoes')
-      .select(`*, produtos(nome_oficial, tag), lotes(lote_codigo), ${MOV_PEDIDO_EMBED}`)
+      .select(`*, produtos(nome_oficial, tag, emoji), lotes(lote_codigo), ${MOV_PEDIDO_EMBED}`)
       .gte('data', dataLimiteMov)
       .order('data', { ascending: false })
       .range(offset, offset + PAGE_SIZE_MOVIMENTACOES - 1);
@@ -697,7 +707,7 @@ export default function EstoquePage() {
     
     const { data: movs } = await supabase
       .from('estoque_movimentacoes')
-      .select(`*, produtos(nome_oficial, tag), lotes(lote_codigo), ${MOV_PEDIDO_EMBED}`)
+      .select(`*, produtos(nome_oficial, tag, emoji), lotes(lote_codigo), ${MOV_PEDIDO_EMBED}`)
       .gte('data', getDataLimiteMov())
       .order('data', { ascending: false })
       .limit(PAGE_SIZE_MOVIMENTACOES);
@@ -886,7 +896,9 @@ export default function EstoquePage() {
                 >
                   <Package className="absolute -right-3 -bottom-3 w-16 h-16 opacity-[0.06]" style={{ color: accent }} strokeWidth={1.5} />
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: accent }} />
+                    {p.emoji
+                      ? <span className="text-base leading-none shrink-0">{p.emoji}</span>
+                      : <span className="w-2 h-2 rounded-full shrink-0" style={{ background: accent }} />}
                     <p className="text-sm font-semibold truncate">{getProductDisplayName(p)}</p>
                   </div>
                   <p className={cn('text-3xl font-display font-bold mt-1 tabular-nums', critico && 'text-red-600')}>{totalEstoque}</p>
@@ -994,7 +1006,7 @@ export default function EstoquePage() {
                   {movimentacoes.map(m => (
                     <tr key={m.id} className="border-b border-border/40 last:border-0 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => handleMovClick(m)}>
                       <td className="px-4 py-2.5 text-muted-foreground">{formatDateShort((m as any).data || m.created_at)}</td>
-                      <td className="px-4 py-2.5 font-medium">{getProductDisplayName(m.produtos)}</td>
+                      <td className="px-4 py-2.5 font-medium">{m.produtos?.emoji ? `${m.produtos.emoji} ` : ''}{getProductDisplayName(m.produtos)}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">{m.quantidade}</td>
                       <td className="px-4 py-2.5">
                         {m.tipo === 'entrada' ? (
@@ -1194,7 +1206,7 @@ export default function EstoquePage() {
                   : produtos
                 ).slice(pageProdutosCadastro * PAGE_SIZE_PRODUTOS_CADASTRO, (pageProdutosCadastro + 1) * PAGE_SIZE_PRODUTOS_CADASTRO).map(p => (
                   <tr key={p.id} className="border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors">
-                    <td className="px-4 py-2.5 font-medium">{p.nome_oficial}</td>
+                    <td className="px-4 py-2.5 font-medium">{p.emoji ? `${p.emoji} ` : ''}{p.nome_oficial}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{p.tag}</td>
                     <td className="px-4 py-2.5">
                       {p.produtos_grupos?.nome || (
@@ -1288,29 +1300,38 @@ export default function EstoquePage() {
       {/* Movimentacao detail - Saída */}
       <Dialog open={!!movDetail && movDetail?.tipo === 'saida'} onOpenChange={() => setMovDetail(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Detalhes da Saída</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-tight flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700 border border-rose-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Saída
+              </span>
+              Detalhes da movimentação
+            </DialogTitle>
+          </DialogHeader>
           {movDetail && (
-            <div className="space-y-3 text-sm mt-2">
+            <div className="mt-2">
               {movDetail.pedido ? (
                 <>
-                  <p><strong>Pedido #{movDetail.pedido.order_number}</strong></p>
-                  <p><strong>Cliente:</strong> {movDetail.pedido.contatos?.nome || '—'}</p>
-                  <p><strong>UF postagem:</strong> {movDetail.pedido.uf_postagem?.trim() || '—'}</p>
-                  <p><strong>UF cliente:</strong> {ufClienteFromMov({ pedidos: { contatos: movDetail.pedido.contatos } })}</p>
-                  <Button onClick={handleVerPedido} className="w-full mt-2">
+                  <div className="rounded-xl border border-border/60 bg-muted/30 divide-y divide-border/40 text-sm">
+                    <DetailRow label="Pedido" value={`#${movDetail.pedido.order_number}`} />
+                    <DetailRow label="Cliente" value={movDetail.pedido.contatos?.nome || '—'} />
+                    <DetailRow label="UF postagem" value={movDetail.pedido.uf_postagem?.trim() || '—'} />
+                    <DetailRow label="UF cliente" value={ufClienteFromMov({ pedidos: { contatos: movDetail.pedido.contatos } })} />
+                  </div>
+                  <Button onClick={handleVerPedido} className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white">
                     <ExternalLink className="w-4 h-4 mr-1" /> Ver Pedido
                   </Button>
                 </>
               ) : movDetail.observacao?.includes('Saída automática') ? (
-                <>
-                  <p><strong>Pedido #{movDetail.observacao?.match(/Pedido (.*?)\)/)?.[1] || '—'}</strong></p>
-                  <p><strong>Cliente:</strong> <em>Vínculo antigo (não disponível)</em></p>
-                </>
+                <div className="rounded-xl border border-border/60 bg-muted/30 divide-y divide-border/40 text-sm">
+                  <DetailRow label="Pedido" value={`#${movDetail.observacao?.match(/Pedido (.*?)\)/)?.[1] || '—'}`} />
+                  <DetailRow label="Cliente" value={<em className="text-muted-foreground">Vínculo antigo (não disponível)</em>} />
+                </div>
               ) : (
-                <>
-                  <p><strong>Criado por:</strong> {movDetail.criadoPor || '—'}</p>
-                  <p><strong>Observação:</strong> {movDetail.observacao || '—'}</p>
-                </>
+                <div className="rounded-xl border border-border/60 bg-muted/30 divide-y divide-border/40 text-sm">
+                  <DetailRow label="Criado por" value={movDetail.criadoPor || '—'} />
+                  <DetailRow label="Observação" value={movDetail.observacao || '—'} />
+                </div>
               )}
             </div>
           )}
@@ -1320,24 +1341,34 @@ export default function EstoquePage() {
       {/* Movimentacao detail - Entrada */}
       <Dialog open={!!movDetail && movDetail?.tipo === 'entrada'} onOpenChange={() => setMovDetail(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Detalhes da Entrada</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-tight flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Entrada
+              </span>
+              Detalhes da movimentação
+            </DialogTitle>
+          </DialogHeader>
           {movDetail && (
-            <div className="space-y-3 text-sm mt-2">
+            <div className="mt-2">
               {movDetail.observacao?.includes('Devolução automática') ? (
                 <>
-                  <p className="text-lg font-semibold text-sf-green">Pedido Devolvido</p>
-                  <p><strong>Pedido #{movDetail.pedido?.order_number || movDetail.observacao?.match(/Pedido (.*?)\)/)?.[1] || '—'}</strong> devolvido a UF: <strong>{movDetail.uf_origem || '—'}</strong></p>
+                  <p className="text-sm font-display font-semibold text-emerald-700 mb-2">Pedido Devolvido</p>
+                  <div className="rounded-xl border border-border/60 bg-muted/30 divide-y divide-border/40 text-sm">
+                    <DetailRow label="Pedido" value={`#${movDetail.pedido?.order_number || movDetail.observacao?.match(/Pedido (.*?)\)/)?.[1] || '—'}`} />
+                    <DetailRow label="Devolvido a UF" value={movDetail.uf_origem || '—'} />
+                  </div>
                   {movDetail.pedido && (
-                    <Button onClick={handleVerPedido} className="w-full mt-2">
+                    <Button onClick={handleVerPedido} className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white">
                       <ExternalLink className="w-4 h-4 mr-1" /> Ver Pedido
                     </Button>
                   )}
                 </>
               ) : (
-                <>
-                  <p><strong>Criado por:</strong> {movDetail.criadoPor || '—'}</p>
-                  <p><strong>Lote:</strong> {movDetail.lote_codigo || '—'}</p>
-                </>
+                <div className="rounded-xl border border-border/60 bg-muted/30 divide-y divide-border/40 text-sm">
+                  <DetailRow label="Criado por" value={movDetail.criadoPor || '—'} />
+                  <DetailRow label="Lote" value={movDetail.lote_codigo || '—'} />
+                </div>
               )}
             </div>
           )}
