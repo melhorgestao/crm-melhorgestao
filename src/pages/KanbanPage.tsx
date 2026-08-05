@@ -346,31 +346,31 @@ const KanbanCard = memo(({
                   manual enquanto o bot está off. */}
               {column === 'follow_up' && realState === 'follow_up' && (
                 <Badge role="button" title="Registrar follow-up manual" onClick={(e) => { e.stopPropagation(); onDisparoManual(contact, 'followup'); }}
-                  className="bg-orange-500 text-white text-[10px] px-1.5 py-0 font-bold cursor-pointer hover:brightness-110">
+                  className="bg-orange-500 text-white text-[10px] px-2 py-0 rounded-full font-bold cursor-pointer hover:brightness-110">
                   F-UP{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
                 </Badge>
               )}
               {column === 'follow_up' && realState === 'wait_follow_up' && (
                 <Badge role="button" title="Registrar follow-up manual" onClick={(e) => { e.stopPropagation(); onDisparoManual(contact, 'followup'); }}
-                  className="bg-amber-400 text-black text-[10px] px-1.5 py-0 font-bold cursor-pointer hover:brightness-110">
+                  className="bg-amber-400 text-black text-[10px] px-2 py-0 rounded-full font-bold cursor-pointer hover:brightness-110">
                   WAIT{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
                 </Badge>
               )}
               {column === 'follow_up' && realState === 'wait_follow_up_custom' && (
                 <Badge title="Retorno agendado no prazo do cliente"
-                  className="bg-violet-500 text-white text-[10px] px-1.5 py-0 font-bold">
+                  className="bg-violet-500 text-white text-[10px] px-2 py-0 rounded-full font-bold">
                   F-UP Custom
                 </Badge>
               )}
               {column === 'rmkt' && contact._rmktWait && (
                 <Badge role="button" title="Registrar RMKT manual" onClick={(e) => { e.stopPropagation(); onDisparoManual(contact, 'rmkt'); }}
-                  className="bg-blue-500 text-white text-[10px] px-1.5 py-0 font-bold cursor-pointer hover:brightness-110">
+                  className="bg-blue-500 text-white text-[10px] px-2 py-0 rounded-full font-bold cursor-pointer hover:brightness-110">
                   WAIT{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
                 </Badge>
               )}
               {column === 'rmkt' && !contact._rmktWait && (
                 <Badge role="button" title="Registrar RMKT manual" onClick={(e) => { e.stopPropagation(); onDisparoManual(contact, 'rmkt'); }}
-                  className="bg-purple-500 text-white text-[10px] px-1.5 py-0 font-bold cursor-pointer hover:brightness-110">
+                  className="bg-purple-500 text-white text-[10px] px-2 py-0 rounded-full font-bold cursor-pointer hover:brightness-110">
                   RMKT{stateInfo.tentativa ? ` ${stateInfo.tentativa}` : ''}
                 </Badge>
               )}
@@ -378,20 +378,20 @@ const KanbanCard = memo(({
                   secundário → chip suave (outline), pra não competir com o nome.
                   As tags de CAMPANHA acima (F-UP/WAIT/RMKT) são clicáveis, então
                   ficam preenchidas (affordance de ação). */}
-              {activeTag === 'NEW' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-blue-300 text-blue-600 dark:border-blue-800 dark:text-blue-300">NEW</Badge>}
-              {activeTag === 'VIP' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-amber-300 text-amber-600 dark:border-amber-800 dark:text-amber-400">VIP</Badge>}
+              {activeTag === 'NEW' && <Badge variant="outline" className="text-[10px] px-2 py-0 rounded-full font-medium border-blue-300 text-blue-600 dark:border-blue-800 dark:text-blue-300">NEW</Badge>}
+              {activeTag === 'VIP' && <Badge variant="outline" className="text-[10px] px-2 py-0 rounded-full font-medium border-amber-300 text-amber-600 dark:border-amber-800 dark:text-amber-400">VIP</Badge>}
               {/* REP prevalece: representante (por canal ou tag) mostra REP,
                   NUNCA BUYER. BUYER também é redundante na coluna RMKT. */}
               {isRep ? (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-blue-300 text-blue-600 dark:border-blue-800 dark:text-blue-300">REP</Badge>
+                <Badge variant="outline" className="text-[10px] px-2 py-0 rounded-full font-medium border-blue-300 text-blue-600 dark:border-blue-800 dark:text-blue-300">REP</Badge>
               ) : (
-                isBuyer && column !== 'rmkt' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-emerald-300 text-emerald-600 dark:border-emerald-800 dark:text-emerald-400">BUYER</Badge>
+                isBuyer && column !== 'rmkt' && <Badge variant="outline" className="text-[10px] px-2 py-0 rounded-full font-medium border-emerald-300 text-emerald-600 dark:border-emerald-800 dark:text-emerald-400">BUYER</Badge>
               )}
               {/* ADS só na coluna FECHAMENTO — é onde a origem do lead importa
                   pra decisão de venda. Nas outras colunas polui o card. */}
-              {isAds && column === 'em_fechamento' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-purple-300 text-purple-600 dark:border-purple-800 dark:text-purple-300">ADS</Badge>}
-              {isAguardando && <Badge title="Aguardando fechamento agendado" className="bg-indigo-500 text-white text-[10px] px-1.5 py-0 font-bold">⏳ AGENDADO</Badge>}
-              <p className="font-semibold text-sm truncate text-foreground">{contact.nome}</p>
+              {isAds && column === 'em_fechamento' && <Badge variant="outline" className="text-[10px] px-2 py-0 rounded-full font-medium border-purple-300 text-purple-600 dark:border-purple-800 dark:text-purple-300">ADS</Badge>}
+              {isAguardando && <Badge title="Aguardando fechamento agendado" className="bg-indigo-500 text-white text-[10px] px-2 py-0 rounded-full font-bold">⏳ AGENDADO</Badge>}
+              <p className="font-semibold text-[15px] leading-tight truncate text-foreground">{contact.nome}</p>
             </div>
 
             {!collapsed && (
@@ -1346,7 +1346,12 @@ export default function KanbanPage() {
               </div>
               <div className="p-2 space-y-2 max-h-[60vh] overflow-y-auto">
                 {colContacts.length === 0 && (
-                  <p className="text-xs text-muted-foreground/60 text-center py-8 italic">Nenhum card</p>
+                  <div className="flex flex-col items-center gap-1.5 py-10 text-muted-foreground/50">
+                    <span className="w-9 h-9 rounded-full border border-dashed border-current/40 flex items-center justify-center">
+                      <Minus className="w-4 h-4" />
+                    </span>
+                    <span className="text-xs">Nenhum card</span>
+                  </div>
                 )}
                 {colContacts.map(contact => renderCard(contact, key))}
               </div>
