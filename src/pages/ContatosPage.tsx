@@ -18,6 +18,19 @@ import { formatBRL, formatDateShort } from '@/lib/format';
 import { Copy, Download, Trophy, Merge, MapPin, Plus, Pencil, Check, Loader2 } from 'lucide-react';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { canalHex } from '@/lib/canal';
+
+// Pill de canal — mesmo padrão de Pedidos: neutra com dot colorido discreto.
+function CanalPill({ canal }: { canal?: string }) {
+  const c = (canal || '—').toUpperCase();
+  const hex = canalHex(c);
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hex }} />
+      {c}
+    </span>
+  );
+}
 
 const UF_OPTIONS = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA',
@@ -689,7 +702,7 @@ export default function ContatosPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
-          <h1 className="text-2xl font-bold">Contatos</h1>
+          <h1 className="text-2xl font-display font-bold tracking-tight">Contatos</h1>
           <span className="text-xs text-muted-foreground">
             {totalContatos !== undefined
               ? `${contatos.length.toLocaleString('pt-BR')} de ${totalContatos.toLocaleString('pt-BR')} contatos`
@@ -727,8 +740,9 @@ export default function ContatosPage() {
           </label>
           <span className="text-xs text-muted-foreground">|</span>
           {(['ADS', 'BASE', 'REP', 'C-REP'] as const).map(canal => (
-            <label key={canal} className="flex items-center gap-2 cursor-pointer">
+            <label key={canal} className="flex items-center gap-1.5 cursor-pointer">
               <Checkbox checked={filterCanais.has(canal)} onCheckedChange={() => toggleCanal(canal)} />
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: canalHex(canal) }} />
               <span>{canal}</span>
             </label>
           ))}
@@ -745,36 +759,36 @@ export default function ContatosPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="hidden md:block">
+            <div className="hidden md:block rounded-2xl border border-border/60 bg-card overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b font-bold">
-                    <th className="text-left py-2 cursor-pointer select-none hover:bg-muted/50 rounded" onClick={() => toggleSort('nome')}>
-                      Nome {sortColumn === 'nome' ? (sortAsc ? '↑' : '↓') : '↑↓'}
+                  <tr className="border-b border-border/60 bg-muted/30 text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="text-left font-semibold px-4 py-2.5 cursor-pointer select-none hover:text-foreground" onClick={() => toggleSort('nome')}>
+                      Nome {sortColumn === 'nome' ? (sortAsc ? '↑' : '↓') : '↕'}
                     </th>
-                    <th className="text-left py-2">Número</th>
-                    <th className="text-left py-2">Canal</th>
-                    <th className="text-left py-2">Instância</th>
-                    <th className="text-left py-2">📍</th>
-                    <th className="text-left py-2 cursor-pointer select-none hover:bg-muted/50 rounded" onClick={() => toggleSort('created_at')}>
-                      Data Cadastro {sortColumn === 'created_at' ? (sortAsc ? '↑' : '↓') : '↑↓'}
+                    <th className="text-left font-semibold px-4 py-2.5">Número</th>
+                    <th className="text-left font-semibold px-4 py-2.5">Canal</th>
+                    <th className="text-left font-semibold px-4 py-2.5">Instância</th>
+                    <th className="text-left font-semibold px-4 py-2.5">📍</th>
+                    <th className="text-left font-semibold px-4 py-2.5 cursor-pointer select-none hover:text-foreground" onClick={() => toggleSort('created_at')}>
+                      Cadastro {sortColumn === 'created_at' ? (sortAsc ? '↑' : '↓') : '↕'}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {contatos.map((c) => (
-                    <tr key={c.id} className="border-b border-border/50 hover:bg-muted/50 cursor-pointer" onClick={() => openContact(c)}>
-                      <td className="py-2 font-medium">
+                    <tr key={c.id} className="border-b border-border/40 last:border-0 hover:bg-muted/40 cursor-pointer transition-colors" onClick={() => openContact(c)}>
+                      <td className="px-4 py-2.5 font-medium">
                         {c.nome} {c.tag_kanban === 'VIP' && <Trophy className="inline w-3 h-3 text-sf-gold" />}
                       </td>
-                      <td className="py-2 text-muted-foreground">{c.telefone || '—'}</td>
-                      <td className="py-2">
-                        <Badge variant="outline" className="text-[10px]">{c.canal_atual || c.canal_origem || '—'}</Badge>
+                      <td className="px-4 py-2.5 text-muted-foreground">{c.telefone || '—'}</td>
+                      <td className="px-4 py-2.5">
+                        <CanalPill canal={c.canal_atual || c.canal_origem} />
                       </td>
-                      <td className="py-2 text-xs text-muted-foreground">
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">
                         {c.instancias?.nome || '—'}
                       </td>
-                      <td className="py-2" onClick={e => e.stopPropagation()}>
+                      <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -793,7 +807,7 @@ export default function ContatosPage() {
                           </PopoverContent>
                         </Popover>
                       </td>
-                      <td className="py-2 text-xs text-muted-foreground">{formatDateShort(c.created_at)}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">{formatDateShort(c.created_at)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -803,7 +817,7 @@ export default function ContatosPage() {
             {/* Mobile Cards */}
             <div className="md:hidden space-y-2">
               {contatos.map((c) => (
-                <div key={c.id} className="relative p-3 border rounded-xl hover:bg-muted/30 cursor-pointer" onClick={() => openContact(c)}>
+                <div key={c.id} className="relative p-3 border border-border/60 rounded-2xl bg-card hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => openContact(c)}>
                   {c.instancias?.nome && (
                     <span className="absolute top-1 right-2 text-[9px] text-muted-foreground/70 font-mono">
                       {c.instancias.nome}
@@ -813,7 +827,8 @@ export default function ContatosPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-bold">{c.nome}</span>
-                        <Badge variant="outline" className="text-[10px]">{c.canal_atual || c.canal_origem}</Badge>
+                        {c.tag_kanban === 'VIP' && <Trophy className="inline w-3 h-3 text-sf-gold" />}
+                        <CanalPill canal={c.canal_atual || c.canal_origem} />
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">{c.telefone}</div>
                     </div>
