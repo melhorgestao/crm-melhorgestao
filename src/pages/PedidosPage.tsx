@@ -30,6 +30,53 @@ const valorTotalLista = (p: any): number => {
   return Number(original) - (Number(p?.desconto_total) || 0);
 };
 
+// ---- UI helpers (linguagem visual moderna, cookbook) -----------------------
+const AVATAR_TINTS = [
+  'bg-emerald-500/15 text-emerald-700', 'bg-sky-500/15 text-sky-700',
+  'bg-violet-500/15 text-violet-700', 'bg-amber-500/15 text-amber-700',
+  'bg-rose-500/15 text-rose-700', 'bg-teal-500/15 text-teal-700',
+];
+function iniciais(nome?: string): string {
+  const parts = String(nome || '').trim().split(/\s+/);
+  const s = (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
+  return s.toUpperCase() || '?';
+}
+function hashIdx(str: string, mod: number): number {
+  let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return h % mod;
+}
+function Avatar({ nome }: { nome?: string }) {
+  const tint = AVATAR_TINTS[hashIdx(String(nome || '?'), AVATAR_TINTS.length)];
+  return (
+    <span className={cn('inline-flex items-center justify-center w-8 h-8 rounded-full text-[11px] font-semibold shrink-0', tint)}>
+      {iniciais(nome)}
+    </span>
+  );
+}
+const CANAL_TINT: Record<string, string> = {
+  ADS: 'bg-violet-500/12 text-violet-700 ring-violet-500/20',
+  BASE: 'bg-slate-500/12 text-slate-600 ring-slate-500/20',
+  REP: 'bg-sky-500/12 text-sky-700 ring-sky-500/20',
+  'C-REP': 'bg-sky-500/12 text-sky-700 ring-sky-500/20',
+};
+function CanalPill({ canal }: { canal?: string }) {
+  const c = (canal || '—').toUpperCase();
+  return <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1', CANAL_TINT[c] || 'bg-muted text-muted-foreground ring-border')}>{c}</span>;
+}
+function StatusPill({ status }: { status?: string }) {
+  const cfg = status === 'entregue'
+    ? { label: 'Entregue', cls: 'bg-emerald-500/15 text-emerald-700', dot: '#10b981' }
+    : status === 'postado'
+      ? { label: 'Postado', cls: 'bg-sky-500/15 text-sky-700', dot: '#0ea5e9' }
+      : { label: 'Aguardando', cls: 'bg-amber-500/15 text-amber-700', dot: '#f59e0b' };
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium', cfg.cls)}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
+      {cfg.label}
+    </span>
+  );
+}
+
 export default function PedidosPage() {
   const { user, profile } = useAuth();
   const isMobile = useIsMobile();
@@ -623,36 +670,40 @@ export default function PedidosPage() {
           </div>
 
           {/* Web Table - hidden on mobile */}
-          <div className="hidden md:block overflow-x-auto">
+          <div className="hidden md:block rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
             <table className="w-full text-sm">
-              <thead><tr className="border-b font-bold"><th className="text-left py-2 w-12">#</th><th className="text-left py-2">Data</th><th className="text-left py-2">Nome</th><th className="text-left py-2">Canal</th><th className="text-right py-2 pr-8">Valor</th><th className="text-left py-2">Status</th></tr></thead>
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <th className="text-left font-medium px-4 py-3 w-14">#</th>
+                  <th className="text-left font-medium py-3">Data</th>
+                  <th className="text-left font-medium py-3">Cliente</th>
+                  <th className="text-left font-medium py-3">Canal</th>
+                  <th className="text-right font-medium py-3 pr-6">Valor</th>
+                  <th className="text-left font-medium py-3 pl-4">Status</th>
+                </tr>
+              </thead>
               <tbody>
                 {filteredPedidos.map(p => (
-                  <tr key={p.id} className="border-b border-border/50 hover:bg-muted/50 cursor-pointer" onClick={() => setDetailPedido(p)}>
-                    <td className="py-2 text-muted-foreground font-mono text-xs">#{p.order_number}</td>
-                    <td className="py-2">{formatDateShort(p.data)}</td>
-                    <td className="py-2 font-medium">
-                      <button onClick={e => { e.stopPropagation(); openContactDetail(p.contato_id); }} className="hover:underline text-primary">
-                        {(p.contatos as any)?.nome || '—'}
-                      </button>
-                      {(p.contatos as any)?.tag_kanban === 'VIP' && <Trophy className="inline w-3 h-3 ml-1 text-sf-gold" />}
+                  <tr key={p.id} className="border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors cursor-pointer" onClick={() => setDetailPedido(p)}>
+                    <td className="px-4 py-3 text-muted-foreground font-mono text-xs">#{p.order_number}</td>
+                    <td className="py-3 text-muted-foreground tabular-nums">{formatDateShort(p.data)}</td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar nome={(p.contatos as any)?.nome} />
+                        <button onClick={e => { e.stopPropagation(); openContactDetail(p.contato_id); }} className="font-medium hover:underline truncate max-w-[220px] text-left">
+                          {(p.contatos as any)?.nome || '—'}
+                        </button>
+                        {(p.contatos as any)?.tag_kanban === 'VIP' && <Trophy className="inline w-3.5 h-3.5 text-sf-gold shrink-0" />}
+                      </div>
                     </td>
-                    <td className="py-2">
-                      <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
-                    </td>
-                    <td className="py-2 text-right pr-8 font-medium">{p.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(valorTotalLista(p))}</td>
-                    <td className="py-2" onClick={e => e.stopPropagation()}>
+                    <td className="py-3"><CanalPill canal={p.canal} /></td>
+                    <td className="py-3 text-right pr-6 font-display text-[15px] font-semibold tabular-nums">{p.is_free ? <span className="text-sky-600">FREE</span> : formatBRL(valorTotalLista(p))}</td>
+                    <td className="py-3 pl-4" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Select value={p.status_pedido || 'aguardando_rastreio'} onValueChange={v => updateStatus(p.id, v, isStatusLocked(p))} disabled={isStatusLocked(p)}>
                           <SelectTrigger className={cn("h-7 w-auto min-w-[120px] text-xs border-0 bg-transparent p-0 shadow-none focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 [&>svg]:opacity-50", isStatusLocked(p) && "[&>svg]:hidden disabled:opacity-100 cursor-default")}>
                             <SelectValue>
-                              {p.status_pedido === 'entregue' ? (
-                                <Badge className="bg-green-600 text-white hover:bg-green-600">Entregue</Badge>
-                              ) : p.status_pedido === 'postado' ? (
-                                <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100 border border-sky-200">Postado</Badge>
-                              ) : (
-                                <Badge variant="secondary">Aguardando</Badge>
-                              )}
+                              <StatusPill status={p.status_pedido} />
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
@@ -768,34 +819,35 @@ export default function PedidosPage() {
 
         <TabsContent value="pendentes" className="space-y-4">
           <Input placeholder="Buscar por nome ou telefone" value={pendentesSearch} onChange={e => setPendentesSearch(e.target.value)} className="max-w-sm" />
-          <div className="hidden md:block overflow-x-auto">
+          <div className="hidden md:block rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
             <table className="w-full text-sm">
-              <thead><tr className="border-b font-bold">
-                <th className="text-left py-2 w-12">#</th>
-                <th className="text-left py-2">Data</th>
-                <th className="text-left py-2">Nome</th>
-                <th className="text-left py-2">Canal</th>
-                <th className="text-right py-2 pr-8">Valor</th>
-                <th className="text-left py-2">Status</th>
-                <th className="text-center py-2">Obs</th>
-                <th className="py-2"></th>
-              </tr></thead>
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <th className="text-left font-medium px-4 py-3 w-14">#</th>
+                  <th className="text-left font-medium py-3">Data</th>
+                  <th className="text-left font-medium py-3">Cliente</th>
+                  <th className="text-left font-medium py-3">Canal</th>
+                  <th className="text-right font-medium py-3">Valor</th>
+                  <th className="text-left font-medium py-3 pl-4">Status</th>
+                  <th className="text-center font-medium py-3">Obs</th>
+                  <th className="py-3 pr-4"></th>
+                </tr>
+              </thead>
               <tbody>
                 {filteredPendentes.map(p => (
-                  <tr key={p.id} className="border-b border-border/50 hover:bg-muted/50">
-                    <td className="py-2 text-muted-foreground font-mono text-xs">#{p.order_number}</td>
-                    <td className="py-2">{formatDateShort(p.data)}</td>
-                    <td className="py-2 font-medium">{(p.contatos as any)?.nome || '—'}</td>
-                    <td className="py-2">
-                      <Badge variant="outline" className="text-[10px]">{p.canal || '—'}</Badge>
+                  <tr key={p.id} className="border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">#{p.order_number}</td>
+                    <td className="py-3 text-muted-foreground tabular-nums">{formatDateShort(p.data)}</td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar nome={(p.contatos as any)?.nome} />
+                        <span className="font-medium truncate max-w-[220px]">{(p.contatos as any)?.nome || '—'}</span>
+                      </div>
                     </td>
-                    <td className="py-2 text-right pr-8 font-medium">{p.is_free ? <span className="text-sky-600 font-bold">FREE</span> : formatBRL(Number(p.valor))}</td>
-                    <td className="py-2">
-                      <Badge variant="secondary">
-                        {p.status_pedido === 'entregue' ? 'Entregue' : p.status_pedido === 'postado' ? 'Postado' : 'Aguardando'}
-                      </Badge>
-                    </td>
-                    <td className="py-2 text-center">
+                    <td className="py-3"><CanalPill canal={p.canal} /></td>
+                    <td className="py-3 text-right font-display text-[15px] font-semibold tabular-nums">{p.is_free ? <span className="text-sky-600">FREE</span> : formatBRL(Number(p.valor))}</td>
+                    <td className="py-3 pl-4"><StatusPill status={p.status_pedido} /></td>
+                    <td className="py-3 text-center">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -806,7 +858,7 @@ export default function PedidosPage() {
                         <StickyNote className={cn("w-4 h-4", p.observacao ? "text-orange-500" : "text-muted-foreground")} />
                       </Button>
                     </td>
-                    <td className="py-2">
+                    <td className="py-3 pr-4">
                       <div className="flex items-center justify-end gap-1.5">
                         <Button size="sm" className="h-8 rounded-lg bg-sf-green hover:bg-sf-green/90 text-white shadow-sm font-medium" onClick={() => setMarcarPagoTarget(p)}>
                           Pago
