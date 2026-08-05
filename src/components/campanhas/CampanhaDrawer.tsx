@@ -238,7 +238,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
       <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
         <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>{campanha.nome}</SheetTitle>
+            <SheetTitle className="font-display tracking-tight">{campanha.nome}</SheetTitle>
           </SheetHeader>
 
           <div className="space-y-6 py-4">
@@ -287,7 +287,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                   </p>
                 </div>
               </details>
-              <Button className="w-full" onClick={saveConfig} disabled={saving}>
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={saveConfig} disabled={saving}>
                 {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 Salvar configurações
               </Button>
@@ -406,7 +406,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
               )}
 
               {campanha.tipo !== 'followup' && (
-                <p className="text-[10px] text-sf-green">
+                <p className="text-[10px] text-emerald-600">
                   ✓ Valores aplicados imediatamente — o claim do workflow lê estas regras a cada execução.
                 </p>
               )}
@@ -500,7 +500,7 @@ export function CampanhaDrawer({ open, onClose, campanha }: Props) {
                 </p>
               </div>
 
-              <p className="text-[10px] text-sf-green">
+              <p className="text-[10px] text-emerald-600">
                 ✓ Workflow chama <code className="font-mono">pode_disparar_campanha</code> antes de cada claim. Valores aplicados na próxima execução.
               </p>
             </section>

@@ -127,7 +127,7 @@ export function TemplateModal({ open, onClose, campanhaId, campanhaTipo, campanh
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{template ? 'Editar template' : 'Novo template'}</DialogTitle>
+          <DialogTitle className="font-display tracking-tight">{template ? 'Editar template' : 'Novo template'}</DialogTitle>
           <DialogDescription>
             Use <code className="font-mono text-xs">{'{{nome}}'}</code>, <code className="font-mono text-xs">{'{{cidade}}'}</code>, <code className="font-mono text-xs">{'{{rep_nome}}'}</code> ou variáveis globais.
           </DialogDescription>
@@ -201,7 +201,7 @@ export function TemplateModal({ open, onClose, campanhaId, campanhaTipo, campanh
 
           <div className="flex gap-2 pt-2">
             <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-            <Button className="flex-1 bg-sf-green hover:bg-sf-green/90" onClick={handleSave} disabled={saving}>
+            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               {template ? 'Salvar' : 'Criar'}
             </Button>

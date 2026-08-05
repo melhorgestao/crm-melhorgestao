@@ -61,12 +61,12 @@ interface Props {
   onToggleAtiva: (c: CampanhaRow) => void;
 }
 
-const TIPO_META: Record<CampanhaRow['tipo'], { icon: any; label: string; color: string }> = {
-  ativacao:  { icon: Sparkles,    label: 'Ativação',  color: 'text-amber-500'   },
-  followup:  { icon: Repeat,      label: 'Follow-up', color: 'text-blue-500'    },
-  rmkt:      { icon: TrendingUp,  label: 'RMKT',      color: 'text-purple-500'  },
-  marketing: { icon: Megaphone,   label: 'Marketing', color: 'text-emerald-500' },
-  fechamento:{ icon: Hourglass,   label: 'Fechamento',color: 'text-indigo-500'  },
+const TIPO_META: Record<CampanhaRow['tipo'], { icon: any; label: string; color: string; hex: string }> = {
+  ativacao:  { icon: Sparkles,    label: 'Ativação',  color: 'text-amber-500',   hex: '#f59e0b' },
+  followup:  { icon: Repeat,      label: 'Follow-up', color: 'text-blue-500',    hex: '#3b82f6' },
+  rmkt:      { icon: TrendingUp,  label: 'RMKT',      color: 'text-purple-500',  hex: '#a855f7' },
+  marketing: { icon: Megaphone,   label: 'Marketing', color: 'text-emerald-500', hex: '#10b981' },
+  fechamento:{ icon: Hourglass,   label: 'Fechamento',color: 'text-indigo-500',  hex: '#6366f1' },
 };
 
 export function CampanhaCard({ campanha, onOpenDetails, onToggleAtiva }: Props) {
@@ -126,19 +126,29 @@ export function CampanhaCard({ campanha, onOpenDetails, onToggleAtiva }: Props) 
     refetchInterval: 60_000,
   });
 
+  const on = c.ativa && !c.pausa_global;
   return (
-    <div className={cn(
-      'border rounded-2xl p-4 transition-all',
-      c.ativa && !c.pausa_global ? 'bg-card hover:shadow-md' : 'bg-muted/30 opacity-70'
-    )}>
+    <div
+      className={cn(
+        'relative overflow-hidden border rounded-2xl p-4 transition-all',
+        on ? 'border-border/60 hover:shadow-lg hover:-translate-y-0.5' : 'border-border/50 opacity-70'
+      )}
+      style={{ background: on
+        ? `linear-gradient(145deg, ${meta.hex}1f, ${meta.hex}08 55%, transparent)`
+        : undefined }}
+    >
+      {/* faixa de accent lateral */}
+      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: on ? meta.hex : 'transparent' }} />
+
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <div className={cn('rounded-lg p-2', `${meta.color.replace('text-', 'bg-')}/15`)}>
-            <Icon className={cn('w-4 h-4', meta.color)} />
+          <div className="rounded-xl p-2 shrink-0" style={{ background: `${meta.hex}1f` }}>
+            <Icon className="w-4 h-4" style={{ color: meta.hex }} />
           </div>
           <div className="min-w-0">
-            <h3 className="font-bold truncate">{c.nome}</h3>
+            <h3 className="font-display font-bold truncate leading-tight">{c.nome}</h3>
+            <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: meta.hex }}>{meta.label}</span>
           </div>
         </div>
         <Switch checked={c.ativa} onCheckedChange={() => onToggleAtiva(c)} />
@@ -178,13 +188,14 @@ export function CampanhaCard({ campanha, onOpenDetails, onToggleAtiva }: Props) 
       </div>
 
       {/* Instâncias */}
-      <div className="bg-muted/40 rounded-lg px-3 py-2 mb-3 text-xs flex items-center justify-between">
+      <div className="bg-background/60 border border-border/50 rounded-lg px-3 py-2 mb-3 text-xs flex items-center justify-between">
         <span className="text-muted-foreground">Instâncias ativas</span>
         <span className="tabular-nums font-semibold">{stats?.inst_ativas ?? '—'} / {stats?.inst_total ?? '—'}</span>
       </div>
 
-      <Button variant="outline" size="sm" className="w-full" onClick={() => onOpenDetails(c)}>
+      <Button variant="outline" size="sm" className="w-full rounded-lg bg-background/70 group" onClick={() => onOpenDetails(c)}>
         Detalhes e Templates
+        <ChevronRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-0.5" />
       </Button>
     </div>
   );

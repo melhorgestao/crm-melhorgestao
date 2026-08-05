@@ -4,11 +4,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { PauseOctagon, PlayCircle } from 'lucide-react';
 import { CampanhaCard, type CampanhaRow } from '@/components/campanhas/CampanhaCard';
 import { CampanhaDrawer } from '@/components/campanhas/CampanhaDrawer';
+import { cn } from '@/lib/utils';
+
+const SECAO_HEX: Record<string, string> = {
+  marketing: '#10b981',
+  followup: '#3b82f6',
+  fechamento: '#6366f1',
+  rmkt: '#a855f7',
+};
 
 export default function CampanhasPage() {
   const { isAdmin } = useAuth();
@@ -80,17 +87,25 @@ export default function CampanhasPage() {
     <div className="space-y-4 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold">Campanhas</h1>
-          <p className="text-xs text-muted-foreground">
-            {isLoading ? 'carregando…' : `${ativas} ativas · ${total} total`}
-          </p>
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-2xl font-display font-bold tracking-tight">Campanhas</h1>
+          {!isLoading && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-medium text-emerald-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {ativas} ativa{ativas !== 1 ? 's' : ''}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted border border-border/60 px-2 py-0.5 font-medium text-muted-foreground">
+                {total} total
+              </span>
+            </div>
+          )}
         </div>
         <Button
           variant={pausaGlobal ? 'default' : 'outline'}
           size="sm"
           onClick={togglePausaGlobal}
-          className={pausaGlobal ? 'bg-sf-green hover:bg-sf-green/90' : ''}
+          className={cn('rounded-full', pausaGlobal ? 'text-white border-0' : 'border-amber-300 text-amber-700 hover:bg-amber-50')}
+          style={pausaGlobal ? { background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' } : undefined}
         >
           {pausaGlobal ? <><PlayCircle className="w-4 h-4 mr-1" /> Retomar todas</> : <><PauseOctagon className="w-4 h-4 mr-1" /> Pausar todas</>}
         </Button>
@@ -141,9 +156,10 @@ export default function CampanhasPage() {
             }
             return (
               <div key={secao.key} className="space-y-3">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full" style={{ background: SECAO_HEX[secao.key] }} />
                   {secao.label}
-                  <Badge variant="outline" className="text-[10px]">{grupo.length}</Badge>
+                  <span className="tabular-nums rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{grupo.length}</span>
                 </h2>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {grupo.map(c => (
