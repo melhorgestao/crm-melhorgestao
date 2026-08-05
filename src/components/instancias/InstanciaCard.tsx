@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Crown, Settings, Pause, Play, MessageCircleMore, MessageSquare, ArrowDown, ArrowUp } from 'lucide-react';
+import { Crown, Settings, Pause, Play, MessageCircleMore, MessageSquare, ArrowDown, ArrowUp, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -52,7 +52,7 @@ export function InstanciaCard({ instancia, onOpenDetails, onTogglePause, onToggl
     queryFn: async () => {
       const { data, error } = await supabase.rpc('instancia_metricas' as any, { p_id: i.id, p_periodo: periodo });
       if (error) throw error;
-      return data as { clientes: number; ads: number; base: number; rep: number; conv_in: number; conv_out: number };
+      return data as { clientes: number; ads: number; base: number; rep: number; conv_in: number; conv_out: number; disparos: number };
     },
     refetchInterval: 60_000,
     staleTime: 30_000,
@@ -153,8 +153,11 @@ export function InstanciaCard({ instancia, onOpenDetails, onTogglePause, onToggl
           <span className="flex items-center gap-0.5 text-emerald-600" title="Recebidas — o lead te escreveu (1 por conversa, mesmo respondendo)">
             <ArrowDown className="w-3.5 h-3.5" />{metricas?.conv_in ?? '—'}
           </span>
-          <span className="flex items-center gap-0.5 text-blue-600" title="Abertas — você iniciou a conversa (disparo/proativo, sem o lead ter escrito)">
+          <span className="flex items-center gap-0.5 text-blue-600" title="Abertas — conversas que você abriu A FRIO (saída sem o lead ter escrito no período)">
             <ArrowUp className="w-3.5 h-3.5" />{metricas?.conv_out ?? '—'}
+          </span>
+          <span className="flex items-center gap-0.5 text-violet-600" title="Disparos — follow-up/RMKT enviados no período (volume real, independente de o lead ter respondido)">
+            <Send className="w-3 h-3" />{metricas?.disparos ?? '—'}
           </span>
         </div>
       </div>
