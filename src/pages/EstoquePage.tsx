@@ -43,6 +43,17 @@ function ufClienteFromMov(m: {
   return '—';
 }
 
+// Suaviza qualquer cor de produto/grupo num tint agradável (mesmo padrão dos
+// tiles do Dashboard): a identidade de cor é mantida, mas sem saturação pesada.
+function softTile(hex?: string | null): string {
+  const h = hex && /^#([0-9a-f]{6})$/i.test(hex) ? hex : '#e2e8f0';
+  return `linear-gradient(140deg, ${h}33, ${h}12 55%, transparent)`;
+}
+// Cor forte legível pro número/dot (a própria cor, só validada).
+function tileAccent(hex?: string | null): string {
+  return hex && /^#([0-9a-f]{6})$/i.test(hex) ? hex : '#64748b';
+}
+
 const CORES_CARDS = [
   // Favoritas (2 linhas)
   '#ffffff', '#f8fafc', '#e2e8f0', '#94a3b8', '#fef9c3', '#fef08a', '#fee2e2', '#fecaca',
@@ -782,12 +793,12 @@ export default function EstoquePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Estoque</h1>
+      <h1 className="text-2xl font-display font-bold tracking-tight">Estoque</h1>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="estoque">📦 Estoque</TabsTrigger>
-          <TabsTrigger value="cadastro">📝 Cadastro</TabsTrigger>
+        <TabsList className="bg-muted/60 rounded-full p-1 h-auto">
+          <TabsTrigger value="estoque" className="rounded-full px-4 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">📦 Estoque</TabsTrigger>
+          <TabsTrigger value="cadastro" className="rounded-full px-4 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">📝 Cadastro</TabsTrigger>
         </TabsList>
 
         <TabsContent value="estoque" className="space-y-6">
@@ -795,14 +806,14 @@ export default function EstoquePage() {
             {grupos.length > 0 && (
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <h3 className="font-semibold text-sm">Grupos (clique para filtrar)</h3>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grupos · clique para filtrar</span>
                   {selectedGroupId && (
-                    <Button variant="link" size="sm" onClick={() => setSelectedGroupId(null)}>
+                    <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setSelectedGroupId(null)}>
                       Mostrar todos
                     </Button>
                   )}
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                   {grupos
                     .slice(pageGrupos * PAGE_SIZE_GRUPOS, (pageGrupos + 1) * PAGE_SIZE_GRUPOS)
                     .map(g => {
@@ -811,22 +822,24 @@ export default function EstoquePage() {
                       const uf = lotesByProduct[p.id] || [];
                       return sum + uf.reduce((s, l) => s + l.qty, 0);
                     }, 0);
+                    const accent = tileAccent(g.cor_grupo);
+                    const active = selectedGroupId === g.id;
                     return (
-                      <Card 
-                        key={g.id} 
+                      <button
+                        key={g.id}
+                        type="button"
                         className={cn(
-                          'cursor-pointer transition-all hover:scale-105',
-                          selectedGroupId === g.id ? 'ring-2 ring-blue-500 border-blue-500' : 'border-2'
+                          'relative overflow-hidden rounded-2xl border text-left p-3 transition-all hover:-translate-y-0.5 hover:shadow-md',
+                          active ? 'border-transparent ring-2 shadow-md' : 'border-border/60'
                         )}
-                        style={{ backgroundColor: g.cor_grupo || '#f8fafc' }}
-                        onClick={() => { setSelectedGroupId(selectedGroupId === g.id ? null : g.id); setPageProdutosEstoque(0); }}
+                        style={{ background: softTile(g.cor_grupo), ...(active ? { ['--tw-ring-color' as any]: accent } : {}) }}
+                        onClick={() => { setSelectedGroupId(active ? null : g.id); setPageProdutosEstoque(0); }}
                       >
-                        <CardContent className="p-3 text-center">
-                          <p className="text-sm font-bold">{g.nome}</p>
-                          <p className="text-2xl font-bold text-blue-600">{estoqueDoGrupo}</p>
-                          <p className="text-xs text-muted-foreground">{produtosDoGrupo.length} produtos</p>
-                        </CardContent>
-                      </Card>
+                        <span className="absolute top-3 left-3 w-2 h-2 rounded-full" style={{ background: accent }} />
+                        <p className="text-sm font-semibold pl-4 truncate">{g.nome}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{estoqueDoGrupo}</p>
+                        <p className="text-[11px] text-muted-foreground">{produtosDoGrupo.length} produtos</p>
+                      </button>
                     );
                   })}
                 </div>
@@ -846,9 +859,9 @@ export default function EstoquePage() {
 
             {/* Cards de Produtos */}
             {selectedGroupId && (
-              <p className="text-sm text-muted-foreground">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                 Filtrando: {grupos.find(g => g.id === selectedGroupId)?.nome}
-              </p>
+              </div>
             )}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {(() => {
@@ -859,18 +872,34 @@ export default function EstoquePage() {
               return paginated.map(p => {
                 const ufBreakdown = (lotesByProduct[p.id] || []).filter(l => l.qty !== 0);
                 const totalEstoque = ufBreakdown.reduce((sum, l) => sum + l.qty, 0);
+                const accent = tileAccent(p.cor_card);
+                const critico = totalEstoque < 0;
+                const baixo = totalEstoque >= 0 && totalEstoque < 5;
                 return (
-                <Card key={p.id} className={cn('border-2', totalEstoque < 0 ? 'border-red-500 animate-pulse-border' : totalEstoque < 5 && 'animate-pulse-border')} style={{ backgroundColor: p.cor_card || '#ffffff', color: p.cor_texto || '#000000' }}>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-sm font-bold">{getProductDisplayName(p)}</p>
-                    <p className="text-3xl font-bold mt-1">{totalEstoque}</p>
-                    {ufBreakdown.length > 0 && (
-                      <p className="text-xs mt-1 opacity-80">
-                        {ufBreakdown.map(l => `${l.uf}: ${l.qty}`).join(' | ')}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
+                <div
+                  key={p.id}
+                  className={cn(
+                    'relative overflow-hidden rounded-2xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-md',
+                    critico ? 'border-red-400/70 animate-pulse-border' : baixo ? 'border-amber-300 animate-pulse-border' : 'border-border/60'
+                  )}
+                  style={{ background: softTile(p.cor_card) }}
+                >
+                  <Package className="absolute -right-3 -bottom-3 w-16 h-16 opacity-[0.06]" style={{ color: accent }} strokeWidth={1.5} />
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: accent }} />
+                    <p className="text-sm font-semibold truncate">{getProductDisplayName(p)}</p>
+                  </div>
+                  <p className={cn('text-3xl font-display font-bold mt-1 tabular-nums', critico && 'text-red-600')}>{totalEstoque}</p>
+                  {ufBreakdown.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {ufBreakdown.map(l => (
+                        <span key={l.uf} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/70 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {l.uf}: <span className="tabular-nums text-foreground">{l.qty}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 );
               });
             })()}
@@ -892,27 +921,38 @@ export default function EstoquePage() {
             );
           })()}
 
-            <p className="text-sm font-medium text-muted-foreground">Total de produtos: {produtos.filter(p => p.ativo).reduce((sum, p) => {
-              const ufBreakdown = lotesByProduct[p.id] || [];
-              return sum + ufBreakdown.reduce((s, l) => s + l.qty, 0);
-            }, 0)}</p>
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
+              <Package className="w-3.5 h-3.5" />
+              Total de produtos
+              <span className="font-display font-bold text-foreground tabular-nums">{produtos.filter(p => p.ativo).reduce((sum, p) => {
+                const ufBreakdown = lotesByProduct[p.id] || [];
+                return sum + ufBreakdown.reduce((s, l) => s + l.qty, 0);
+              }, 0)}</span>
+            </div>
 
             {repStock.length > 0 && (
               <div className="space-y-3">
-                <h2 className="font-bold text-lg flex items-center gap-2">
-                  <User className="w-4 h-4" />
+                <h2 className="font-display font-bold text-lg flex items-center gap-2">
+                  <User className="w-4 h-4 text-muted-foreground" />
                   Estoque Atribuído a Representantes
                 </h2>
-                <div className="overflow-x-auto">
+                <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead><tr className="border-b font-bold"><th className="text-left py-2">Representante</th><th className="text-left py-2">Produto</th><th className="text-right py-2">Qtd</th><th className="text-left py-2">UF</th></tr></thead>
+                    <thead>
+                      <tr className="border-b border-border/60 bg-muted/30 text-[11px] uppercase tracking-wider text-muted-foreground">
+                        <th className="text-left font-semibold px-4 py-2.5">Representante</th>
+                        <th className="text-left font-semibold px-4 py-2.5">Produto</th>
+                        <th className="text-right font-semibold px-4 py-2.5">Qtd</th>
+                        <th className="text-left font-semibold px-4 py-2.5">UF</th>
+                      </tr>
+                    </thead>
                     <tbody>
                       {repStock.map((rs, i) => (
-                        <tr key={i} className="border-b border-border/50">
-                          <td className="py-2 font-medium">{rs.rep_nome}</td>
-                          <td className="py-2">{rs.produto_nome}</td>
-                          <td className="py-2 text-right font-bold">{rs.quantidade}</td>
-                          <td className="py-2">{rs.uf}</td>
+                        <tr key={i} className="border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors">
+                          <td className="px-4 py-2.5 font-medium">{rs.rep_nome}</td>
+                          <td className="px-4 py-2.5">{rs.produto_nome}</td>
+                          <td className="px-4 py-2.5 text-right font-bold tabular-nums">{rs.quantidade}</td>
+                          <td className="px-4 py-2.5">{rs.uf}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -921,39 +961,54 @@ export default function EstoquePage() {
               </div>
             )}
 
-            <Button onClick={() => setShowForm(true)} className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-sf-green hover:bg-sf-green/90 text-primary-foreground z-50" size="icon">
+            <Button onClick={() => setShowForm(true)} className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-xl shadow-emerald-900/25 text-white z-50 transition-transform hover:scale-105 active:scale-95 border-0" style={{ background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' }} size="icon" aria-label="Nova movimentação">
               <Plus className="w-6 h-6" />
             </Button>
 
-            <h2 className="font-bold text-lg">Movimentações</h2>
+            <h2 className="font-display font-bold text-lg">Movimentações</h2>
             <div className="flex items-center gap-2 mb-3">
               <Input
                 placeholder="Buscar por produto ou cliente..."
                 value={movSearch}
                 onChange={e => setMovSearch(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleMovSearch()}
-                className="max-w-xs"
+                className="max-w-xs rounded-full"
               />
-              <Button variant="outline" size="sm" onClick={handleMovSearch}>
+              <Button variant="outline" size="sm" className="rounded-full" onClick={handleMovSearch}>
                 🔍
               </Button>
             </div>
-            <div className="overflow-x-auto">
+            <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
               <table className="w-full text-sm">
-                <thead><tr className="border-b font-bold"><th className="text-left py-2">Data</th><th className="text-left py-2">Produto</th><th className="text-right py-2">Qnt.</th><th className="text-left py-2">Tipo</th><th className="text-left py-2">UF estoque</th><th className="text-left py-2">UF cliente</th></tr></thead>
+                <thead>
+                  <tr className="border-b border-border/60 bg-muted/30 text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="text-left font-semibold px-4 py-2.5">Data</th>
+                    <th className="text-left font-semibold px-4 py-2.5">Produto</th>
+                    <th className="text-right font-semibold px-4 py-2.5">Qnt.</th>
+                    <th className="text-left font-semibold px-4 py-2.5">Tipo</th>
+                    <th className="text-left font-semibold px-4 py-2.5">UF estoque</th>
+                    <th className="text-left font-semibold px-4 py-2.5">UF cliente</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {movimentacoes.map(m => (
-                    <tr key={m.id} className="border-b border-border/50 cursor-pointer hover:bg-muted/50" onClick={() => handleMovClick(m)}>
-                      <td className="py-2">{formatDateShort((m as any).data || m.created_at)}</td>
-                      <td className="py-2">{getProductDisplayName(m.produtos)}</td>
-                      <td className="py-2 text-right">{m.quantidade}</td>
-                      <td className="py-2">
-                        <Badge variant={m.tipo === 'entrada' ? 'default' : 'destructive'} className={m.tipo === 'entrada' ? 'bg-green-600 text-white' : ''}>
-                          {m.tipo === 'entrada' ? 'Entrada' : 'Saída'}
-                        </Badge>
+                    <tr key={m.id} className="border-b border-border/40 last:border-0 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => handleMovClick(m)}>
+                      <td className="px-4 py-2.5 text-muted-foreground">{formatDateShort((m as any).data || m.created_at)}</td>
+                      <td className="px-4 py-2.5 font-medium">{getProductDisplayName(m.produtos)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{m.quantidade}</td>
+                      <td className="px-4 py-2.5">
+                        {m.tipo === 'entrada' ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Entrada
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium text-rose-700 border border-rose-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Saída
+                          </span>
+                        )}
                       </td>
-                      <td className="py-2">{m.uf_origem || m.posse || '—'}</td>
-                      <td className="py-2">{ufClienteFromMov(m)}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{m.uf_origem || m.posse || '—'}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{ufClienteFromMov(m)}</td>
                     </tr>
                   ))}
                 </tbody>
