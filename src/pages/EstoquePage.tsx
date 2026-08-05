@@ -1060,27 +1060,23 @@ export default function EstoquePage() {
 
         {/* ==================== CADASTRO TAB ==================== */}
         <TabsContent value="cadastro" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">
-              {selectedGroupInCadastro
-                ? <>Produtos do grupo: <span className="font-semibold text-foreground">{selectedGroupInCadastro.nome}</span></>
-                : <><span className="font-semibold text-foreground tabular-nums">{produtos.length}</span> produtos cadastrados</>}
-            </p>
-            <div className="flex gap-2">
-              {selectedGroupInCadastro && (
-                <Button variant="outline" onClick={() => { setSelectedGroupInCadastro(null); setPageProdutosCadastro(0); }}>
-                  Voltar
-                </Button>
-              )}
+          {selectedGroupInCadastro && (
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                Produtos do grupo: <span className="font-semibold text-foreground">{selectedGroupInCadastro.nome}</span>
+              </p>
+              <Button variant="outline" onClick={() => { setSelectedGroupInCadastro(null); setPageProdutosCadastro(0); }}>
+                Voltar
+              </Button>
             </div>
-          </div>
+          )}
 
           {/* Seção de UFs cadastradas */}
           {!selectedGroupInCadastro && (
-            <div className="rounded-2xl border border-border/60 bg-card p-4 space-y-3">
-              <div className="flex justify-between items-center">
+            <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+              <div className="flex justify-between items-center px-4 py-2.5 border-b border-border/60 bg-muted/30">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> UFs de Estoque</span>
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setShowAddUf(true)}>
                     <Plus className="w-3 h-3 mr-1" /> Nova UF
                   </Button>
@@ -1089,36 +1085,38 @@ export default function EstoquePage() {
                   </Button>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 p-4">
                 {estoqueUfs.map(uf => {
                   const regionsOfUf = ufRegioes.filter(r => r.uf === uf);
-                  
+
                   if (regionsOfUf.length > 0) {
                     return regionsOfUf.map(r => (
-                      <Badge key={r.codigo} variant="secondary" className="text-sm px-3 py-1 flex items-center gap-1 bg-blue-50/50">
-                        {r.codigo} ({r.tag})
+                      <span key={r.codigo} className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background pl-2.5 pr-1.5 py-1 text-xs font-medium shadow-sm">
+                        <MapPin className="w-3 h-3 text-primary/70" />
+                        {r.codigo} <span className="text-muted-foreground">({r.tag})</span>
                         <button
-                          className="ml-1 text-destructive hover:text-destructive/80 text-xs font-bold"
+                          className="ml-0.5 grid place-items-center w-4 h-4 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                           onClick={() => setDeleteRegionTarget({ id: r.id, codigo: r.codigo })}
                           title={`Remover região ${r.codigo}`}
                         >
                           ×
                         </button>
-                      </Badge>
+                      </span>
                     ));
                   }
 
                   return (
-                    <Badge key={uf} variant="secondary" className="text-sm px-3 py-1 flex items-center gap-1">
+                    <span key={uf} className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background pl-2.5 pr-1.5 py-1 text-xs font-medium shadow-sm">
+                      <MapPin className="w-3 h-3 text-primary/70" />
                       {uf}
                       <button
-                        className="ml-1 text-destructive hover:text-destructive/80 text-xs font-bold"
+                        className="ml-0.5 grid place-items-center w-4 h-4 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                         onClick={() => setDeleteUfTarget(uf)}
                         title={`Remover ${uf}`}
                       >
                         ×
                       </button>
-                    </Badge>
+                    </span>
                   );
                 })}
                 {estoqueUfs.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma UF cadastrada</p>}
@@ -1184,8 +1182,13 @@ export default function EstoquePage() {
           )}
 
           {/* Lista de produtos em tabela */}
-          <div className="flex items-center justify-between mb-3 mt-8">
-            <h3 className="font-display font-bold text-lg">Produtos</h3>
+          <div className="flex items-end justify-between mb-3 mt-8">
+            <div className="flex flex-col">
+              <h3 className="font-display font-bold text-lg">Produtos</h3>
+              {!selectedGroupInCadastro && (
+                <span className="text-xs text-muted-foreground"><span className="font-semibold text-foreground tabular-nums">{produtos.length}</span> produtos cadastrados</span>
+              )}
+            </div>
             <Button onClick={() => { resetForm(); setEditProduct(null); setShowAddProduct(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full">
               <Plus className="w-4 h-4 mr-2" /> Novo Produto
             </Button>
@@ -1271,27 +1274,41 @@ export default function EstoquePage() {
       {/* Dialog entrada de estoque */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Entrada de Estoque</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-tight flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Entrada
+              </span>
+              de Estoque
+            </DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Data: {formatDateShort(new Date())}</p>
-            {formRows.map((row, idx) => (
-              <div key={idx} className="flex gap-2">
-                <Select value={row.produto_id} onValueChange={v => { const n = [...formRows]; n[idx].produto_id = v; setFormRows(n); }}>
-                  <SelectTrigger className="flex-1"><SelectValue placeholder="Produto" /></SelectTrigger>
-                  <SelectContent>{produtos.filter(p => p.ativo).map(p => <SelectItem key={p.id} value={p.id}>{getProductDisplayName(p)}</SelectItem>)}</SelectContent>
-                </Select>
-                <Input type="number" min={1} value={row.quantidade} onChange={e => { const n = [...formRows]; n[idx].quantidade = Number(e.target.value); setFormRows(n); }} className="w-20" />
-              </div>
-            ))}
-            <Button variant="link" size="sm" onClick={() => setFormRows([...formRows, { produto_id: '', quantidade: 1 }])}>➕ Adicionar linha</Button>
-            <div>
-              <Label>UF do estoque</Label>
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+              Data <span className="font-medium text-foreground">{formatDateShort(new Date())}</span>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Produtos</Label>
+              {formRows.map((row, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <Select value={row.produto_id} onValueChange={v => { const n = [...formRows]; n[idx].produto_id = v; setFormRows(n); }}>
+                    <SelectTrigger className="flex-1 rounded-xl"><SelectValue placeholder="Produto" /></SelectTrigger>
+                    <SelectContent>{produtos.filter(p => p.ativo).map(p => <SelectItem key={p.id} value={p.id}>{p.emoji ? `${p.emoji} ` : ''}{getProductDisplayName(p)}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Input type="number" min={1} value={row.quantidade} onChange={e => { const n = [...formRows]; n[idx].quantidade = Number(e.target.value); setFormRows(n); }} className="w-20 rounded-xl" />
+                </div>
+              ))}
+              <Button variant="ghost" size="sm" className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 h-auto py-1 px-2" onClick={() => setFormRows([...formRows, { produto_id: '', quantidade: 1 }])}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar linha
+              </Button>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">UF do estoque</Label>
               <Select value={formUF} onValueChange={setFormUF}>
-                <SelectTrigger><SelectValue placeholder="Selecione o estado" /></SelectTrigger>
+                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione o estado" /></SelectTrigger>
                 <SelectContent>{estoqueUfs.map(uf => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <Button onClick={handleSubmit} disabled={submitting} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground">
+            <Button onClick={handleSubmit} disabled={submitting} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
               {submitting ? 'Salvando...' : 'Adicionar'}
             </Button>
             {lastLoteCodigo && <p className="text-sm text-center text-muted-foreground">Último lote: <strong>{lastLoteCodigo}</strong></p>}
