@@ -44,9 +44,10 @@ BEGIN
   -- CUSTOM: acabou de disparar o follow-up personalizado (retorno agendado, o
   -- lead AINDA NÃO demonstrou intenção de compra). CONTINUA em follow_up — só
   -- vai pra em_fechamento se demonstrar intenção (o router trata na resposta).
+  -- O custom É um toque de follow-up: CONSOME a cadência (conta 2/3, teto 3).
   UPDATE public.contatos
      SET ultima_interacao        = 'follow_up',
-         follow_up_tentativas     = GREATEST(COALESCE(follow_up_tentativas, 0), 1),
+         follow_up_tentativas     = LEAST(COALESCE(follow_up_tentativas, 0) + 1, 3),
          data_ultimo_follow_up    = NOW(),
          followup_custom_em       = NULL,
          follow_up_reservado_ate  = NULL,
