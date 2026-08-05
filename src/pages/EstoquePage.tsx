@@ -1072,22 +1072,19 @@ export default function EstoquePage() {
                   Voltar
                 </Button>
               )}
-              <Button onClick={() => { resetForm(); setEditProduct(null); setShowAddProduct(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full">
-                <Plus className="w-4 h-4 mr-2" /> Novo Produto
-              </Button>
             </div>
           </div>
 
           {/* Seção de UFs cadastradas */}
           {!selectedGroupInCadastro && (
-            <div className="space-y-2">
+            <div className="rounded-2xl border border-border/60 bg-card p-4 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> UFs de Estoque</span>
                 <div className="flex gap-2">
-                  <Button variant="link" size="sm" onClick={() => setShowAddUf(true)}>
+                  <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setShowAddUf(true)}>
                     <Plus className="w-3 h-3 mr-1" /> Nova UF
                   </Button>
-                  <Button variant="link" size="sm" onClick={() => setShowAddRegion(true)} disabled={estoqueUfs.length === 0}>
+                  <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setShowAddRegion(true)} disabled={estoqueUfs.length === 0}>
                     <Plus className="w-3 h-3 mr-1" /> Nova Região UF
                   </Button>
                 </div>
@@ -1187,7 +1184,12 @@ export default function EstoquePage() {
           )}
 
           {/* Lista de produtos em tabela */}
-          <h3 className="font-display font-bold text-lg mb-3 mt-8">Produtos</h3>
+          <div className="flex items-center justify-between mb-3 mt-8">
+            <h3 className="font-display font-bold text-lg">Produtos</h3>
+            <Button onClick={() => { resetForm(); setEditProduct(null); setShowAddProduct(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full">
+              <Plus className="w-4 h-4 mr-2" /> Novo Produto
+            </Button>
+          </div>
           <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
             <table className="w-full text-sm">
               <thead>
