@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -54,6 +54,43 @@ function MetaRing({ percent, size = 116, stroke = 11 }: { percent: number; size?
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { getTagDisplayName } from '@/lib/productDisplayNames';
+
+// Count-up: anima o número do valor anterior até o novo (0 no 1º load).
+function CountUp({ end, format, durationMs = 900 }: { end: number; format: (n: number) => string; durationMs?: number }) {
+  const [val, setVal] = useState(0);
+  const fromRef = useRef(0);
+  useEffect(() => {
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { setVal(end); fromRef.current = end; return; }
+    const from = fromRef.current;
+    let raf = 0; let start: number | undefined;
+    const tick = (now: number) => {
+      if (start === undefined) start = now;
+      const p = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const cur = from + (end - from) * eased;
+      setVal(cur); fromRef.current = cur;
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else { setVal(end); fromRef.current = end; }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [end, durationMs]);
+  return <>{format(val)}</>;
+}
+
+// Cabeçalho de gráfico com eyebrow (barra de acento) + título em display.
+function ChartHeader({ title, subtitle, accent = '#2D5A27' }: { title: string; subtitle?: string; accent?: string }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="mt-0.5 h-8 w-1 rounded-full shrink-0" style={{ background: `linear-gradient(180deg, ${accent}, ${accent}22)` }} />
+      <div className="min-w-0">
+        <h3 className="font-display text-[15px] font-semibold tracking-tight leading-none">{title}</h3>
+        {subtitle && <p className="text-xs text-muted-foreground mt-1 leading-snug">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
 
 function renderProdutos(val: any): string {
   if (val == null) return '—';
@@ -522,13 +559,14 @@ export default function Dashboard() {
   // (consistente com Faturamento e Clientes, todos regime de caixa).
   const ticketMedio = caixa.vendasCount ? dayStats.faturamento / caixa.vendasCount : 0;
 
+  const fmtInt = (n: number) => String(Math.round(n));
   const statCards = [
-    { icon: DollarSign, label: 'Faturamento Total', value: formatBRL(dayStats.faturamento) },
-    { icon: Tag, label: 'Ticket Médio', value: formatBRL(ticketMedio) },
-    { icon: Package, label: 'Total de Produtos Vendidos', value: caixa.unidades },
-    { icon: UserPlus, label: 'Clientes Novos', value: caixa.porCanal.ADS },
-    { icon: RefreshCw, label: 'Clientes Recorrentes', value: caixa.porCanal.BASE },
-    { icon: Users, label: 'Clientes Representantes', value: caixa.porCanal.REP },
+    { icon: DollarSign, label: 'Faturamento Total', raw: dayStats.faturamento, fmt: formatBRL },
+    { icon: Tag, label: 'Ticket Médio', raw: ticketMedio, fmt: formatBRL },
+    { icon: Package, label: 'Total de Produtos Vendidos', raw: caixa.unidades, fmt: fmtInt },
+    { icon: UserPlus, label: 'Clientes Novos', raw: caixa.porCanal.ADS, fmt: fmtInt },
+    { icon: RefreshCw, label: 'Clientes Recorrentes', raw: caixa.porCanal.BASE, fmt: fmtInt },
+    { icon: Users, label: 'Clientes Representantes', raw: caixa.porCanal.REP, fmt: fmtInt },
   ];
 
   const metaPercent = metaValor ? Math.min((faturamentoMesVal / metaValor) * 100, 100) : 0;
@@ -592,7 +630,7 @@ export default function Dashboard() {
                   </span>
                   <span className="text-[11px] uppercase tracking-[0.14em] text-white/70">{hero.label}</span>
                 </div>
-                <p className="font-display text-[2.1rem] leading-none font-bold tracking-tight tabular-nums">{hero.value}</p>
+                <p className="font-display text-[2.1rem] leading-none font-bold tracking-tight tabular-nums"><CountUp end={hero.raw} format={hero.fmt} /></p>
                 {fatIndicator.direction !== 'neutral' && (
                   <div className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium backdrop-blur">
                     {fatIndicator.direction === 'up' ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
@@ -615,7 +653,7 @@ export default function Dashboard() {
                         <Icon className="w-[18px] h-[18px]" />
                       </span>
                     </div>
-                    <p className="font-display text-2xl leading-none font-semibold tracking-tight tabular-nums">{s.value}</p>
+                    <p className="font-display text-2xl leading-none font-semibold tracking-tight tabular-nums"><CountUp end={s.raw} format={s.fmt} /></p>
                     <span className="mt-1.5 block text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{s.label}</span>
                   </CardContent>
                 </Card>
@@ -631,7 +669,7 @@ export default function Dashboard() {
                     <CreditCard className="w-[18px] h-[18px]" />
                   </span>
                 </div>
-                <p className="font-display text-2xl leading-none font-semibold tracking-tight tabular-nums text-orange-700">{formatBRL(pendentesTotal)}</p>
+                <p className="font-display text-2xl leading-none font-semibold tracking-tight tabular-nums text-orange-700"><CountUp end={pendentesTotal} format={formatBRL} /></p>
                 <span className="mt-1.5 block text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">Pendentes</span>
               </CardContent>
             </Card>
@@ -692,8 +730,7 @@ export default function Dashboard() {
       {/* Funil do Pipeline — visão do funil acima dos gráficos de faturamento */}
       <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-sm">Funil do Pipeline</CardTitle>
-          <p className="text-xs text-muted-foreground">Contatos por coluna do Kanban · Venda = pedidos pagos no período</p>
+          <ChartHeader title="Funil do Pipeline" subtitle="Contatos por coluna do Kanban · Venda = pedidos pagos no período" accent="#eb6834" />
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={220}>
@@ -712,7 +749,7 @@ export default function Dashboard() {
 
       <div className="grid md:grid-cols-2 gap-6">
         <Card className="rounded-2xl border-border/60 shadow-sm">
-          <CardHeader><CardTitle className="text-sm">Faturamento x Mês</CardTitle></CardHeader>
+          <CardHeader><ChartHeader title="Faturamento x Mês" accent="#2D5A27" /></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={monthlyChart} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
@@ -734,7 +771,7 @@ export default function Dashboard() {
         </Card>
 
         <Card className="rounded-2xl border-border/60 shadow-sm">
-          <CardHeader><CardTitle className="text-sm">Faturamento por Canal</CardTitle></CardHeader>
+          <CardHeader><ChartHeader title="Faturamento por Canal" accent="#2a78d6" /></CardHeader>
           <CardContent>
             {channelBars.every(c => c.valor === 0) ? (
               <div className="h-[250px] flex flex-col items-center justify-center text-center gap-1">
@@ -763,8 +800,7 @@ export default function Dashboard() {
         {/* Top produtos do período */}
         <Card className="rounded-2xl border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-sm">Top Produtos</CardTitle>
-            <p className="text-xs text-muted-foreground">Mais vendidos no período (unidades)</p>
+            <ChartHeader title="Top Produtos" subtitle="Mais vendidos no período (unidades)" accent="#2a78d6" />
           </CardHeader>
           <CardContent>
             {topProdutos.length === 0 ? (
@@ -792,8 +828,7 @@ export default function Dashboard() {
           que ficava vazio quando a entrada vinha de parcela de pedido pendente. */}
       <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-sm">Movimentações do Período</CardTitle>
-          <p className="text-xs text-muted-foreground">Entradas de caixa: vendas à vista e parcelas pagas no período</p>
+          <ChartHeader title="Movimentações do Período" subtitle="Entradas de caixa: vendas à vista e parcelas pagas no período" accent="#2D5A27" />
         </CardHeader>
         <CardContent>
           {caixa.movimentacoes.length === 0 ? (
