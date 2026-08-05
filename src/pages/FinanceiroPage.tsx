@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
-import { Wallet, Store, TrendingUp, ArrowLeftRight } from 'lucide-react';
+import { Wallet, Store, TrendingUp, ArrowLeftRight, Bitcoin, CreditCard, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,8 +37,8 @@ const getDataLimiteFin = () =>
 
 // Count-up dos saldos (motion, cookbook). Anima do valor anterior ao novo.
 function CountBRL({ value, durationMs = 800 }: { value: number; durationMs?: number }) {
-  const [val, setVal] = useState(value);
-  const fromRef = useRef(value);
+  const [val, setVal] = useState(0);
+  const fromRef = useRef(0);
   useEffect(() => {
     const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (reduce) { setVal(value); fromRef.current = value; return; }
@@ -80,6 +80,23 @@ function TipoPill({ tipo }: { tipo: string }) {
       {cfg.label}
     </span>
   );
+}
+
+// Temas de caixa (gradiente + ícone marca-d'água) por tipo. O tipo vem do campo
+// c.tipo quando existir; senão é inferido do apelido (DeFlow → cripto).
+type CaixaTipo = 'cripto' | 'cartao' | 'pix';
+const CAIXA_TEMAS: Record<CaixaTipo, { grad: string; Icon: any; label: string }> = {
+  cripto: { grad: 'linear-gradient(140deg, #e08706, #7c3a06)', Icon: Bitcoin, label: 'Caixa Cripto' },
+  cartao: { grad: 'linear-gradient(140deg, #4f46e5, #221a63)', Icon: CreditCard, label: 'Caixa Cartão' },
+  pix: { grad: 'linear-gradient(140deg, #0d9488, #0f4f47)', Icon: QrCode, label: 'Caixa Pix' },
+};
+function inferirCaixaTipo(c: { tipo?: string; apelido?: string }): CaixaTipo {
+  const t = String(c?.tipo || '').toLowerCase();
+  if (t === 'cripto' || t === 'cartao' || t === 'pix') return t as CaixaTipo;
+  const n = String(c?.apelido || '').toLowerCase();
+  if (/cart|card|cr[eé]dit/.test(n)) return 'cartao';
+  if (/\bpix\b/.test(n)) return 'pix';
+  return 'cripto'; // default (DeFlow, gateways cripto)
 }
 
 export default function FinanceiroPage() {
@@ -159,9 +176,10 @@ export default function FinanceiroPage() {
   const [transferTo, setTransferTo] = useState('');
   const [transferValue, setTransferValue] = useState('');
   const [socios, setSocios] = useState<{ key: string; nome: string; user_id: string | null }[]>([]);
-  const [caixas, setCaixas] = useState<{ codigo: string; apelido: string }[]>([]);
+  const [caixas, setCaixas] = useState<{ codigo: string; apelido: string; tipo?: string }[]>([]);
   const [showAddCaixa, setShowAddCaixa] = useState(false);
   const [novaCaixaApelido, setNovaCaixaApelido] = useState('');
+  const [novaCaixaTipo, setNovaCaixaTipo] = useState<CaixaTipo>('cripto');
   const [savingCaixa, setSavingCaixa] = useState(false);
   const [ufsCadastradas, setUfsCadastradas] = useState<string[]>([]);
 
@@ -235,7 +253,7 @@ export default function FinanceiroPage() {
     });
 
     const caixasList = ((caixasResult.data || []) as any[])
-      .map((c: any) => ({ codigo: c.codigo, apelido: c.apelido }));
+      .map((c: any) => ({ codigo: c.codigo, apelido: c.apelido, tipo: c.tipo }));
     setCaixas(caixasList);
 
     setUfsCadastradas(((ufsResult.data || []) as any[]).map((r: any) => r.uf).filter(Boolean));
@@ -1104,17 +1122,24 @@ export default function FinanceiroPage() {
           {socios.map((s, i) => {
             const saldo = socioBalances[s.key] ?? 0;
             const neg = saldo < 0;
+            // Carteira do sócio: gradiente adaptativo (verde no positivo, vermelho
+            // no negativo) + marca-d'água de carteira, texto branco, count-up.
+            const grad = neg
+              ? 'linear-gradient(140deg, #b3402f, #6e1f18)'
+              : 'linear-gradient(140deg, #2f6d3a, #163f1f)';
             return (
-              <Card key={s.key} style={{ animationDelay: `${i * 55}ms` }}
-                className="sf-rise rounded-2xl border border-border/60 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-                <CardContent className="p-4">
+              <Card key={s.key} style={{ animationDelay: `${i * 55}ms`, background: grad }}
+                className="sf-rise rounded-2xl border-0 text-white shadow-lg relative overflow-hidden transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5">
+                <div className="pointer-events-none absolute -right-8 -top-10 w-36 h-36 rounded-full bg-white/10 blur-2xl" />
+                <div className="pointer-events-none absolute right-3 bottom-2 opacity-[0.08]"><Wallet className="w-20 h-20" /></div>
+                <CardContent className="relative p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20 text-primary shadow-sm">
-                      <Wallet className="w-[18px] h-[18px]" />
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/15 ring-1 ring-white/25 backdrop-blur">
+                      <Wallet className="w-4 h-4" />
                     </span>
-                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{s.nome}</span>
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-white/70">{s.nome}</span>
                   </div>
-                  <p className={cn('font-display text-2xl font-semibold tracking-tight tabular-nums', neg ? 'text-destructive' : 'text-foreground')}>
+                  <p className="font-display text-[1.9rem] leading-none font-bold tracking-tight tabular-nums">
                     <CountBRL value={saldo} />
                   </p>
                 </CardContent>
@@ -1123,21 +1148,24 @@ export default function FinanceiroPage() {
           })}
           {caixas.map((c, i) => {
             const saldo = socioBalances[c.codigo] ?? 0;
-            const neg = saldo < 0;
+            const tema = CAIXA_TEMAS[inferirCaixaTipo(c as any)];
+            const Icon = tema.Icon;
             return (
-              <Card key={c.codigo} style={{ animationDelay: `${(socios.length + i) * 55}ms` }}
-                className="sf-rise rounded-2xl border border-amber-300/50 bg-amber-50/40 dark:bg-amber-950/10 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-                <CardContent className="p-4">
+              <Card key={c.codigo} style={{ animationDelay: `${(socios.length + i) * 55}ms`, background: tema.grad }}
+                className="sf-rise rounded-2xl border-0 text-white shadow-lg relative overflow-hidden transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5">
+                <div className="pointer-events-none absolute -right-8 -top-10 w-36 h-36 rounded-full bg-white/10 blur-2xl" />
+                <div className="pointer-events-none absolute right-2 bottom-1 opacity-[0.10]"><Icon className="w-24 h-24" /></div>
+                <CardContent className="relative p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400/25 to-amber-500/5 ring-1 ring-amber-500/25 text-amber-600 shadow-sm">
-                      <Store className="w-[18px] h-[18px]" />
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/15 ring-1 ring-white/25 backdrop-blur">
+                      <Icon className="w-4 h-4" />
                     </span>
-                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">{c.apelido}</span>
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-white/70 truncate">{c.apelido}</span>
                   </div>
-                  <p className={cn('font-display text-2xl font-semibold tracking-tight tabular-nums', neg ? 'text-destructive' : 'text-amber-700 dark:text-amber-300')}>
+                  <p className="font-display text-[1.9rem] leading-none font-bold tracking-tight tabular-nums">
                     <CountBRL value={saldo} />
                   </p>
-                  <p className="text-[10px] text-muted-foreground mt-1">Caixa · não divide lucro</p>
+                  <p className="text-[10px] text-white/60 mt-1.5">Caixa · não divide lucro</p>
                 </CardContent>
               </Card>
             );
@@ -1244,11 +1272,35 @@ export default function FinanceiroPage() {
               Pode realizar transferência pra sócio. Não recebe transferência.
             </p>
             <div>
+              <Label className="text-xs">Tipo de caixa</Label>
+              <div className="grid grid-cols-3 gap-2 mt-1.5">
+                {(['cripto', 'cartao', 'pix'] as const).map(t => {
+                  const tema = CAIXA_TEMAS[t];
+                  const Icon = tema.Icon;
+                  const sel = novaCaixaTipo === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setNovaCaixaTipo(t)}
+                      className={cn('relative rounded-xl p-3 text-white overflow-hidden text-left transition-all',
+                        sel ? 'ring-2 ring-offset-2 ring-primary scale-[1.02]' : 'opacity-80 hover:opacity-100')}
+                      style={{ background: tema.grad }}
+                    >
+                      <div className="pointer-events-none absolute right-1 bottom-0 opacity-20"><Icon className="w-10 h-10" /></div>
+                      <Icon className="w-4 h-4 mb-1.5" />
+                      <span className="block text-[11px] font-semibold leading-tight">{tema.label.replace('Caixa ', '')}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
               <Label>Apelido do Caixa</Label>
               <Input
                 value={novaCaixaApelido}
                 onChange={(e) => setNovaCaixaApelido(e.target.value)}
-                placeholder="ex: DeFlow Cripto, Pix Mercado Pago"
+                placeholder="ex: DeFlow, Nubank PJ, Pix Mercado Pago"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && novaCaixaApelido.trim()) {
                     (document.activeElement as HTMLElement)?.blur();
@@ -1263,7 +1315,7 @@ export default function FinanceiroPage() {
               disabled={savingCaixa || !novaCaixaApelido.trim()}
               onClick={async () => {
                 setSavingCaixa(true);
-                const { data, error } = await supabase.rpc('criar_caixa' as any, { p_apelido: novaCaixaApelido.trim() });
+                const { data, error } = await supabase.rpc('criar_caixa' as any, { p_apelido: novaCaixaApelido.trim(), p_tipo: novaCaixaTipo });
                 setSavingCaixa(false);
                 if (error) { toast.error('Erro: ' + error.message); return; }
                 const r = data as any;
