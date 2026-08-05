@@ -68,6 +68,19 @@ export default function PedidosPage() {
   // Ranking
   const [rankStart, setRankStart] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [rankEnd, setRankEnd] = useState(new Date().toISOString().split('T')[0]);
+  const [rankPeriodo, setRankPeriodo] = useState<'mes' | 'trimestre' | 'semestre' | 'tudo' | 'custom'>('mes');
+  const aplicarPeriodoRank = (preset: 'mes' | 'trimestre' | 'semestre' | 'tudo') => {
+    const hoje = new Date();
+    const fim = hoje.toISOString().split('T')[0];
+    let ini: Date;
+    if (preset === 'mes') ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    else if (preset === 'trimestre') ini = new Date(hoje.getFullYear(), hoje.getMonth() - 3, hoje.getDate());
+    else if (preset === 'semestre') ini = new Date(hoje.getFullYear(), hoje.getMonth() - 6, hoje.getDate());
+    else ini = new Date(2020, 0, 1); // todo período
+    setRankPeriodo(preset);
+    setRankStart(ini.toISOString().split('T')[0]);
+    setRankEnd(fim);
+  };
   const [rankValor, setRankValor] = useState<any[]>([]);
   const [rankQtd, setRankQtd] = useState<any[]>([]);
   const [rankPageV, setRankPageV] = useState(1);
@@ -562,12 +575,12 @@ export default function PedidosPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Pedidos</h1>
+      <h1 className="font-display text-3xl font-semibold tracking-tight">Pedidos</h1>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="lista">Lista</TabsTrigger>
-          <TabsTrigger value="pendentes">💳 Pendentes</TabsTrigger>
-          <TabsTrigger value="ranking">🏆 Ranking</TabsTrigger>
+        <TabsList className="rounded-full bg-muted/60 p-1 h-auto">
+          <TabsTrigger value="lista" className="rounded-full text-xs px-4 h-7 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Lista</TabsTrigger>
+          <TabsTrigger value="pendentes" className="rounded-full text-xs px-4 h-7 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">💳 Pendentes</TabsTrigger>
+          <TabsTrigger value="ranking" className="rounded-full text-xs px-4 h-7 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">🏆 Ranking</TabsTrigger>
         </TabsList>
 
         <TabsContent value="lista" className="space-y-4">
@@ -794,14 +807,14 @@ export default function PedidosPage() {
                       </Button>
                     </td>
                     <td className="py-2">
-                      <div className="flex items-center gap-1.5">
-                        <Button size="sm" className="min-h-[40px] bg-sf-green hover:bg-sf-green/90 text-primary-foreground" onClick={() => setMarcarPagoTarget(p)}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button size="sm" className="h-8 rounded-lg bg-sf-green hover:bg-sf-green/90 text-white shadow-sm font-medium" onClick={() => setMarcarPagoTarget(p)}>
                           Pago
                         </Button>
-                        <Button size="sm" className="min-h-[40px] bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setParcelaTarget(p)}>
+                        <Button size="sm" variant="outline" className="h-8 rounded-lg border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300" onClick={() => setParcelaTarget(p)}>
                           Parcela
                         </Button>
-                        <Button size="sm" className="min-h-[40px] bg-destructive hover:bg-destructive/90 text-destructive-foreground" onClick={() => setDescontoTarget(p)}>
+                        <Button size="sm" variant="outline" className="h-8 rounded-lg border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300" onClick={() => setDescontoTarget(p)}>
                           Desconto
                         </Button>
                       </div>
@@ -850,14 +863,14 @@ export default function PedidosPage() {
                       {p.status_pedido === 'entregue' ? 'Entregue' : p.status_pedido === 'postado' ? 'Postado' : 'Aguardando'}
                     </Badge>
                   </div>
-                  <div className="mt-2 flex flex-col gap-2" onClick={e => e.stopPropagation()}>
-                    <Button size="sm" className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground text-xs min-h-[40px]" onClick={() => setMarcarPagoTarget(p)}>
+                  <div className="mt-2 grid grid-cols-3 gap-2" onClick={e => e.stopPropagation()}>
+                    <Button size="sm" className="rounded-lg bg-sf-green hover:bg-sf-green/90 text-white text-xs h-9 font-medium" onClick={() => setMarcarPagoTarget(p)}>
                       Pago
                     </Button>
-                    <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs min-h-[40px]" onClick={() => setParcelaTarget(p)}>
+                    <Button size="sm" variant="outline" className="rounded-lg border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs h-9 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300" onClick={() => setParcelaTarget(p)}>
                       Parcela
                     </Button>
-                    <Button size="sm" className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs min-h-[40px]" onClick={() => setDescontoTarget(p)}>
+                    <Button size="sm" variant="outline" className="rounded-lg border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs h-9 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300" onClick={() => setDescontoTarget(p)}>
                       Desconto
                     </Button>
                   </div>
@@ -869,9 +882,25 @@ export default function PedidosPage() {
 
         <TabsContent value="ranking" className="space-y-4">
           <div className="flex gap-3 items-center flex-wrap">
-            <span className="text-sm">De:</span><Input type="date" value={rankStart} onChange={e => setRankStart(e.target.value)} className="w-40" />
-            <span className="text-sm">Até:</span><Input type="date" value={rankEnd} onChange={e => setRankEnd(e.target.value)} className="w-40" />
-            <Button variant="outline" size="sm" className="ml-auto" onClick={openVipModal}>
+            <div className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 p-1">
+              {([['mes', 'Esse mês'], ['trimestre', 'Trimestre'], ['semestre', 'Semestre'], ['tudo', 'Todo período']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => aplicarPeriodoRank(key)}
+                  className={cn('rounded-full px-3 h-7 text-xs font-medium transition-all',
+                    rankPeriodo === key ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {/* período custom (secundário) */}
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Input type="date" value={rankStart} onChange={e => { setRankStart(e.target.value); setRankPeriodo('custom'); }} className="h-8 w-36" />
+              <span>até</span>
+              <Input type="date" value={rankEnd} onChange={e => { setRankEnd(e.target.value); setRankPeriodo('custom'); }} className="h-8 w-36" />
+            </div>
+            <Button variant="outline" size="sm" className="ml-auto rounded-lg" onClick={openVipModal}>
               <Trophy className="w-4 h-4 mr-1 text-sf-gold" /> Configurar VIP
             </Button>
           </div>
