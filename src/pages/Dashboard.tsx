@@ -611,6 +611,8 @@ export default function Dashboard() {
           'bg-gradient-to-br from-violet-400/25 to-violet-500/5 ring-violet-500/25 text-violet-600',   // Recorrentes
           'bg-gradient-to-br from-teal-400/25 to-teal-500/5 ring-teal-500/25 text-teal-600',           // Representantes
         ];
+        // Hex por métrica pro fundo BEM suave + marca-d'água do ícone.
+        const TILE_HEX = ['', '#f59e0b', '#0ea5e9', '#10b981', '#8b5cf6', '#14b8a6'];
         const hero = statCards[0];
         const HeroIcon = hero.icon;
         return (
@@ -643,10 +645,13 @@ export default function Dashboard() {
             {statCards.slice(1).map((s, idx) => {
               const i = idx + 1;
               const Icon = s.icon;
+              const hex = TILE_HEX[i] || '#2D5A27';
               return (
-                <Card key={i} style={{ animationDelay: `${i * 55}ms` }}
-                  className="sf-rise group rounded-2xl border border-border/60 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-                  <CardContent className="p-4">
+                <Card key={i}
+                  style={{ animationDelay: `${i * 55}ms`, background: `linear-gradient(145deg, ${hex}12, transparent 62%)` }}
+                  className="sf-rise group rounded-2xl border border-border/60 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+                  <div className="pointer-events-none absolute -right-3 -bottom-4 opacity-[0.06]" style={{ color: hex }}><Icon className="w-24 h-24" /></div>
+                  <CardContent className="relative p-4">
                     <div className="flex items-center justify-between mb-3">
                       <span className={cn('inline-flex items-center justify-center w-9 h-9 rounded-xl ring-1 shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3', TINTS[i] || 'bg-primary/10 ring-primary/20 text-primary')}>
                         <Icon className="w-[18px] h-[18px]" />
@@ -659,10 +664,11 @@ export default function Dashboard() {
               );
             })}
 
-            {/* Pendentes — acento âmbar */}
-            <Card style={{ animationDelay: '330ms' }}
-              className="sf-rise group rounded-2xl border border-orange-300/50 bg-orange-50/40 dark:bg-orange-950/10 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-              <CardContent className="p-4">
+            {/* Pendentes — acento âmbar/laranja */}
+            <Card style={{ animationDelay: '330ms', background: 'linear-gradient(145deg, #f9731618, transparent 62%)' }}
+              className="sf-rise group rounded-2xl border border-orange-300/50 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+              <div className="pointer-events-none absolute -right-3 -bottom-4 opacity-[0.07] text-orange-500"><CreditCard className="w-24 h-24" /></div>
+              <CardContent className="relative p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl ring-1 ring-orange-500/25 bg-gradient-to-br from-orange-400/25 to-orange-500/5 text-orange-600 shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3">
                     <CreditCard className="w-[18px] h-[18px]" />
