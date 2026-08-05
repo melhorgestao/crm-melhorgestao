@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import { formatBRL, formatDateShort } from '@/lib/format';
-import { Copy, Download, Trophy, ClipboardCopy, StickyNote, Package } from 'lucide-react';
+import { Copy, Download, Trophy, ClipboardCopy, StickyNote, Package, Check, MoreHorizontal, Layers, Percent } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { getTagDisplayName } from '@/lib/productDisplayNames';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -31,28 +32,6 @@ const valorTotalLista = (p: any): number => {
 };
 
 // ---- UI helpers (linguagem visual moderna, cookbook) -----------------------
-const AVATAR_TINTS = [
-  'bg-emerald-500/15 text-emerald-700', 'bg-sky-500/15 text-sky-700',
-  'bg-violet-500/15 text-violet-700', 'bg-amber-500/15 text-amber-700',
-  'bg-rose-500/15 text-rose-700', 'bg-teal-500/15 text-teal-700',
-];
-function iniciais(nome?: string): string {
-  const parts = String(nome || '').trim().split(/\s+/);
-  const s = (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
-  return s.toUpperCase() || '?';
-}
-function hashIdx(str: string, mod: number): number {
-  let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
-  return h % mod;
-}
-function Avatar({ nome }: { nome?: string }) {
-  const tint = AVATAR_TINTS[hashIdx(String(nome || '?'), AVATAR_TINTS.length)];
-  return (
-    <span className={cn('inline-flex items-center justify-center w-8 h-8 rounded-full text-[11px] font-semibold shrink-0', tint)}>
-      {iniciais(nome)}
-    </span>
-  );
-}
 const CANAL_TINT: Record<string, string> = {
   ADS: 'bg-violet-500/12 text-violet-700 ring-violet-500/20',
   BASE: 'bg-slate-500/12 text-slate-600 ring-slate-500/20',
@@ -688,16 +667,15 @@ export default function PedidosPage() {
                     <td className="px-4 py-3 text-muted-foreground font-mono text-xs">#{p.order_number}</td>
                     <td className="py-3 text-muted-foreground tabular-nums">{formatDateShort(p.data)}</td>
                     <td className="py-3">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar nome={(p.contatos as any)?.nome} />
-                        <button onClick={e => { e.stopPropagation(); openContactDetail(p.contato_id); }} className="font-medium hover:underline truncate max-w-[220px] text-left">
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={e => { e.stopPropagation(); openContactDetail(p.contato_id); }} className="font-medium hover:underline truncate max-w-[240px] text-left">
                           {(p.contatos as any)?.nome || '—'}
                         </button>
                         {(p.contatos as any)?.tag_kanban === 'VIP' && <Trophy className="inline w-3.5 h-3.5 text-sf-gold shrink-0" />}
                       </div>
                     </td>
                     <td className="py-3"><CanalPill canal={p.canal} /></td>
-                    <td className="py-3 text-right pr-6 font-display text-[15px] font-semibold tabular-nums">{p.is_free ? <span className="text-sky-600">FREE</span> : formatBRL(valorTotalLista(p))}</td>
+                    <td className="py-3 text-right pr-6 font-medium tabular-nums">{p.is_free ? <span className="text-sky-600 font-semibold">FREE</span> : formatBRL(valorTotalLista(p))}</td>
                     <td className="py-3 pl-4" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Select value={p.status_pedido || 'aguardando_rastreio'} onValueChange={v => updateStatus(p.id, v, isStatusLocked(p))} disabled={isStatusLocked(p)}>
@@ -838,14 +816,9 @@ export default function PedidosPage() {
                   <tr key={p.id} className="border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">#{p.order_number}</td>
                     <td className="py-3 text-muted-foreground tabular-nums">{formatDateShort(p.data)}</td>
-                    <td className="py-3">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar nome={(p.contatos as any)?.nome} />
-                        <span className="font-medium truncate max-w-[220px]">{(p.contatos as any)?.nome || '—'}</span>
-                      </div>
-                    </td>
+                    <td className="py-3 font-medium truncate max-w-[240px]">{(p.contatos as any)?.nome || '—'}</td>
                     <td className="py-3"><CanalPill canal={p.canal} /></td>
-                    <td className="py-3 text-right font-display text-[15px] font-semibold tabular-nums">{p.is_free ? <span className="text-sky-600">FREE</span> : formatBRL(Number(p.valor))}</td>
+                    <td className="py-3 text-right font-medium tabular-nums">{p.is_free ? <span className="text-sky-600 font-semibold">FREE</span> : formatBRL(Number(p.valor))}</td>
                     <td className="py-3 pl-4"><StatusPill status={p.status_pedido} /></td>
                     <td className="py-3 text-center">
                       <Button
@@ -860,15 +833,24 @@ export default function PedidosPage() {
                     </td>
                     <td className="py-3 pr-4">
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button size="sm" className="h-8 rounded-lg bg-sf-green hover:bg-sf-green/90 text-white shadow-sm font-medium" onClick={() => setMarcarPagoTarget(p)}>
-                          Pago
+                        <Button size="sm" className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium" onClick={() => setMarcarPagoTarget(p)}>
+                          <Check className="w-3.5 h-3.5 mr-1" /> Pago
                         </Button>
-                        <Button size="sm" variant="outline" className="h-8 rounded-lg border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300" onClick={() => setParcelaTarget(p)}>
-                          Parcela
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-8 rounded-lg border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300" onClick={() => setDescontoTarget(p)}>
-                          Desconto
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" title="Mais ações">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setParcelaTarget(p)}>
+                              <Layers className="w-4 h-4 mr-2 text-blue-600" /> Registrar parcela
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setDescontoTarget(p)}>
+                              <Percent className="w-4 h-4 mr-2 text-rose-600" /> Aplicar desconto
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   </tr>
@@ -916,7 +898,7 @@ export default function PedidosPage() {
                     </Badge>
                   </div>
                   <div className="mt-2 grid grid-cols-3 gap-2" onClick={e => e.stopPropagation()}>
-                    <Button size="sm" className="rounded-lg bg-sf-green hover:bg-sf-green/90 text-white text-xs h-9 font-medium" onClick={() => setMarcarPagoTarget(p)}>
+                    <Button size="sm" className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 font-medium" onClick={() => setMarcarPagoTarget(p)}>
                       Pago
                     </Button>
                     <Button size="sm" variant="outline" className="rounded-lg border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs h-9 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300" onClick={() => setParcelaTarget(p)}>
