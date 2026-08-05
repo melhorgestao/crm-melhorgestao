@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { formatBRL } from '@/lib/format';
-import { Printer, Lock, Truck, Loader2, Download, Trash2, MoreVertical, CheckCircle, CircleDollarSign, XCircle, Plus, Pencil, Check } from 'lucide-react';
+import { Printer, Lock, Truck, Loader2, Download, Trash2, MoreVertical, CheckCircle, CircleDollarSign, XCircle, Plus, Pencil, Check, Settings2, AlertTriangle, MapPin, Package } from 'lucide-react';
 import { getTagDisplayName, getProductDisplayName } from '@/lib/productDisplayNames';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -1266,40 +1266,48 @@ toast.success('Pedido marcado como postado');
 
   return (
     <div className="space-y-4 max-w-full overflow-x-hidden">
-      <h1 className="text-2xl font-bold">Logística</h1>
+      <div className="flex flex-col">
+        <h1 className="text-2xl font-display font-bold tracking-tight">Logística</h1>
+        <span className="text-xs text-muted-foreground">Postagem e geração de etiquetas</span>
+      </div>
 
-      {/* UF Filter */}
-      <div className="flex flex-wrap gap-2">
-        {(() => {
-          const activeUfsWithoutRegions = estoqueUfs.filter(uf => !ufRegioes.some(r => r.uf === uf));
-          const regionCodes = ufRegioes.map(r => r.codigo);
-          const allOptions = ['Todos', ...activeUfsWithoutRegions, ...regionCodes];
+      {/* UF Filter — controle segmentado */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex flex-wrap items-center gap-1 rounded-full bg-muted/60 p-1">
+          {(() => {
+            const activeUfsWithoutRegions = estoqueUfs.filter(uf => !ufRegioes.some(r => r.uf === uf));
+            const regionCodes = ufRegioes.map(r => r.codigo);
+            const allOptions = ['Todos', ...activeUfsWithoutRegions, ...regionCodes];
 
-          return allOptions.map(opt => (
-            <Button 
-              key={opt} 
-              variant={ufFilter === opt ? 'default' : 'outline'} 
-              size="sm" 
-              onClick={() => setUfFilter(opt)}
-              className={ufFilter === opt ? 'bg-sf-green hover:bg-sf-green/90 text-primary-foreground' : ''}
-            >
-              {opt}
-            </Button>
-          ));
-        })()}
-        
+            return allOptions.map(opt => (
+              <button
+                key={opt}
+                onClick={() => setUfFilter(opt)}
+                className={cn(
+                  'rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
+                  ufFilter === opt
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {opt}
+              </button>
+            ));
+          })()}
+        </div>
+
         {ufFilter !== 'Todos' && (
-          <Button variant="ghost" size="sm" onClick={() => openUfForm(ufFilter)}>
-            ⚙️ Editar Remetente {ufFilter}
+          <Button variant="ghost" size="sm" className="rounded-full text-muted-foreground gap-1.5" onClick={() => openUfForm(ufFilter)}>
+            <Settings2 className="w-3.5 h-3.5" /> Editar Remetente {ufFilter}
           </Button>
         )}
       </div>
 
       {/* Sender form */}
       {selectedUfForm && (
-        <Card>
+        <Card className="rounded-2xl border-border/60">
           <CardContent className="p-4 space-y-3">
-            <p className="font-bold text-sm">Remetente — {selectedUfForm}</p>
+            <p className="font-display font-bold text-base flex items-center gap-2"><Settings2 className="w-4 h-4 text-muted-foreground" /> Remetente — {selectedUfForm}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">CEP de Origem</Label>
@@ -1346,7 +1354,7 @@ toast.success('Pedido marcado como postado');
                 <Input value={formData.valor_unitario || ''} onChange={e => setFormData({ ...formData, valor_unitario: e.target.value })} className="min-h-[44px]" placeholder="0,00" />
               </div>
             </div>
-            <Button onClick={saveRemetente} disabled={saving} className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]">
+            <Button onClick={saveRemetente} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]">
               {saving ? 'Salvando...' : 'Salvar Remetente'}
             </Button>
           </CardContent>
@@ -1367,30 +1375,31 @@ toast.success('Pedido marcado como postado');
 
         return (
           <>
-            <div className='flex items-center gap-4'>
-              <Button onClick={gerarTudo} disabled={generatingAll || generatingId !== null || payingAll || pedidosSemEtiqueta.length === 0} className='bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px] px-8 font-medium shadow-lg shadow-green-100' title={meSemEtiqueta > 0 ? `${meSemEtiqueta} pedido(s) Melhor Envio serão processados na Fase 2` : ''}>
-                {generatingAll ? <><Loader2 className='w-4 h-4 mr-2 animate-spin' /> Gerando...</> : <><Truck className='w-4 h-4 mr-2' /> GERAR TODAS ({pedidosSemEtiqueta.length})</>}
+            <div className='flex flex-wrap items-center gap-3'>
+              <Button onClick={gerarTudo} disabled={generatingAll || generatingId !== null || payingAll || pedidosSemEtiqueta.length === 0} className='text-white min-h-[44px] px-8 font-medium shadow-lg shadow-emerald-900/20 border-0 transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100' style={{ background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' }} title={meSemEtiqueta > 0 ? `${meSemEtiqueta} pedido(s) Melhor Envio serão processados na Fase 2` : ''}>
+                {generatingAll ? <><Loader2 className='w-4 h-4 mr-2 animate-spin' /> Gerando...</> : <><Truck className='w-4 h-4 mr-2' /> Gerar todas ({pedidosSemEtiqueta.length})</>}
               </Button>
 
               <Button
                 onClick={pagarTodas}
                 disabled={!podePagarTodas}
                 variant='outline'
-                className='min-h-[44px] px-8 font-medium border-amber-500 text-amber-600 hover:bg-amber-50'
+                className='min-h-[44px] px-8 font-medium rounded-md border-amber-400 text-amber-600 hover:bg-amber-50'
                 title={etiquetasGeradas.length === 0 ? 'Gere todas as etiquetas para pagar' : (meGeradas > 0 ? `${meGeradas} pedido(s) Melhor Envio serão processados na Fase 2` : '')}
               >
-                {payingAll ? <><Loader2 className='w-4 h-4 mr-2 animate-spin' /> Pagando...</> : <><CircleDollarSign className='w-4 h-4 mr-2' /> PAGAR TODAS ({etiquetasGeradas.length})</>}
+                {payingAll ? <><Loader2 className='w-4 h-4 mr-2 animate-spin' /> Pagando...</> : <><CircleDollarSign className='w-4 h-4 mr-2' /> Pagar todas ({etiquetasGeradas.length})</>}
               </Button>
             </div>
 
-            {/* Métricas discretas - padrão Pedidos */}
-            <div className="text-sm">
-              <span className="text-muted-foreground">Total: </span>
-              <span className="font-bold">{filteredPedidos.length}</span>
-              <span className="mx-2 text-muted-foreground">|</span>
-              <span className="text-muted-foreground">Frete a pagar: </span>
-              <span className="font-medium text-amber-600">
-                {formatBRL(totalFreteAPagar)}
+            {/* Métricas em chips */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-3 py-1 font-medium text-muted-foreground">
+                <Package className="w-3.5 h-3.5" /> Total
+                <span className="font-display font-bold text-foreground tabular-nums">{filteredPedidos.length}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-medium text-amber-700">
+                <CircleDollarSign className="w-3.5 h-3.5" /> Frete a pagar
+                <span className="font-display font-bold tabular-nums">{formatBRL(totalFreteAPagar)}</span>
               </span>
             </div>
           </>
@@ -1399,11 +1408,11 @@ toast.success('Pedido marcado como postado');
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 -mx-1 sm:mx-0">
         {filteredPedidos.map(p => (
-          <Card key={p.id} className={cn('border-2 border-border relative overflow-hidden min-w-0', p.status_pagamento === 'pendente' && 'border-amber-400 border-dashed')}>
+          <Card key={p.id} className={cn('rounded-2xl border relative overflow-hidden min-w-0 transition-all hover:shadow-md', p.status_pagamento === 'pendente' ? 'border-amber-300 border-dashed bg-amber-50/30' : 'border-border/60')}>
             <CardContent className="p-3 sm:p-4 space-y-2 min-w-0">
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <p className="font-bold text-base truncate">{(p.contatos as any)?.nome || '—'}</p>
+                  <p className="font-display font-semibold text-base truncate">{(p.contatos as any)?.nome || '—'}</p>
                   {p.is_free && (
                     <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100 border-sky-300 text-[10px] font-bold px-1.5 py-0">FREE</Badge>
                   )}
@@ -1423,14 +1432,18 @@ toast.success('Pedido marcado como postado');
                   </DropdownMenu>
                 )}
               </div>
-              <div className="pt-0.5 space-y-0.5">
+              <div className="pt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <p className="text-sm font-semibold text-foreground">
                   {getProductsDisplay(p)}
                 </p>
                 {(() => {
                   const c = getCaixaCalculada(p);
                   if (!c.label) return null;
-                  return <p className="text-sm text-muted-foreground">Caixa {c.label}</p>;
+                  return (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      <Package className="w-2.5 h-2.5" /> Caixa {c.label}
+                    </span>
+                  );
                 })()}
               </div>
               <div className="flex flex-wrap items-center gap-2 text-sm pt-1">
@@ -1438,7 +1451,9 @@ toast.success('Pedido marcado como postado');
                 {(() => {
                   const ufDest = getUfDestino(p);
                   return ufDest ? (
-                    <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold">→ {ufDest}</Badge>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-semibold">
+                      <MapPin className="w-2.5 h-2.5" /> {ufDest}
+                    </span>
                   ) : null;
                 })()}
                 <Select 
@@ -1490,9 +1505,9 @@ toast.success('Pedido marcado como postado');
                   </strong>
                 )}
                 {miniExcedeu(p) && (
-                  <Badge variant="destructive" className="text-[10px] bg-amber-500 hover:bg-amber-600">
-                    ⚠️ Trocar Modalidade
-                  </Badge>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 border border-amber-300 px-2 py-0.5 text-[10px] font-semibold">
+                    <AlertTriangle className="w-2.5 h-2.5" /> Trocar Modalidade
+                  </span>
                 )}
               </div>
 
@@ -1601,7 +1616,7 @@ toast.success('Pedido marcado como postado');
                       <>
                         <Button
                           size="icon"
-                          className="min-h-[44px] w-10 bg-sf-green hover:bg-sf-green/90"
+                          className="min-h-[44px] w-10 bg-emerald-600 hover:bg-emerald-700 text-white"
                           disabled={printingId === p.id}
                           onClick={() => imprimirEtiqueta(p)}
                           title="Imprimir"
@@ -1653,7 +1668,12 @@ toast.success('Pedido marcado como postado');
             </CardContent>
           </Card>
         ))}
-        {filteredPedidos.length === 0 && <p className="text-muted-foreground col-span-full text-center py-8">Nenhum pedido aguardando postagem</p>}
+        {filteredPedidos.length === 0 && (
+          <div className="col-span-full flex flex-col items-center justify-center gap-2 py-12 rounded-2xl border-2 border-dashed border-border/60 bg-muted/20 text-center">
+            <Truck className="w-8 h-8 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">Nenhum pedido aguardando postagem</p>
+          </div>
+        )}
       </div>
 
       {/* Delete etiqueta confirmation */}
@@ -1685,7 +1705,7 @@ toast.success('Pedido marcado como postado');
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleMarcarPostado} disabled={markingPostado} className="bg-sf-green">
+            <AlertDialogAction onClick={handleMarcarPostado} disabled={markingPostado} className="bg-emerald-600 hover:bg-emerald-700 text-white">
               {markingPostado ? 'Processando...' : 'Confirmar'}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1694,7 +1714,7 @@ toast.success('Pedido marcado como postado');
 
       {/* FAB: Adicionar Reposição/Reenvio/Brinde */}
       {!isRepresentante && (
-        <Button onClick={() => { resetFreeForm(); setShowFreeForm(true); }} className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-sf-green hover:bg-sf-green/90 text-primary-foreground z-50" size="icon">
+        <Button onClick={() => { resetFreeForm(); setShowFreeForm(true); }} className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-xl shadow-emerald-900/25 text-white z-50 transition-transform hover:scale-105 active:scale-95 border-0" style={{ background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' }} size="icon">
           <Plus className="w-6 h-6" />
         </Button>
       )}
@@ -1773,7 +1793,7 @@ toast.success('Pedido marcado como postado');
                     <Input placeholder="UF" maxLength={2} value={freeUfClienteNew} onChange={e => setFreeUfClienteNew(e.target.value.toUpperCase())} className="min-h-[44px] w-20" />
                   </div>
                   <div className="flex gap-2">
-                    <Button className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px] flex-1" onClick={saveFreeClient}>
+                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px] flex-1" onClick={saveFreeClient}>
                       <Check className="w-4 h-4 mr-1" /> Salvar Cliente
                     </Button>
                     <Button variant="link" size="sm" onClick={() => { setFreeNewContactMode(false); }}>Buscar cliente existente</Button>
@@ -1854,7 +1874,7 @@ toast.success('Pedido marcado como postado');
               <Input value={freeObs} onChange={e => setFreeObs(e.target.value)} placeholder="Ex: Reposição lote defeituoso" className="min-h-[44px] mt-1" />
             </div>
 
-            <Button onClick={submitFreePedido} disabled={freeSubmitting} className="w-full bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[44px]">
+            <Button onClick={submitFreePedido} disabled={freeSubmitting} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]">
               {freeSubmitting ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>

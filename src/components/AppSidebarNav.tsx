@@ -17,10 +17,10 @@ const adminTabs = [
   { to: '/contatos', label: 'Contatos', icon: Users, key: 'contatos' },
   { to: '/estoque', label: 'Estoque', icon: Package, key: 'estoque' },
   { to: '/logistica', label: 'Logística', icon: Truck, key: 'logistica' },
-  { to: '/integracoes', label: 'Integrações', icon: Settings, key: 'integracoes' },
   { to: '/instancias', label: 'Instâncias', icon: Smartphone, key: 'instancias' },
   { to: '/campanhas', label: 'Campanhas', icon: Send, key: 'campanhas' },
   { to: '/agentes', label: 'Agentes', icon: Bot, key: 'agentes' },
+  { to: '/integracoes', label: 'Integrações', icon: Settings, key: 'integracoes' },
   { to: '/admin', label: 'Administração', icon: Shield, key: 'admin' },
 ];
 
