@@ -39,7 +39,7 @@ function MetaRing({ percent, size = 116, stroke = 11 }: { percent: number; size?
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold tabular-nums leading-none">{pct.toFixed(0)}%</span>
+        <span className="font-display text-2xl font-semibold tabular-nums leading-none">{pct.toFixed(0)}%</span>
         <span className="text-[10px] text-muted-foreground mt-0.5">da meta</span>
       </div>
     </div>
@@ -526,7 +526,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Dashboard</h1>
         <div className="flex items-center gap-2">
           {(['hoje', 'ontem', '7dias', '15dias', '30dias'] as const).map(p => (
             <Button
@@ -544,7 +544,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {statCards.map((s, i) => (
-          <Card key={i} className={cn('rounded-xl border-border/50 shadow-sm transition-all duration-150 hover:shadow-md hover:-translate-y-0.5', i === 0 && 'ring-1 ring-primary/25')}>
+          <Card key={i} style={{ animationDelay: `${i * 55}ms` }} className={cn('sf-rise rounded-xl border-border/50 shadow-sm transition-all duration-150 hover:shadow-md hover:-translate-y-0.5', i === 0 && 'ring-1 ring-primary/25')}>
             <CardContent className="pt-4 pb-3 px-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary shrink-0">
@@ -552,7 +552,7 @@ export default function Dashboard() {
                 </span>
                 <span className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{s.label}</span>
               </div>
-              <p className="text-2xl font-bold tracking-tight tabular-nums">{s.value}</p>
+              <p className="font-display text-[1.7rem] leading-none font-semibold tracking-tight tabular-nums">{s.value}</p>
               {i === 0 && fatIndicator.direction !== 'neutral' && (
                 <div className={cn('flex items-center gap-1 text-xs mt-1 font-medium',
                   fatIndicator.direction === 'up' ? 'text-emerald-600' : 'text-destructive')}>
@@ -564,7 +564,7 @@ export default function Dashboard() {
           </Card>
         ))}
         {/* Pendentes card */}
-        <Card className="rounded-xl border-border/50 shadow-sm ring-1 ring-orange-300/50 transition-all duration-150 hover:shadow-md hover:-translate-y-0.5">
+        <Card style={{ animationDelay: '330ms' }} className="sf-rise rounded-xl border-border/50 shadow-sm ring-1 ring-orange-300/50 transition-all duration-150 hover:shadow-md hover:-translate-y-0.5">
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center gap-2 mb-2">
               <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-orange-500/10 text-orange-600 shrink-0">
@@ -572,7 +572,7 @@ export default function Dashboard() {
               </span>
               <span className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">Pendentes</span>
             </div>
-            <p className="text-2xl font-bold tracking-tight tabular-nums text-orange-700">{formatBRL(pendentesTotal)}</p>
+            <p className="font-display text-[1.7rem] leading-none font-semibold tracking-tight tabular-nums text-orange-700">{formatBRL(pendentesTotal)}</p>
           </CardContent>
         </Card>
       </div>
