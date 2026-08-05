@@ -534,23 +534,31 @@ export default function Dashboard() {
   const metaPercent = metaValor ? Math.min((faturamentoMesVal / metaValor) * 100, 100) : 0;
   const now = new Date();
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const diasRestantes = Math.max(0, endOfMonth.getDate() - now.getDate());
+  const diasNoMes = endOfMonth.getDate();
+  const diasPassados = now.getDate();
+  const diasRestantes = Math.max(0, diasNoMes - diasPassados);
+  // Projeção pelo ritmo atual (média/dia × dias do mês) e status vs meta.
+  const projecaoMes = diasPassados > 0 ? (faturamentoMesVal / diasPassados) * diasNoMes : 0;
+  const noRitmo = metaValor ? projecaoMes >= metaValor : true;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-3xl font-semibold tracking-tight">Dashboard</h1>
-        <div className="flex items-center gap-2">
+        <div className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 p-1">
           {(['hoje', 'ontem', '7dias', '15dias', '30dias'] as const).map(p => (
-            <Button
+            <button
               key={p}
-              variant={period === p ? 'default' : 'outline'}
-              size="sm"
-              className="text-xs h-8"
               onClick={() => setPeriod(p)}
+              className={cn(
+                'rounded-full px-3 h-7 text-xs font-medium transition-all',
+                period === p
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
             >
-              {p === 'hoje' ? 'Hoje' : p === 'ontem' ? 'Ontem' : p === '7dias' ? 'Últimos 7 dias' : p === '15dias' ? 'Últimos 15 dias' : 'Últimos 30 dias'}
-            </Button>
+              {p === 'hoje' ? 'Hoje' : p === 'ontem' ? 'Ontem' : p === '7dias' ? '7 dias' : p === '15dias' ? '15 dias' : '30 dias'}
+            </button>
           ))}
         </div>
       </div>
@@ -574,18 +582,18 @@ export default function Dashboard() {
               style={{ animationDelay: '0ms', background: 'linear-gradient(140deg, hsl(113 40% 27%), hsl(150 45% 15%))' }}
               className="sf-rise col-span-2 rounded-2xl border-0 text-white shadow-xl shadow-primary/25 relative overflow-hidden"
             >
-              <div className="pointer-events-none absolute -right-10 -top-14 w-52 h-52 rounded-full bg-white/10 blur-2xl" />
-              <div className="pointer-events-none absolute right-6 bottom-4 opacity-[0.07]"><HeroIcon className="w-28 h-28" /></div>
-              <CardContent className="relative p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-white/15 backdrop-blur">
-                    <HeroIcon className="w-[18px] h-[18px]" />
+              <div className="pointer-events-none absolute -right-10 -top-14 w-44 h-44 rounded-full bg-white/10 blur-2xl" />
+              <div className="pointer-events-none absolute right-5 bottom-3 opacity-[0.06]"><HeroIcon className="w-24 h-24" /></div>
+              <CardContent className="relative p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/15 backdrop-blur">
+                    <HeroIcon className="w-4 h-4" />
                   </span>
                   <span className="text-[11px] uppercase tracking-[0.14em] text-white/70">{hero.label}</span>
                 </div>
-                <p className="font-display text-[2.6rem] leading-none font-bold tracking-tight tabular-nums">{hero.value}</p>
+                <p className="font-display text-[2.1rem] leading-none font-bold tracking-tight tabular-nums">{hero.value}</p>
                 {fatIndicator.direction !== 'neutral' && (
-                  <div className="mt-3 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium backdrop-blur">
+                  <div className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium backdrop-blur">
                     {fatIndicator.direction === 'up' ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                     <span>{fatIndicator.percent.toFixed(0)}% {fatIndicator.label}</span>
                   </div>
@@ -631,29 +639,41 @@ export default function Dashboard() {
       })()}
 
       {/* Meta Mensal Widget */}
-      <Card className="rounded-2xl border-border/60 shadow-sm">
-        <CardContent className="pt-4 pb-4 px-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Target className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold">Caixa Mensal</span>
+      <Card className="rounded-2xl border-border/60 shadow-sm overflow-hidden relative">
+        <div className="pointer-events-none absolute -left-16 -top-16 w-56 h-56 rounded-full bg-primary/[0.06] blur-2xl" />
+        <CardContent className="relative pt-5 pb-5 px-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary"><Target className="w-4 h-4" /></span>
+              <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Caixa Mensal</span>
+            </div>
+            {metaValor && !editingMeta && (
+              <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium',
+                noRitmo ? 'bg-emerald-500/12 text-emerald-700' : 'bg-amber-500/15 text-amber-700')}>
+                {noRitmo ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {noRitmo ? 'No ritmo' : 'Abaixo do ritmo'}
+              </span>
+            )}
           </div>
           {metaValor && !editingMeta ? (
-            <div className="flex items-center gap-5">
-              <MetaRing percent={metaPercent} />
-              <div className="flex-1 min-w-0 space-y-2">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Realizado</span>
-                  <span className="text-lg font-bold tabular-nums">{formatBRL(faturamentoMesVal)}</span>
+            <div className="flex items-center gap-6">
+              <MetaRing percent={metaPercent} size={132} stroke={12} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Realizado</p>
+                <p className="font-display text-3xl font-semibold tabular-nums text-primary leading-none mt-0.5">{formatBRL(faturamentoMesVal)}</p>
+                <p className="text-xs text-muted-foreground mt-1">de {formatBRL(metaValor)} · faltam {formatBRL(Math.max(0, metaValor - faturamentoMesVal))}</p>
+
+                {/* barra de progresso gradiente verde→dourado */}
+                <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full transition-[width] duration-700"
+                    style={{ width: `${metaPercent}%`, background: 'linear-gradient(90deg, #2D5A27, #C9A84C)' }} />
                 </div>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Meta</span>
-                  <span className="text-sm font-medium tabular-nums text-muted-foreground">{formatBRL(metaValor)}</span>
+
+                <div className="flex items-center justify-between mt-3 text-xs">
+                  <span className="text-muted-foreground">Projeção do ritmo: <span className="font-medium text-foreground tabular-nums">{formatBRL(projecaoMes)}</span></span>
+                  <span className="text-muted-foreground tabular-nums">{diasRestantes} dias restantes</span>
                 </div>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Faltam</span>
-                  <span className="text-sm font-medium tabular-nums">{formatBRL(Math.max(0, metaValor - faturamentoMesVal))} · {diasRestantes} dias</span>
-                </div>
-                <Button variant="ghost" size="sm" className="text-xs h-7 px-2 -ml-2" onClick={() => setEditingMeta(true)}>Editar meta</Button>
+                <Button variant="ghost" size="sm" className="text-xs h-7 px-2 -ml-2 mt-1" onClick={() => setEditingMeta(true)}>Editar meta</Button>
               </div>
             </div>
           ) : (
