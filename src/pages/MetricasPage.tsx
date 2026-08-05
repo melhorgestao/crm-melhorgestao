@@ -905,7 +905,7 @@ export default function MetricasPage() {
       info: 'border-l-sky-500 bg-sky-50/40 dark:bg-sky-900/10',
     };
     return (
-      <Card className={cn('border-l-4 transition hover:shadow-md', tones[insight.tone])}>
+      <Card className={cn('rounded-2xl border-l-4 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5', tones[insight.tone])}>
         <CardContent className="p-3">
           <div className="flex items-start gap-2">
             <span className="text-xl leading-none mt-0.5">{insight.emoji}</span>
@@ -929,9 +929,9 @@ export default function MetricasPage() {
     const filtered = items.filter(i => i.value > 0);
     const config = items.reduce((acc, it) => ({ ...acc, [it.name]: { label: it.name, color: it.color } }), {} as any);
     return (
-      <Card>
+      <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardContent className="p-4">
-          <p className="text-sm font-semibold mb-2">{title}</p>
+          <p className="font-display text-[15px] font-semibold mb-2">{title}</p>
           {total === 0 ? (
             <p className="text-center text-muted-foreground text-xs py-8">Sem dados no período</p>
           ) : (
@@ -998,29 +998,29 @@ export default function MetricasPage() {
   );
 
   const MetricCard = ({ label, value, color = 'bg-card', tip, onClick }: { label: string; value: string; color?: string; tip?: React.ReactNode; onClick?: () => void }) => (
-    <Card className={cn(color, onClick && 'cursor-pointer hover:shadow-md transition')} onClick={onClick}>
+    <Card className={cn('rounded-2xl border-border/60 shadow-sm transition-all duration-200', color, onClick && 'cursor-pointer hover:shadow-md hover:-translate-y-0.5')} onClick={onClick}>
       <CardContent className="p-3">
         <div className="flex items-center gap-1.5">
-          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
           {tip && <span onClick={e => e.stopPropagation()}><InfoTip>{tip}</InfoTip></span>}
         </div>
-        <p className="text-lg font-bold">{value}</p>
+        <p className="font-display text-lg font-semibold tabular-nums mt-0.5">{value}</p>
       </CardContent>
     </Card>
   );
 
   const TopCard = ({ label, value, delta, color, tip, onClick }: { label: string; value: string; delta: DeltaInfo; color: string; tip?: React.ReactNode; onClick?: () => void }) => (
-    <Card className={cn(color, onClick && 'cursor-pointer hover:shadow-md transition')} onClick={onClick}>
+    <Card className={cn('rounded-2xl border-border/60 shadow-sm transition-all duration-200', color, onClick && 'cursor-pointer hover:shadow-md hover:-translate-y-0.5')} onClick={onClick}>
       <CardContent className="p-4">
         <div className="flex items-center gap-1.5">
-          <p className="text-sm text-muted-foreground font-medium">{label}</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{label}</p>
           {tip && <span onClick={e => e.stopPropagation()}><InfoTip>{tip}</InfoTip></span>}
         </div>
-        <p className="text-2xl font-bold mt-1">{value}</p>
+        <p className="font-display text-2xl font-semibold tabular-nums mt-1">{value}</p>
         {delta && delta.direction !== 'neutral' && (
-          <div className={cn('flex items-center gap-1 text-xs mt-1', delta.direction === 'up' ? 'text-green-600' : 'text-destructive')}>
+          <div className={cn('flex items-center gap-1 text-xs mt-1 font-medium', delta.direction === 'up' ? 'text-emerald-600' : 'text-destructive')}>
             {delta.direction === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-            <span>{delta.direction === 'up' ? '▲' : '▼'} {delta.percent.toFixed(0)}% vs mês anterior</span>
+            <span>{delta.percent.toFixed(0)}% vs mês anterior</span>
           </div>
         )}
         {!delta && <p className="text-[10px] text-muted-foreground mt-1">— sem dado anterior pra comparar</p>}
@@ -1141,7 +1141,7 @@ export default function MetricasPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Métricas</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Métricas</h1>
         <div className="flex gap-2">
           <Select value={String(month)} onValueChange={v => setMonth(Number(v))}>
             <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
@@ -1165,10 +1165,10 @@ export default function MetricasPage() {
       </div>
 
       <Tabs defaultValue="visao" className="space-y-6">
-        <TabsList className="grid grid-cols-3 w-full md:w-auto md:inline-flex">
-          <TabsTrigger value="visao">📊 Visão Geral</TabsTrigger>
-          <TabsTrigger value="financeiro">💰 Financeiro</TabsTrigger>
-          <TabsTrigger value="operacional">📦 Operacional</TabsTrigger>
+        <TabsList className="grid grid-cols-3 w-full md:w-auto md:inline-flex rounded-full bg-muted/60 p-1 h-auto">
+          <TabsTrigger value="visao" className="rounded-full text-xs px-4 h-7 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">📊 Visão Geral</TabsTrigger>
+          <TabsTrigger value="financeiro" className="rounded-full text-xs px-4 h-7 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">💰 Financeiro</TabsTrigger>
+          <TabsTrigger value="operacional" className="rounded-full text-xs px-4 h-7 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">📦 Operacional</TabsTrigger>
         </TabsList>
 
         {/* ========================= VISÃO GERAL ========================= */}
@@ -1207,7 +1207,7 @@ export default function MetricasPage() {
             return (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">
+                  <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-muted-foreground">
                     💡 Alertas e Destaques {insights.length > 0 && <span className="text-xs font-normal">({insights.length})</span>}
                   </h2>
                   {insights.length > 0 && (
@@ -1267,10 +1267,10 @@ export default function MetricasPage() {
           </div>
 
           {/* === LINHA: FATURAMENTO MENSAL === */}
-          <Card>
+          <Card className="rounded-2xl border-border/60 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold">📈 Faturamento Mensal · {year}</p>
+                <p className="font-display text-[15px] font-semibold">📈 Faturamento Mensal · {year}</p>
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Pagos non-FREE</span>
               </div>
               <ChartContainer
@@ -1299,10 +1299,10 @@ export default function MetricasPage() {
           </Card>
 
           {/* === BARRA EMPILHADA: FATURAMENTO POR CANAL × MÊS === */}
-          <Card>
+          <Card className="rounded-2xl border-border/60 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold">📊 Faturamento por Canal · {year}</p>
+                <p className="font-display text-[15px] font-semibold">📊 Faturamento por Canal · {year}</p>
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Composição mensal</span>
               </div>
               <ChartContainer
@@ -1359,7 +1359,7 @@ export default function MetricasPage() {
         <TabsContent value="financeiro" className="space-y-6">
           {/* Faturamento */}
           <div>
-            <h2 className="font-bold mb-2" style={{ color: '#7B1FA2' }}>FATURAMENTO</h2>
+            <h2 className="font-display font-semibold mb-2" style={{ color: '#7B1FA2' }}>FATURAMENTO</h2>
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               <MetricCard
                 label="Fat. Total (vendas no período)"
@@ -1368,7 +1368,7 @@ export default function MetricasPage() {
                 tip="Soma de pedidos do mês de criação (pagos + pendentes, exclui FREE). Atribui a venda ao mês em que foi feita, independente do pagamento."
                 onClick={() => showPedidos('Faturamento Total (pagos + pendentes)', {})}
               />
-              <Card className="bg-card border-2 border-emerald-300 cursor-pointer hover:shadow-md transition" onClick={() => setDetail({ type: 'recebimentos', title: 'Recebimentos do mês (vendas + parcelas)', filter: {} })}>
+              <Card className="bg-card border-2 border-emerald-300 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all rounded-2xl" onClick={() => setDetail({ type: 'recebimentos', title: 'Recebimentos do mês (vendas + parcelas)', filter: {} })}>
                 <CardContent className="p-3">
                   <div className="flex items-center gap-1.5">
                     <p className="text-xs text-muted-foreground">💰 Em Caixa</p>
@@ -1378,7 +1378,7 @@ export default function MetricasPage() {
                   <p className="text-[10px] text-muted-foreground">Recebido (à vista + parcelas)</p>
                 </CardContent>
               </Card>
-              <Card className="bg-card border-2 border-purple-300 cursor-pointer hover:shadow-md transition" onClick={() => showPedidos('Pedidos Pendentes (todos)', { isPendente: true })}>
+              <Card className="bg-card border-2 border-purple-300 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all rounded-2xl" onClick={() => showPedidos('Pedidos Pendentes (todos)', { isPendente: true })}>
                 <CardContent className="p-3">
                   <div className="flex items-center gap-1.5">
                     <p className="text-xs text-muted-foreground">💳 Pendentes</p>
@@ -1397,7 +1397,7 @@ export default function MetricasPage() {
           {/* ===================== POR GRUPO (só quando um grupo é escolhido) ===================== */}
           {selectedGrupo !== 'todos' && (
           <div>
-            <h2 className="font-bold mb-1 text-indigo-600 dark:text-indigo-400">POR GRUPO</h2>
+            <h2 className="font-display font-semibold mb-1 text-indigo-600 dark:text-indigo-400">POR GRUPO</h2>
             <p className="text-xs text-muted-foreground mb-3">
               Material específico vai direto pro grupo; material geral ("ambos") é dividido igualmente e somado ao Material de cada grupo. ADS, etiqueta, logística, influencer e infra são rateados por receita — por isso a soma dos lucros por grupo bate com o Lucro total. Cards clicáveis.
             </p>
@@ -1480,7 +1480,7 @@ export default function MetricasPage() {
 
           {/* Resultado (geral — todos os grupos) */}
           <div>
-            <h2 className="font-bold mb-2 text-primary">
+            <h2 className="font-display font-semibold mb-2 text-primary">
               RESULTADO <span className="text-xs font-medium text-muted-foreground">· todos os grupos</span>
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -1495,7 +1495,7 @@ export default function MetricasPage() {
 
           {/* Custos (todos os grupos) */}
           <div>
-            <h2 className="font-bold mb-2 text-destructive">
+            <h2 className="font-display font-semibold mb-2 text-destructive">
               CUSTOS <span className="text-xs font-medium text-muted-foreground">· todos os grupos</span>
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1515,7 +1515,7 @@ export default function MetricasPage() {
         <TabsContent value="operacional" className="space-y-6">
           {/* Indicadores */}
           <div>
-            <h2 className="font-bold mb-2 text-sf-gold">
+            <h2 className="font-display font-semibold mb-2 text-sf-gold">
               INDICADORES <span className="text-xs font-medium text-muted-foreground">· {opG ? opG.nome : 'todos os grupos'}</span>
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -1569,7 +1569,7 @@ export default function MetricasPage() {
 
           {/* Produtos */}
           <div>
-            <h2 className="font-bold mb-2" style={{ color: '#1976D2' }}>
+            <h2 className="font-display font-semibold mb-2" style={{ color: '#1976D2' }}>
               PRODUTOS <span className="text-xs font-medium text-muted-foreground">· {opG ? opG.nome : 'todos os grupos'}</span>
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -1583,7 +1583,7 @@ export default function MetricasPage() {
 
           {/* Cliente & Recompra */}
           <div>
-            <h2 className="font-bold mb-2 text-emerald-700 flex items-center gap-2 flex-wrap">
+            <h2 className="font-display font-semibold mb-2 text-emerald-700 flex items-center gap-2 flex-wrap">
               👥 CLIENTE &amp; RECOMPRA
               {opG && <span className="text-[11px] font-medium text-muted-foreground bg-muted rounded px-1.5 py-0.5">geral · não divide por grupo</span>}
             </h2>
