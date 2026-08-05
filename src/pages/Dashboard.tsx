@@ -270,12 +270,12 @@ export default function Dashboard() {
   // Alimenta Composição de Clientes, Top Produtos e a lista de Movimentações —
   // que antes vinham de pedidos.data_pago e ficavam vazias quando a venda do
   // período era uma parcela de pedido pendente.
-  const { data: caixa = { porCanal: { ADS: 0, BASE: 0, REP: 0 }, topProdutos: [], movimentacoes: [] } } = useQuery({
+  const { data: caixa = { porCanal: { ADS: 0, BASE: 0, REP: 0 }, topProdutos: [], movimentacoes: [], unidades: 0, vendasCount: 0 } } = useQuery({
     queryKey: ['dashboard_caixa', dateFrom, dateTo],
     queryFn: async () => {
       const { data } = await supabase
         .from('lancamentos_socios')
-        .select('valor, canal, data, realizado_em, tipo, contato_id, quantidade, contatos(nome), pedidos(produto)')
+        .select('valor, canal, data, realizado_em, tipo, contato_id, pedido_id, quantidade, contatos(nome), pedidos(produto)')
         .in('tipo', ['VENDA', 'PARCELA_VENDA']);
 
       const rows = (data || []).filter((r: any) => {
@@ -288,23 +288,24 @@ export default function Dashboard() {
         ref: r.tipo === 'VENDA' ? (r.realizado_em ? new Date(r.realizado_em).toISOString().slice(0, 10) : r.data) : r.data,
       }));
 
-      // Composição de clientes = contatos distintos por canal (C-REP dobra em REP)
+      // Clientes por canal = contatos que FIZERAM VENDA no período (só VENDA,
+      // não quem só pagou parcela de pedido antigo). C-REP dobra em REP.
       const setByCanal: Record<string, Set<string>> = { ADS: new Set(), BASE: new Set(), REP: new Set() };
-      // Top produtos = unidades por item (parseando o blob de produto)
-      const prodMap = new Map<string, number>();
+      const prodMap = new Map<string, number>();    // top produtos (unidades por item)
+      const pedidosCaixa = new Set<string>();        // pedidos que movimentaram caixa (ticket)
+      let unidades = 0;                              // unidades de vendas NOVAS do período
       const movimentacoes: any[] = [];
 
       rows.forEach((r: any) => {
-        const canal = (r.canal === 'REP' || r.canal === 'C-REP') ? 'REP' : r.canal;
-        if (canal in setByCanal && r.contato_id) setByCanal[canal].add(r.contato_id);
-
-        // Unidades só de VENDA (parcela não repete unidades já contadas)
+        if (r.pedido_id) pedidosCaixa.add(r.pedido_id);
         if (r.tipo === 'VENDA') {
+          const canal = (r.canal === 'REP' || r.canal === 'C-REP') ? 'REP' : r.canal;
+          if (canal in setByCanal && r.contato_id) setByCanal[canal].add(r.contato_id);
           parseProdutoItens(r.pedidos?.produto).forEach(it => {
             prodMap.set(it.nome, (prodMap.get(it.nome) || 0) + it.qtd);
+            unidades += it.qtd;
           });
         }
-
         movimentacoes.push({
           nome: r.contatos?.nome || '—',
           produto: renderProdutos(r.pedidos?.produto),
@@ -326,6 +327,8 @@ export default function Dashboard() {
         porCanal: { ADS: setByCanal.ADS.size, BASE: setByCanal.BASE.size, REP: setByCanal.REP.size },
         topProdutos,
         movimentacoes: movimentacoes.slice(0, 60),
+        unidades,
+        vendasCount: pedidosCaixa.size,
       };
     },
     staleTime: 5 * 60 * 1000,
@@ -515,10 +518,14 @@ export default function Dashboard() {
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-64" /></div>;
 
+  // Ticket médio = caixa do período / nº de pedidos que movimentaram caixa
+  // (consistente com Faturamento e Clientes, todos regime de caixa).
+  const ticketMedio = caixa.vendasCount ? dayStats.faturamento / caixa.vendasCount : 0;
+
   const statCards = [
     { icon: DollarSign, label: 'Faturamento Total', value: formatBRL(dayStats.faturamento) },
-    { icon: Tag, label: 'Ticket Médio', value: formatBRL(dayStats.ticket) },
-    { icon: Package, label: 'Total de Produtos Vendidos', value: dayStats.produtos },
+    { icon: Tag, label: 'Ticket Médio', value: formatBRL(ticketMedio) },
+    { icon: Package, label: 'Total de Produtos Vendidos', value: caixa.unidades },
     { icon: UserPlus, label: 'Clientes Novos', value: caixa.porCanal.ADS },
     { icon: RefreshCw, label: 'Clientes Recorrentes', value: caixa.porCanal.BASE },
     { icon: Users, label: 'Clientes Representantes', value: caixa.porCanal.REP },
