@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { formatBRL } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { DollarSign, Tag, Package, UserPlus, RefreshCw, TrendingUp, TrendingDown, Target, CreditCard, Users } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell, LabelList, PieChart, Pie, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell, LabelList } from 'recharts';
 
 // Cor por canal (paleta categórica validada CVD-safe — slots 1/2/3 da dataviz).
 const CANAL_CORES: Record<string, string> = { ADS: '#2a78d6', BASE: '#eb6834', REP: '#1baf7a' };
@@ -228,28 +228,32 @@ export default function Dashboard() {
   const { data: pipelineBars = [] } = useQuery({
     queryKey: ['dashboard_pipeline', dateFrom, dateTo],
     queryFn: async () => {
-      const [{ data: contatos }, { count: vendas }] = await Promise.all([
+      const [{ data: contatos }, { count: vendas }, { count: rmktWait }] = await Promise.all([
         supabase.from('contatos')
-          .select('ultima_interacao, fechamento_aguardando')
+          .select('ultima_interacao')
           .in('ultima_interacao', ['suporte', 'wait_follow_up', 'follow_up', 'wait_follow_up_custom', 'em_fechamento', 'rmkt']),
         supabase.from('pedidos').select('id', { count: 'exact', head: true })
           .neq('is_free', true).eq('status_pagamento', 'pago').gte('data_pago', dateFrom).lte('data_pago', dateTo),
+        // RMKT no Kanban = disparados ('rmkt') + elegíveis em espera (view).
+        supabase.from('v_kanban_rmkt_wait' as any).select('id', { count: 'exact', head: true }),
       ]);
 
       let suporte = 0, followup = 0, fechamento = 0, rmkt = 0;
       (contatos || []).forEach((r: any) => {
         const st = r.ultima_interacao;
-        if (st === 'suporte') { r.fechamento_aguardando ? fechamento++ : suporte++; }
+        if (st === 'suporte') suporte++;
         else if (st === 'em_fechamento') fechamento++;
         else if (st === 'rmkt') rmkt++;
         else followup++; // wait_follow_up / follow_up / wait_follow_up_custom
       });
+      rmkt += rmktWait || 0; // inclui os elegíveis em espera (igual ao Kanban)
 
+      // Ordem: Suporte → Follow-up → RMKT → Fechamento → Venda (resultado por último)
       return [
         { etapa: 'Suporte', qtd: suporte },
         { etapa: 'Follow-up', qtd: followup },
-        { etapa: 'Fechamento', qtd: fechamento },
         { etapa: 'RMKT', qtd: rmkt },
+        { etapa: 'Fechamento', qtd: fechamento },
         { etapa: 'Venda', qtd: vendas || 0 },
       ];
     },
@@ -502,12 +506,6 @@ export default function Dashboard() {
   const monthlyChart = dashboardData?.monthlyChart || [];
   const topProdutos = caixa.topProdutos || [];
   const faturamentoMesVal = dashboardData?.faturamentoMes || 0;
-  // Clientes por origem no período — regime de caixa (consistente com o resto).
-  const clientesComposicao = [
-    { nome: 'Novos', valor: caixa.porCanal.ADS, cor: CANAL_CORES.ADS },
-    { nome: 'Recorrentes', valor: caixa.porCanal.BASE, cor: CANAL_CORES.BASE },
-    { nome: 'Representantes', valor: caixa.porCanal.REP, cor: CANAL_CORES.REP },
-  ].filter(d => d.valor > 0);
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-64" /></div>;
 
@@ -628,7 +626,7 @@ export default function Dashboard() {
             <BarChart data={pipelineBars} layout="vertical" margin={{ left: 4, right: 32, top: 4, bottom: 4 }}>
               <XAxis type="number" hide />
               <YAxis type="category" dataKey="etapa" width={90} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-              <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} formatter={(v: number) => [v, 'Contatos']} />
+              <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} formatter={(v: number) => [v, '']} />
               <Bar dataKey="qtd" radius={[0, 4, 4, 0]} maxBarSize={26} isAnimationActive animationDuration={700}>
                 {pipelineBars.map(b => <Cell key={b.etapa} fill={PIPELINE_CORES[b.etapa] || '#2a78d6'} />)}
                 <LabelList dataKey="qtd" position="right" className="fill-foreground" fontSize={12} />
@@ -679,7 +677,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid gap-6">
         {/* Top produtos do período */}
         <Card className="rounded-xl border-border/50 shadow-sm">
           <CardHeader>
@@ -706,34 +704,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Composição de clientes do período */}
-        <Card className="rounded-xl border-border/50 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm">Composição de Clientes</CardTitle>
-            <p className="text-xs text-muted-foreground">Quem comprou no período, por origem</p>
-          </CardHeader>
-          <CardContent>
-            {clientesComposicao.length === 0 ? (
-              <div className="h-[220px] flex items-center justify-center">
-                <p className="text-sm text-muted-foreground">Nenhum cliente no período</p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={clientesComposicao}
-                    dataKey="valor" nameKey="nome" innerRadius={54} outerRadius={82} paddingAngle={2} stroke="none"
-                    animationDuration={700}
-                  >
-                    {clientesComposicao.map((d, i) => <Cell key={i} fill={d.cor} />)}
-                  </Pie>
-                  <Tooltip formatter={(v: number, n) => [v, n]} />
-                  <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Movimentações do período (regime de caixa) — antes 'Pedidos do Período',
