@@ -36,11 +36,11 @@ const valorTotalLista = (p: any): number => {
 function CanalPill({ canal }: { canal?: string }) {
   const c = (canal || '—').toUpperCase();
   const hex = canalHex(c);
+  // Neutra (fundo claro + borda suave) com um dot colorido discreto — a cor
+  // forte fica reservada pro STATUS do pedido, que é o que importa.
   return (
-    <span
-      className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold"
-      style={{ background: `${hex}1f`, color: hex, borderColor: `${hex}55` }}
-    >
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hex }} />
       {c}
     </span>
   );
