@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
+import { Wallet, Store, TrendingUp, ArrowLeftRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,6 +34,53 @@ const UF_OPTIONS = [
 const DIAS_OCULTACAO_FIN = 180;
 const getDataLimiteFin = () =>
   new Date(Date.now() - DIAS_OCULTACAO_FIN * 86400000).toISOString().slice(0, 10);
+
+// Count-up dos saldos (motion, cookbook). Anima do valor anterior ao novo.
+function CountBRL({ value, durationMs = 800 }: { value: number; durationMs?: number }) {
+  const [val, setVal] = useState(value);
+  const fromRef = useRef(value);
+  useEffect(() => {
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { setVal(value); fromRef.current = value; return; }
+    const from = fromRef.current; let raf = 0; let start: number | undefined;
+    const tick = (now: number) => {
+      if (start === undefined) start = now;
+      const p = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const cur = from + (value - from) * eased;
+      setVal(cur); fromRef.current = cur;
+      if (p < 1) raf = requestAnimationFrame(tick); else { setVal(value); fromRef.current = value; }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, durationMs]);
+  return <>{formatBRL(val)}</>;
+}
+
+// Cor/rótulo por tipo de lançamento (pill em vez de linha inteira colorida).
+const TIPO_CFG: Record<string, { label: string; hex: string }> = {
+  VENDA: { label: 'Venda', hex: '#16a34a' },
+  PARCELA_VENDA: { label: 'Parcela', hex: '#16a34a' },
+  TRANSFERENCIA: { label: 'Transferência', hex: '#2a78d6' },
+  LUCRO: { label: 'Lucro', hex: '#C9A84C' },
+  EXTRA_METRICA: { label: 'Extra métrica', hex: '#8b5cf6' },
+  MATERIAL: { label: 'Material', hex: '#ef4444' },
+  ETIQUETA: { label: 'Etiqueta', hex: '#ef4444' },
+  ADS: { label: 'ADS', hex: '#ef4444' },
+  LOGISTICA: { label: 'Logística', hex: '#ef4444' },
+  INFLUENCER: { label: 'Influencer', hex: '#ef4444' },
+  INFRAESTRUTURA: { label: 'Infra', hex: '#ef4444' },
+};
+function TipoPill({ tipo }: { tipo: string }) {
+  const cfg = TIPO_CFG[tipo] || { label: tipo, hex: '#64748b' };
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
+      style={{ background: `${cfg.hex}18`, color: cfg.hex }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.hex }} />
+      {cfg.label}
+    </span>
+  );
+}
 
 export default function FinanceiroPage() {
   const { user, profile } = useAuth();
@@ -1037,7 +1085,7 @@ export default function FinanceiroPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h1 className="text-2xl font-bold">Financeiro</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Financeiro</h1>
         {caixas.length < 5 && (
           <Button
             variant="outline"
@@ -1051,50 +1099,70 @@ export default function FinanceiroPage() {
       </div>
 
       {/* Sócios + Caixas cards */}
-      <div className="flex flex-col items-center gap-3">
-        <div className="flex gap-3 flex-wrap justify-center max-w-4xl">
-          {socios.map(s => {
+      <div className="flex flex-col items-center gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-3xl">
+          {socios.map((s, i) => {
             const saldo = socioBalances[s.key] ?? 0;
+            const neg = saldo < 0;
             return (
-              <Card key={s.key} className="min-w-[160px]">
-                <CardContent className="p-4 text-center">
-                  <p className="text-sm font-bold text-muted-foreground">{s.nome}</p>
-                  <p className={cn('text-xl font-bold', saldo < 0 ? 'text-destructive' : 'text-primary')}>{formatBRL(saldo)}</p>
+              <Card key={s.key} style={{ animationDelay: `${i * 55}ms` }}
+                className="sf-rise rounded-2xl border border-border/60 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20 text-primary shadow-sm">
+                      <Wallet className="w-[18px] h-[18px]" />
+                    </span>
+                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{s.nome}</span>
+                  </div>
+                  <p className={cn('font-display text-2xl font-semibold tracking-tight tabular-nums', neg ? 'text-destructive' : 'text-foreground')}>
+                    <CountBRL value={saldo} />
+                  </p>
                 </CardContent>
               </Card>
             );
           })}
-          {caixas.map(c => {
+          {caixas.map((c, i) => {
             const saldo = socioBalances[c.codigo] ?? 0;
+            const neg = saldo < 0;
             return (
-              <Card key={c.codigo} className="min-w-[160px] border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
-                <CardContent className="p-4 text-center">
-                  <p className="text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center justify-center gap-1">
-                    🏪 {c.apelido}
+              <Card key={c.codigo} style={{ animationDelay: `${(socios.length + i) * 55}ms` }}
+                className="sf-rise rounded-2xl border border-amber-300/50 bg-amber-50/40 dark:bg-amber-950/10 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400/25 to-amber-500/5 ring-1 ring-amber-500/25 text-amber-600 shadow-sm">
+                      <Store className="w-[18px] h-[18px]" />
+                    </span>
+                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">{c.apelido}</span>
+                  </div>
+                  <p className={cn('font-display text-2xl font-semibold tracking-tight tabular-nums', neg ? 'text-destructive' : 'text-amber-700 dark:text-amber-300')}>
+                    <CountBRL value={saldo} />
                   </p>
-                  <p className={cn('text-xl font-bold', saldo < 0 ? 'text-destructive' : 'text-amber-700 dark:text-amber-300')}>{formatBRL(saldo)}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Caixa · não divide lucro</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Caixa · não divide lucro</p>
                 </CardContent>
               </Card>
             );
           })}
         </div>
-        <div className="flex gap-3">
-          <Button onClick={() => { setShowLucro(true); setLucroError(''); }} className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground">Realizar Lucro</Button>
-          <Button variant="outline" onClick={() => setShowTransfer(true)}>Transferir ⇄</Button>
+        <div className="flex gap-2">
+          <Button onClick={() => { setShowLucro(true); setLucroError(''); }} className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white">
+            <TrendingUp className="w-4 h-4 mr-1.5" /> Realizar Lucro
+          </Button>
+          <Button variant="outline" className="rounded-lg" onClick={() => setShowTransfer(true)}>
+            <ArrowLeftRight className="w-4 h-4 mr-1.5" /> Transferir
+          </Button>
         </div>
       </div>
 
       {/* Lancamentos list */}
-      <div className="overflow-x-auto">
+      <div className="rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
         <table className="w-full text-sm table-fixed">
           <thead>
-            <tr className="border-b font-bold">
-              <th className="text-left py-2 w-[18%]">Data</th>
-              <th className="text-left py-2 w-[10%]" title="Operador (sócio ou caixa)">Op.</th>
-              <th className="text-left py-2 w-[20%]">Tipo</th>
-              <th className="text-right py-2 w-[28%]">Valor</th>
-              <th className="py-2 w-[24%]"></th>
+            <tr className="border-b border-border/60 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+              <th className="text-left font-medium px-4 py-3 w-[16%]">Data</th>
+              <th className="text-left font-medium py-3 w-[12%]" title="Operador (sócio ou caixa)">Op.</th>
+              <th className="text-left font-medium py-3 w-[22%]">Tipo</th>
+              <th className="text-right font-medium py-3 w-[26%]">Valor</th>
+              <th className="py-3 pr-4 w-[24%]"></th>
             </tr>
           </thead>
           <tbody>
@@ -1103,25 +1171,23 @@ export default function FinanceiroPage() {
               const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
               const isToday = l.data === todayStr;
               const canEdit = isToday && !l.locked_at;
+              const val = Number(l.valor);
+              const valorCor = l.tipo === 'TRANSFERENCIA' ? 'text-sky-600' : val < 0 ? 'text-destructive' : 'text-emerald-600';
               return (
-              <tr 
-                key={l.id} 
-                className={cn('border-b hover:bg-muted/30 cursor-pointer', 
-                  l.tipo === 'VENDA' ? 'bg-green-100/60 dark:bg-green-900/20' :
-                  l.tipo === 'PARCELA_VENDA' ? 'bg-green-100/60 dark:bg-green-900/20' :
-                  l.tipo === 'TRANSFERENCIA' ? 'bg-blue-100/50 dark:bg-blue-900/20' :
-                  l.tipo === 'LUCRO' ? 'bg-yellow-100/70 dark:bg-yellow-900/25' :
-                  l.tipo === 'EXTRA_METRICA' ? 'bg-purple-100/60 dark:bg-purple-900/20' :
-                  (l.tipo === 'MATERIAL' || l.tipo === 'ETIQUETA' || l.tipo === 'ADS' || l.tipo === 'LOGISTICA' || l.tipo === 'INFLUENCER' || l.tipo === 'INFRAESTRUTURA') ? 'bg-red-100/60 dark:bg-red-900/20' :
-                  'bg-muted/30'
-                )}
+              <tr
+                key={l.id}
+                className="border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors cursor-pointer"
                 onClick={() => setDetailItem(l)}
               >
-                <td className="py-2 truncate">{formatDateShort(l.data)}</td>
-                <td className="py-2">{l.tipo === 'TRANSFERENCIA' ? (l.transferencia_direcao || '—') : (l.tipo === 'LUCRO' ? resolveCriadoPor(l.criado_por) : (socioLabels[l.socio] || l.socio || '—'))}</td>
-                <td className="py-2 truncate">{l.tipo === 'PARCELA_VENDA' ? 'PARCELA DE VENDA' : l.tipo === 'EXTRA_METRICA' ? 'EXTRA MÉTRICA' : l.tipo}</td>
-                <td className={cn('py-2 text-right font-medium whitespace-nowrap', Number(l.valor) < 0 && l.tipo !== 'TRANSFERENCIA' && 'text-destructive')}>{l.tipo === 'TRANSFERENCIA' ? (l._transferValor || formatBRL(Math.abs(Number(l.valor)))) : formatBRL(Number(l.valor))}</td>
-                <td className="py-2" onClick={e => e.stopPropagation()}>
+                <td className="px-4 py-3 truncate text-muted-foreground tabular-nums">{formatDateShort(l.data)}</td>
+                <td className="py-3">
+                  <span className="inline-flex items-center justify-center min-w-[26px] h-6 rounded-full bg-muted px-2 text-xs font-semibold text-muted-foreground">
+                    {l.tipo === 'TRANSFERENCIA' ? (l.transferencia_direcao || '—') : (l.tipo === 'LUCRO' ? resolveCriadoPor(l.criado_por) : (socioLabels[l.socio] || l.socio || '—'))}
+                  </span>
+                </td>
+                <td className="py-3"><TipoPill tipo={l.tipo} /></td>
+                <td className={cn('py-3 text-right font-semibold tabular-nums whitespace-nowrap', valorCor)}>{l.tipo === 'TRANSFERENCIA' ? (l._transferValor || formatBRL(Math.abs(val))) : formatBRL(val)}</td>
+                <td className="py-3 pr-4" onClick={e => e.stopPropagation()}>
                   {canEdit && l.tipo !== 'TRANSFERENCIA' && l.tipo !== 'LUCRO' && (
                   <div className="flex gap-1 justify-end">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(l)}><Pencil className="w-3 h-3" /></Button>
