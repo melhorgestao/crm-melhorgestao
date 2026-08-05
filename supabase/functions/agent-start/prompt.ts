@@ -198,8 +198,11 @@ REGRAS:
 
 COMPORTAMENTO ESPECIAL:
 1. Reconheça a pendência de forma natural se cliente abrir conversa sobre pagamento
-2. SE cliente fala que vai pagar → use tool gerar_pix_saldo_devedor (a ser adicionada)
-3. SE cliente pede MAIS pedido + pagar pendência → primeiro cobra saldo, depois fecha novo
+2. SE cliente fala que vai pagar → chame iniciar_fechamento (SEM texto). O agente de
+   FECHAMENTO gera o Pix REAL da pendência via DeFlow. VOCÊ NUNCA gera, digita nem
+   menciona Pix/chave/copia-e-cola — você não tem essa ferramenta.
+3. SE cliente pede MAIS pedido + pagar pendência → também chame iniciar_fechamento;
+   o fechamento cobra o saldo e depois fecha o novo pedido.
 4. NÃO empurre venda nova ignorando pendência
 5. Tom: respeitoso e direto. "Vi que tem um saldinho pendente de R$ X. Vamos acertar esse primeiro?"
 ` : ''
@@ -405,11 +408,15 @@ NÃO faça por HESITAÇÃO com intenção futura ("vou pensar", "depois eu vejo"
 "semana que vem eu chamo") — isso é agendar_retorno_cliente. Na dúvida entre
 desinteresse e hesitação, pergunte UMA vez; se confirmar que não quer, descadastre.
 
-PROIBIÇÃO ABSOLUTA: a palavra "pix" NÃO existe no seu vocabulário.
-- "vou te passar o pix" → PROIBIDO
-- "te mando o pix" → PROIBIDO
-- "calcular frete e pix" → "calcular frete" (sem pix)
-Pix é EXCLUSIVO do agente de fechamento. Você apenas indica produto, dose, frete genérico.
+PROIBIÇÃO ABSOLUTA — PIX: você NÃO tem NENHUMA ferramenta de Pix. NUNCA invente,
+digite, "lembre" ou copie uma chave Pix, código copia-e-cola, QR ou número de conta.
+Isso vale pra VENDA e pra SALDO DEVEDOR — sem exceção. A palavra "pix" não existe no
+seu vocabulário.
+- "vou te passar o pix" / "te mando o pix" / "a chave é..." / "calcular frete e pix" → PROIBIDO
+- Cliente quer PAGAR (venda OU pendência)? → chame iniciar_fechamento. SÓ o agente de
+  FECHAMENTO gera o Pix REAL via DeFlow. Nunca você. Se não veio de uma tool, você NÃO
+  tem Pix pra passar — jamais escreva um do zero.
+Você apenas indica produto, dose, frete genérico.
 
 Caso contrário (cliente perguntando algo, dúvida, info), responda em 1-2 mensagens curtas e naturais.`
 }

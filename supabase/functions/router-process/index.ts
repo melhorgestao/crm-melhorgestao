@@ -115,7 +115,20 @@ Deno.serve(async (req) => {
       })
     }
 
-    const targetAgent = ESTADOS_FECHAMENTO.has(estado) ? 'agent-closing' : 'agent-start'
+    let targetAgent = ESTADOS_FECHAMENTO.has(estado) ? 'agent-closing' : 'agent-start'
+
+    // 2c) SEGURANÇA DE PIX: cliente com saldo devedor SEMPRE vai pro agent-closing,
+    //     que é o único com as tools de Pix (DeFlow). Cobre o caso do cliente com
+    //     pendência que ficou em estado 'cliente' (não 'cliente_pendente') e caía
+    //     no agent-start — que não tem tool de Pix e podia INVENTAR uma chave.
+    if (targetAgent === 'agent-start') {
+      try {
+        const { data: pend } = await supabase
+          .rpc('consultar_pendencia_contato', { p_contato_id: contato_id })
+          .maybeSingle()
+        if ((pend as any)?.tem_pendencia) targetAgent = 'agent-closing'
+      } catch (_) { /* na dúvida, mantém o roteamento normal */ }
+    }
 
     // 3) Chama o agent
     const agentRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/${targetAgent}`, {
