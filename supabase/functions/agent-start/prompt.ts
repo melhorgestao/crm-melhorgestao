@@ -63,6 +63,32 @@ export function formatarCardapio(catalogo: ProdutoCat[]): string {
   return (catalogo || []).map(linha).join('\n\n') || '(catálogo vazio)'
 }
 
+// Comparador de ordenação do cardápio. Ordem fixa pedida pela loja:
+//   óleos por cor do emoji: 🟥 vermelho → 🟨 amarelo → 🟩 verde
+//   depois 🍬 gummy → 🥥 pomada → 💧 lubrificante
+//   e por ÚLTIMO os acessórios (vapor / refil / pen / bateria).
+// Dentro do mesmo grupo, mantém por preço. Recebe o mapa grupo_id→nome pra
+// detectar acessório também pelo nome do grupo.
+export function comparadorCardapio(grupoNomePorId: Record<string, string> = {}) {
+  const ehAcessorio = (p: any) => {
+    const alvo = `${grupoNomePorId[p?.grupo_id || ''] || ''} ${p?.tag || ''} ${p?.nome_oficial || ''}`.toLowerCase()
+    return /vapor|refil|\bpen\b|bateria/.test(alvo)
+  }
+  const rank = (p: any) => {
+    if (ehAcessorio(p)) return 100
+    const e = String(p?.emoji || '')
+    const n = String(p?.nome_oficial || '').toLowerCase()
+    if (e.includes('🟥')) return 0
+    if (e.includes('🟨')) return 1
+    if (e.includes('🟩')) return 2
+    if (/gummy|gomm|bear/.test(n)) return 3
+    if (/pomada|cannaderm/.test(n)) return 4
+    if (/lubrific/.test(n)) return 5
+    return 6 // outros não-acessórios (sem cor/nome conhecido)
+  }
+  return (a: any, b: any) => rank(a) - rank(b) || Number(a?.preco || 0) - Number(b?.preco || 0)
+}
+
 interface Cupom {
   nome: string
   desconto_pct: number

@@ -16,7 +16,7 @@
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { buildSystemPrompt, formatarCardapio, type Contato } from './prompt.ts'
+import { buildSystemPrompt, formatarCardapio, comparadorCardapio, type Contato } from './prompt.ts'
 import { TOOL_SCHEMAS, executeTool, resolverFotoProduto, detectarProdutosNoTexto } from './tools.ts'
 
 const corsHeaders = {
@@ -111,19 +111,13 @@ Deno.serve(async (req) => {
     const msgsOutCount = msgOutRes.count ?? 0
     const history = (historyRes.data ?? []).slice().reverse()
     const catalogo = (catalogoRes.data ?? []) as Array<{ tag?: string; nome_oficial?: string; preco?: number; emoji?: string; grupo_id?: string | null }>
-    // Ordena o cardápio: óleos medicinais primeiro, e os grupos de acessório
-    // (vapor / refil / pen / bateria) SEMPRE por último — pra não misturar
-    // bateria no meio dos óleos. Dentro de cada bloco, mantém por preço asc.
+    // Ordena o cardápio: óleos 🟥→🟨→🟩, depois 🍬 gummy, 🥥 pomada,
+    // 💧 lubrificante, e por ÚLTIMO os acessórios (vapor/refil/pen/bateria).
     try {
       const { data: gruposData } = await supabase.from('produtos_grupos').select('id,nome')
-      const nomeGrupo = new Map<string, string>((gruposData ?? []).map((g: any) => [g.id, String(g.nome || '')]))
-      const ehAcessorio = (p: { grupo_id?: string | null; tag?: string; nome_oficial?: string }) => {
-        const alvo = `${nomeGrupo.get(p.grupo_id || '') || ''} ${p.tag || ''} ${p.nome_oficial || ''}`.toLowerCase()
-        return /vapor|refil|\bpen\b|bateria/.test(alvo)
-      }
-      catalogo.sort((a, b) =>
-        (ehAcessorio(a) ? 1 : 0) - (ehAcessorio(b) ? 1 : 0)
-        || (Number(a.preco || 0) - Number(b.preco || 0)))
+      const nomeGrupo: Record<string, string> = {}
+      for (const g of (gruposData ?? [])) nomeGrupo[(g as any).id] = String((g as any).nome || '')
+      catalogo.sort(comparadorCardapio(nomeGrupo))
     } catch (_) { /* se falhar, mantém a ordem por preço */ }
     const cupom = cupomRes.data as { nome: string; desconto_pct: number; expira_em?: string | null } | null
     const config = (configRes.data ?? {}) as Record<string, any>

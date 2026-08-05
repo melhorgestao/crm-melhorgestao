@@ -26,6 +26,29 @@ export interface ProdutoCat {
   emoji?: string
 }
 
+// Comparador de ordenação do cardápio (mesmo do agent-start): óleos por cor
+// 🟥→🟨→🟩, depois 🍬 gummy, 🥥 pomada, 💧 lubrificante, e por último os
+// acessórios (vapor/refil/pen/bateria). Dentro do grupo, por preço.
+export function comparadorCardapio(grupoNomePorId: Record<string, string> = {}) {
+  const ehAcessorio = (p: any) => {
+    const alvo = `${grupoNomePorId[p?.grupo_id || ''] || ''} ${p?.tag || ''} ${p?.nome_oficial || ''}`.toLowerCase()
+    return /vapor|refil|\bpen\b|bateria/.test(alvo)
+  }
+  const rank = (p: any) => {
+    if (ehAcessorio(p)) return 100
+    const e = String(p?.emoji || '')
+    const n = String(p?.nome_oficial || '').toLowerCase()
+    if (e.includes('🟥')) return 0
+    if (e.includes('🟨')) return 1
+    if (e.includes('🟩')) return 2
+    if (/gummy|gomm|bear/.test(n)) return 3
+    if (/pomada|cannaderm/.test(n)) return 4
+    if (/lubrific/.test(n)) return 5
+    return 6
+  }
+  return (a: any, b: any) => rank(a) - rank(b) || Number(a?.preco || 0) - Number(b?.preco || 0)
+}
+
 interface BuildArgs {
   contato: ContatoClosing
   pendencia: any

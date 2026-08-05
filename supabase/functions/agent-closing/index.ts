@@ -15,7 +15,7 @@
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { buildClosingPrompt, type ContatoClosing, type ProdutoCat } from './prompt.ts'
+import { buildClosingPrompt, comparadorCardapio, type ContatoClosing, type ProdutoCat } from './prompt.ts'
 import { CLOSING_TOOL_SCHEMAS, executeClosingTool, resolverFotoProduto, detectarProdutosNoTexto } from './tools.ts'
 
 const corsHeaders = {
@@ -94,17 +94,12 @@ Deno.serve(async (req) => {
     const fotosEnviadas: string[] = Array.isArray((contato as any).fotos_enviadas) ? (contato as any).fotos_enviadas : []
     const pendencia = pendenciaRes.data ?? {}
     const catalogo: ProdutoCat[] = (catalogoRes.data ?? []) as ProdutoCat[]
-    // Vapor / refil / pen / bateria por último (não misturar com os óleos).
+    // Óleos 🟥→🟨→🟩, depois gummy/pomada/lubrificante, e acessórios por último.
     try {
       const { data: gruposData } = await supabase.from('produtos_grupos').select('id,nome')
-      const nomeGrupo = new Map<string, string>((gruposData ?? []).map((g: any) => [g.id, String(g.nome || '')]))
-      const ehAcessorio = (p: any) => {
-        const alvo = `${nomeGrupo.get(p.grupo_id || '') || ''} ${p.tag || ''} ${p.nome_oficial || ''}`.toLowerCase()
-        return /vapor|refil|\bpen\b|bateria/.test(alvo)
-      }
-      catalogo.sort((a: any, b: any) =>
-        (ehAcessorio(a) ? 1 : 0) - (ehAcessorio(b) ? 1 : 0)
-        || (Number(a.preco || 0) - Number(b.preco || 0)))
+      const nomeGrupo: Record<string, string> = {}
+      for (const g of (gruposData ?? [])) nomeGrupo[(g as any).id] = String((g as any).nome || '')
+      catalogo.sort(comparadorCardapio(nomeGrupo))
     } catch (_) { /* mantém ordem por preço se falhar */ }
     const history = (historyRes.data ?? []).slice().reverse()
     const pedidoAberto = pedidoAbertoRes.data ?? null
