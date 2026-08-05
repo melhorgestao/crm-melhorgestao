@@ -12,6 +12,10 @@
 -- Blindagem: o branch NORMAL agora só age em estados de follow-up de fato
 -- ('wait_follow_up' | 'follow_up'). em_fechamento e wait_follow_up_custom têm
 -- seus próprios branches ANTES dele. Idempotente (CREATE OR REPLACE).
+--
+-- Além disso: o follow-up CUSTOM (wait_follow_up_custom) é uma promessa de
+-- retomar pra FECHAR. Ao disparar, o lead agora vai pra em_fechamento (coluna
+-- Fechamento / negociação), não mais pra follow_up — o bot fecha na resposta.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.confirmar_envio_lead(p_contato_id uuid)
@@ -34,11 +38,13 @@ BEGIN
   GET DIAGNOSTICS v_hit = ROW_COUNT;
   IF v_hit THEN RETURN jsonb_build_object('ok', true, 'tipo', 'fechamento'); END IF;
 
-  -- CUSTOM: acabou de disparar o follow-up personalizado (prazo prometido).
+  -- CUSTOM: acabou de disparar o follow-up personalizado (promessa de retomar
+  -- pra fechar). Vai pra em_fechamento (coluna Fechamento, negociação) — o bot
+  -- fecha na resposta. SEM tag agendada. Não volta pra cadência de follow-up.
   UPDATE public.contatos
-     SET ultima_interacao        = 'follow_up',
-         follow_up_tentativas     = GREATEST(COALESCE(follow_up_tentativas, 0), 1),
-         data_ultimo_follow_up    = NOW(),
+     SET ultima_interacao        = 'em_fechamento',
+         data_em_fechamento       = NOW(),
+         fechamento_agendado_em    = NULL,
          followup_custom_em       = NULL,
          follow_up_reservado_ate  = NULL,
          updated_at               = NOW()
