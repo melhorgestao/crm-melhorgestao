@@ -123,7 +123,7 @@ export function AgentStartConfig() {
                    onChange={e => setValores({ ...valores, llm_temperature: parseFloat(e.target.value) })}
                    className="flex-1" />
             <span className="text-xs tabular-nums w-10">{Number(valores.llm_temperature ?? 0.4).toFixed(2)}</span>
-            <Button size="sm" onClick={() => salvar('llm_temperature', Number(valores.llm_temperature ?? 0.4))}>
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => salvar('llm_temperature', Number(valores.llm_temperature ?? 0.4))}>
               <Save className="w-3.5 h-3.5" />
             </Button>
           </div>

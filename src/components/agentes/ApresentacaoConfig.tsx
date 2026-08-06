@@ -173,7 +173,7 @@ export function ApresentacaoConfig() {
                 <Input type="number" min={1} max={36} value={reapMeses}
                        onChange={e => setReapMeses(parseInt(e.target.value) || 6)} />
               </div>
-              <Button size="sm" onClick={() => salvar('reapresentar_meses', reapMeses)}>
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => salvar('reapresentar_meses', reapMeses)}>
                 <Save className="w-3.5 h-3.5 mr-1" /> Salvar
               </Button>
             </div>

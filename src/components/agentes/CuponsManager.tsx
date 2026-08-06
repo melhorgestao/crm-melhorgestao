@@ -98,7 +98,7 @@ export function CuponsManager() {
             Aplicados pelo agent-closing antes de gerar o resumo. Maior desconto vence em caso de match múltiplo.
           </p>
         </div>
-        <Button size="sm" onClick={handleNovo}>
+        <Button size="sm" className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleNovo}>
           <Plus className="w-3.5 h-3.5 mr-1" /> Novo cupom
         </Button>
       </div>
@@ -112,7 +112,7 @@ export function CuponsManager() {
           </p>
         )}
         {cupons.map(c => (
-          <div key={c.id} className="border rounded-lg p-3 bg-muted/20 flex items-center gap-3">
+          <div key={c.id} className="border border-border/60 rounded-2xl p-3 bg-card hover:shadow-md transition-all flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="font-bold text-sm">{c.nome}</p>
@@ -221,7 +221,7 @@ function CupomModal({ open, onClose, cupom }: { open: boolean; onClose: () => vo
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{cupom.id ? 'Editar cupom' : 'Novo cupom'}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle className="font-display tracking-tight">{cupom.id ? 'Editar cupom' : 'Novo cupom'}</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -315,7 +315,7 @@ function CupomModal({ open, onClose, cupom }: { open: boolean; onClose: () => vo
 
           <div className="flex gap-2 pt-2">
             <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-            <Button className="flex-1 bg-sf-green hover:bg-sf-green/90" onClick={handleSave} disabled={saving}>
+            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               {cupom.id ? 'Salvar' : 'Criar'}
             </Button>

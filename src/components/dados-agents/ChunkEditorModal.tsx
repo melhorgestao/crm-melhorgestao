@@ -68,7 +68,7 @@ export function ChunkEditorModal({ open, onClose, categoria, chunk }: Props) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{chunk ? 'Editar chunk' : 'Novo chunk'} — {meta.emoji} {meta.label}</DialogTitle>
+          <DialogTitle className="font-display tracking-tight">{chunk ? 'Editar chunk' : 'Novo chunk'} — {meta.emoji} {meta.label}</DialogTitle>
           <DialogDescription>{meta.descricao}</DialogDescription>
         </DialogHeader>
 
@@ -126,7 +126,7 @@ export function ChunkEditorModal({ open, onClose, categoria, chunk }: Props) {
 
           <div className="flex gap-2 pt-2">
             <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-            <Button className="flex-1 bg-sf-green hover:bg-sf-green/90" onClick={handleSave} disabled={saving}>
+            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               {chunk ? 'Salvar' : 'Criar'}
             </Button>

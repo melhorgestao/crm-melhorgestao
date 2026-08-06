@@ -4,14 +4,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, FlaskConical, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, FlaskConical, AlertTriangle, RefreshCw, Database, Info } from 'lucide-react';
 import { CATEGORIAS, deleteChunk, toggleChunkAtivo, type ChunkCategoria, type ChunkRow } from '@/lib/chunksApi';
 import { ChunkEditorModal } from '@/components/dados-agents/ChunkEditorModal';
 import { TestarBuscaModal } from '@/components/dados-agents/TestarBuscaModal';
@@ -118,25 +117,30 @@ export default function DadosAgentsPage() {
     <div className="space-y-4 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">🤖 Dados dos Agents</h1>
-          <p className="text-xs text-muted-foreground">
-            {totalChunks} chunk{totalChunks !== 1 ? 's' : ''} no total · agentes consultam via busca semântica
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl p-2 bg-primary/10 shrink-0">
+            <Database className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl font-display font-bold tracking-tight">Dados dos Agentes</h1>
+            <p className="text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground tabular-nums">{totalChunks}</span> chunk{totalChunks !== 1 ? 's' : ''} no total · consulta via busca semântica
+            </p>
+          </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setTestarOpen(true)}>
+        <Button variant="outline" size="sm" className="rounded-full" onClick={() => setTestarOpen(true)}>
           <FlaskConical className="w-4 h-4 mr-1" /> Testar busca
         </Button>
       </div>
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as ChunkCategoria)}>
-        <TabsList className="grid grid-cols-5 w-full">
+        <TabsList className="bg-muted/60 rounded-full p-1 h-auto flex flex-wrap justify-start gap-0.5">
           {CATEGORIAS.map(c => (
-            <TabsTrigger key={c.key} value={c.key} className="text-xs">
+            <TabsTrigger key={c.key} value={c.key} className="text-xs rounded-full px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1.5">
               {c.emoji} {c.label}
               {!!counts?.[c.key] && (
-                <Badge variant="outline" className="text-[9px] ml-1.5 px-1">{counts[c.key]}</Badge>
+                <span className="tabular-nums rounded-full bg-muted px-1.5 text-[9px] text-muted-foreground data-[state=active]:bg-primary/10">{counts[c.key]}</span>
               )}
             </TabsTrigger>
           ))}
@@ -151,13 +155,14 @@ export default function DadosAgentsPage() {
             )}
 
             {c.key === 'tabela' && (
-              <div className="border rounded-xl bg-amber-50 dark:bg-amber-950/20 p-3 flex items-center justify-between gap-3 flex-wrap">
-                <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-snug">
-                  ⚙️ Catálogo é gerenciado em <strong>Estoque → Cadastro</strong>. Ao mudar preço/nome, clique pra regerar embeddings.
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 dark:bg-amber-950/20 dark:border-amber-900/40 p-3 flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-snug flex items-start gap-1.5">
+                  <Info className="w-3.5 h-3.5 mt-px shrink-0" />
+                  <span>Catálogo é gerenciado em <strong>Estoque → Cadastro</strong>. Ao mudar preço/nome, clique pra regerar embeddings.</span>
                 </p>
                 <Button
                   variant="outline" size="sm"
-                  className="bg-white dark:bg-background shrink-0"
+                  className="rounded-full bg-background shrink-0"
                   onClick={regenerarChunksTabela}
                   disabled={regenerando}
                 >
@@ -171,7 +176,7 @@ export default function DadosAgentsPage() {
               placeholder="Buscar por título ou conteúdo..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="max-w-sm"
+              className="max-w-sm rounded-full"
             />
 
             {isLoading ? (
@@ -186,7 +191,7 @@ export default function DadosAgentsPage() {
             ) : (
               <div className="space-y-2">
                 {chunks!.map(chunk => (
-                  <div key={chunk.id} className={`border rounded-xl p-3 ${!chunk.ativo ? 'opacity-50' : ''}`}>
+                  <div key={chunk.id} className={`border border-border/60 rounded-2xl p-3 bg-card transition-all hover:shadow-md ${!chunk.ativo ? 'opacity-50' : ''}`}>
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span className="font-semibold truncate">{chunk.titulo}</span>
@@ -212,7 +217,7 @@ export default function DadosAgentsPage() {
                     </div>
                     <p className="text-xs whitespace-pre-wrap text-muted-foreground line-clamp-3 font-mono">{chunk.conteudo}</p>
                     {chunk.observacao && (
-                      <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1">📌 {chunk.observacao}</p>
+                      <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1 flex items-start gap-1"><Info className="w-3 h-3 mt-px shrink-0" /> {chunk.observacao}</p>
                     )}
                   </div>
                 ))}
@@ -225,7 +230,8 @@ export default function DadosAgentsPage() {
       {/* FAB */}
       <Button
         onClick={openNew}
-        className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-sf-green hover:bg-sf-green/90 text-primary-foreground z-50"
+        className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-xl shadow-emerald-900/25 text-white z-50 transition-transform hover:scale-105 active:scale-95 border-0"
+        style={{ background: 'linear-gradient(140deg, #2f7d4a, #1f5c36)' }}
         size="icon"
       >
         <Plus className="w-6 h-6" />
@@ -235,7 +241,7 @@ export default function DadosAgentsPage() {
       <Dialog open={novoCategoriaOpen} onOpenChange={setNovoCategoriaOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Novo chunk</DialogTitle>
+            <DialogTitle className="font-display tracking-tight">Novo chunk</DialogTitle>
             <DialogDescription>Em qual seção?</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 pt-2">
@@ -251,12 +257,10 @@ export default function DadosAgentsPage() {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-muted-foreground">
-              📋 Catálogo não aparece — é gerenciado em Estoque → Cadastro.
-            </p>
+            <p className="text-[11px] text-muted-foreground flex items-start gap-1"><Info className="w-3 h-3 mt-px shrink-0" /> Catálogo não aparece — é gerenciado em Estoque → Cadastro.</p>
             <div className="flex gap-2 pt-1">
               <Button variant="outline" className="flex-1" onClick={() => setNovoCategoriaOpen(false)}>Cancelar</Button>
-              <Button className="flex-1 bg-sf-green hover:bg-sf-green/90" onClick={confirmarNovoChunk}>Continuar</Button>
+              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={confirmarNovoChunk}>Continuar</Button>
             </div>
           </div>
         </DialogContent>

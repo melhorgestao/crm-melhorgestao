@@ -37,7 +37,7 @@ export function TestarBuscaModal({ open, onClose, categoriaPadrao }: Props) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🧪 Testar busca RAG</DialogTitle>
+          <DialogTitle className="font-display tracking-tight">Testar busca RAG</DialogTitle>
           <DialogDescription>
             Simula o que o agente faria quando consultar um chunk. Mesma RPC, mesma similaridade cosine.
           </DialogDescription>
@@ -70,7 +70,7 @@ export function TestarBuscaModal({ open, onClose, categoriaPadrao }: Props) {
           <Button
             onClick={handleSearch}
             disabled={searching}
-            className="w-full bg-sf-green hover:bg-sf-green/90"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             {searching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
             Buscar
@@ -84,7 +84,7 @@ export function TestarBuscaModal({ open, onClose, categoriaPadrao }: Props) {
               {resultados.map((r, idx) => {
                 const meta = CATEGORIAS.find(c => c.key === r.categoria);
                 const simPct = (r.similaridade * 100).toFixed(0);
-                const simColor = r.similaridade > 0.75 ? 'bg-sf-green text-white' : r.similaridade > 0.5 ? 'bg-amber-500 text-white' : 'bg-muted text-muted-foreground';
+                const simColor = r.similaridade > 0.75 ? 'bg-emerald-600 text-white' : r.similaridade > 0.5 ? 'bg-amber-500 text-white' : 'bg-muted text-muted-foreground';
                 return (
                   <div key={idx} className="border rounded-lg p-3 space-y-1.5">
                     <div className="flex items-start justify-between gap-2">
