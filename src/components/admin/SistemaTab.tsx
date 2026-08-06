@@ -96,7 +96,7 @@ export function SistemaTab() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h2 className="text-lg font-semibold">⏰ Cron jobs</h2>
+          <h2 className="text-lg font-display font-bold flex items-center gap-2"><Clock className="w-5 h-5 text-muted-foreground" /> Cron jobs</h2>
           <p className="text-xs text-muted-foreground">
             {isLoading ? 'carregando…' : `${crons?.length || 0} jobs · ${totalFails} falha${totalFails !== 1 ? 's' : ''} nas últimas 24h`}
           </p>
@@ -169,7 +169,7 @@ export function SistemaTab() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmAndRun} className="bg-sf-green hover:bg-sf-green/90">
+            <AlertDialogAction onClick={confirmAndRun} className="bg-emerald-600 hover:bg-emerald-700 text-white">
               <Play className="w-4 h-4 mr-1" /> Executar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -185,7 +185,7 @@ function CronRow({ cron, onClick, onRun, running }: { cron: CronStatus; onClick:
   // 3 estados: verde (tudo ok), amber (ok agora mas teve falha 24h), vermelho (última falhou)
   const variant: 'ok' | 'warn' | 'fail' = !lastOk ? 'fail' : hasFails ? 'warn' : 'ok';
   const styles = {
-    ok:   { bg: 'bg-sf-green/15',     text: 'text-sf-green',     icon: <CheckCircle2 className="w-4 h-4" /> },
+    ok:   { bg: 'bg-emerald-500/15',     text: 'text-emerald-600',     icon: <CheckCircle2 className="w-4 h-4" /> },
     warn: { bg: 'bg-amber-500/15',    text: 'text-amber-600',    icon: <CheckCircle2 className="w-4 h-4" /> },
     fail: { bg: 'bg-destructive/15',  text: 'text-destructive',  icon: <AlertTriangle className="w-4 h-4" /> },
   }[variant];
@@ -206,7 +206,7 @@ function CronRow({ cron, onClick, onRun, running }: { cron: CronStatus; onClick:
           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
             <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {humanSchedule(cron.schedule)}</span>
             <span>Última: {timeAgo(cron.last_start)}</span>
-            {cron.last_status && <span className={cn(cron.last_status === 'succeeded' ? 'text-sf-green' : 'text-destructive')}>
+            {cron.last_status && <span className={cn(cron.last_status === 'succeeded' ? 'text-emerald-600' : 'text-destructive')}>
               {cron.last_status === 'succeeded' ? '✓' : '✗'} {cron.last_status}
             </span>}
             {cron.duration_ms !== null && <span>{cron.duration_ms < 1000 ? `${cron.duration_ms}ms` : `${(cron.duration_ms / 1000).toFixed(1)}s`}</span>}
@@ -267,7 +267,7 @@ function CronDetailDrawer({ cron, open, onClose, onRun, running }: { cron: CronS
           <CronExplanation jobname={cron.jobname} />
 
           <section className="space-y-2">
-            <Button className="w-full bg-sf-green hover:bg-sf-green/90" onClick={() => onRun(cron.jobname)} disabled={running === cron.jobname}>
+            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => onRun(cron.jobname)} disabled={running === cron.jobname}>
               {running === cron.jobname ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
               Rodar agora
             </Button>
@@ -281,7 +281,7 @@ function CronDetailDrawer({ cron, open, onClose, onRun, running }: { cron: CronS
               <div className="space-y-1">
                 {execs.map(e => (
                   <div key={e.runid} className="flex items-start gap-2 border-l-2 border-muted pl-2 py-1 text-xs">
-                    <span className={cn('shrink-0', e.status === 'succeeded' ? 'text-sf-green' : 'text-destructive')}>
+                    <span className={cn('shrink-0', e.status === 'succeeded' ? 'text-emerald-600' : 'text-destructive')}>
                       {e.status === 'succeeded' ? '✓' : '✗'}
                     </span>
                     <div className="flex-1 min-w-0">
@@ -442,7 +442,7 @@ function CronExplanation({ jobname }: { jobname: string }) {
                 <div key={i} className="flex items-center gap-2 text-xs flex-wrap">
                   <code className="font-mono px-1.5 py-0.5 rounded bg-muted text-foreground">{t.from}</code>
                   <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
-                  <code className="font-mono px-1.5 py-0.5 rounded bg-sf-green/15 text-sf-green">{t.to}</code>
+                  <code className="font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">{t.to}</code>
                   <span className="text-muted-foreground">— {t.when}</span>
                 </div>
               ))}

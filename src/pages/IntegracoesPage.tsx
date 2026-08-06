@@ -111,17 +111,17 @@ export default function IntegracoesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Integrações</h1>
+        <h1 className="text-2xl font-display font-bold tracking-tight">Integrações</h1>
         <p className="text-muted-foreground text-sm">Gerencie suas conexões com gateways de frete e logística.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
         {integrations.map(integration => (
           <Card key={integration.key} className={cn(
-            "transition-all duration-300 border-2 overflow-hidden",
-            integration.connected ? "border-green-100 shadow-sm" : "border-border"
+            "transition-all duration-300 rounded-2xl overflow-hidden hover:shadow-lg",
+            integration.connected ? "border-emerald-200 shadow-sm" : "border-border/60"
           )}>
-            <CardHeader className="pb-3 border-b bg-muted/30">
+            <CardHeader className="pb-3 border-b border-border/60 bg-muted/30">
               <CardTitle className="text-base flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="relative flex h-3 w-3">
@@ -161,7 +161,7 @@ export default function IntegracoesPage() {
                         value={editValue}
                         onChange={e => setEditValue(e.target.value)}
                         placeholder="Insira o seu token"
-                        className="min-h-[48px] pr-10 font-mono text-sm border-2 focus-visible:ring-sf-green"
+                        className="min-h-[48px] pr-10 font-mono text-sm border-2 focus-visible:ring-emerald-500"
                         type={showValue[integration.key] ? 'text' : 'password'}
                       />
                       <Button 
@@ -178,7 +178,7 @@ export default function IntegracoesPage() {
                     <Button 
                       onClick={() => save(integration.key)} 
                       disabled={saving || !editValue} 
-                      className="bg-sf-green hover:bg-sf-green/90 text-primary-foreground min-h-[48px] flex-1 font-bold shadow-lg shadow-green-100"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[48px] flex-1 font-bold shadow-lg shadow-green-100"
                     >
                       {saving ? (
                         <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> VALIDANDO...</>
@@ -206,7 +206,7 @@ export default function IntegracoesPage() {
                   </div>
 
                   <div className="flex gap-3">
-                    <Button variant="outline" size="sm" onClick={() => startEdit(integration.key)} className="h-11 flex-1 font-medium bg-white hover:bg-muted">
+                    <Button variant="outline" size="sm" onClick={() => startEdit(integration.key)} className="h-11 flex-1 font-medium bg-background hover:bg-muted">
                       <Pencil className="w-4 h-4 mr-2" /> Alterar Chave
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => disconnect(integration.key)} className="h-11 text-muted-foreground hover:text-destructive hover:bg-destructive/5 px-4">
@@ -219,7 +219,7 @@ export default function IntegracoesPage() {
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     Conecte sua conta do <strong>{integration.label}</strong> para automatizar a geração de etiquetas e o rastreamento em tempo real dos seus pedidos.
                   </p>
-                  <Button onClick={() => startEdit(integration.key)} className="min-h-[40px] w-full font-medium text-sm bg-sf-green/90 hover:bg-sf-green text-primary-foreground">
+                  <Button onClick={() => startEdit(integration.key)} className="min-h-[40px] w-full font-medium text-sm bg-emerald-600 hover:bg-emerald-700 text-white">
                     Configurar integração
                     <Plus className="w-3 h-3 ml-1.5 group-hover:rotate-90 transition-transform" />
                   </Button>
@@ -230,22 +230,22 @@ export default function IntegracoesPage() {
         ))}
       </div>
 
-      <Card className="max-w-2xl border-dashed bg-muted/20 border-2">
+      <Card className="max-w-2xl border-dashed bg-muted/20 rounded-2xl">
         <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 text-muted-foreground">
-            <div className="bg-sf-green/10 p-2 rounded-lg">
-              <Truck className="w-5 h-5 text-sf-green" />
+            <div className="bg-emerald-500/10 p-2 rounded-lg">
+              <Truck className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
               <p className="font-semibold text-foreground text-sm">Automação de Status de pedido e rastreio Ativa</p>
               <p className="text-xs text-muted-foreground max-w-sm">Sincronização inteligente: verificando atualização de status de pedidos e rastreio nos Gateways a cada 10 minutos e atualizando no CRM.</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border shadow-sm shrink-0">
-            <span className="text-[10px] font-bold text-sf-green">STANDBY</span>
+          <div className="flex items-center gap-2 bg-background px-3 py-1.5 rounded-full border shadow-sm shrink-0">
+            <span className="text-[10px] font-bold text-emerald-600">STANDBY</span>
             <div className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sf-green opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-sf-green"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </div>
           </div>
         </CardContent>
