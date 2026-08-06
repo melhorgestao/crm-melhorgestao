@@ -1010,19 +1010,27 @@ export default function FinanceiroPage() {
     }
 
     try {
-      // VENDA com pedido_id: NÃO apaga o pedido — só REVERTE para pendente
-      // (desfaz o pagamento). O pedido, itens e estoque permanecem intactos.
-      if (deleteTarget.tipo === 'VENDA' && deleteTarget.pedido_id) {
-        const { data: rpcResult, error: rpcError } = await supabase.rpc('reverter_venda_para_pendente' as any, {
+      // VENDA/PARCELA com pedido_id: exclusão inteligente no servidor —
+      //  • pedido que nasceu PAGO → exclui o pedido
+      //  • pedido que nasceu PENDENTE → volta para pendente
+      //  • PARCELA → devolve o valor ao saldo devedor
+      if ((deleteTarget.tipo === 'VENDA' || deleteTarget.tipo === 'PARCELA_VENDA') && deleteTarget.pedido_id) {
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('excluir_lancamento_venda' as any, {
           p_lancamento_id: deleteTarget.id,
         });
         if (rpcError) throw rpcError;
         if (rpcResult && (rpcResult as any).status === 'error') {
           throw new Error((rpcResult as any).message);
         }
+        const acao = (rpcResult as any)?.acao;
+        const acaoLabel = acao === 'pedido_excluido' ? 'Excluiu venda (pedido nascido pago)'
+          : acao === 'revertido_pendente' ? 'Reverteu venda para pendente'
+          : acao === 'parcela_revertida' ? 'Excluiu parcela (saldo devolvido ao pendente)'
+          : 'Excluiu lançamento de venda';
+        toast.success(acao === 'pedido_excluido' ? 'Pedido excluído' : acao === 'parcela_revertida' ? 'Parcela desfeita — saldo voltou ao pendente' : 'Pedido voltou para pendente');
         await supabase.from('log_atividades').insert({
-          usuario: profile?.nome || 'Desconhecido', acao: 'Reverteu venda para pendente (desfez pagamento)', tabela_afetada: 'pedidos', registro_id: deleteTarget.pedido_id,
-          detalhe: `${formatBRL(deleteTarget.valor)} — VENDA revertida p/ pendente — Pedido #${deleteTarget.pedido_id} — ${formatDateShort(deleteTarget.data)}`,
+          usuario: profile?.nome || 'Desconhecido', acao: acaoLabel, tabela_afetada: 'pedidos', registro_id: deleteTarget.pedido_id,
+          detalhe: `${formatBRL(deleteTarget.valor)} — ${deleteTarget.tipo} — Pedido #${deleteTarget.pedido_id} — ${formatDateShort(deleteTarget.data)}`,
         });
       }
       // Se for agrupado (transferencia ou lucro explícito), usa _pairedIds
@@ -1058,7 +1066,10 @@ export default function FinanceiroPage() {
         });
       }
 
-      toast.success('Lançamento excluído!');
+      // toast específico já é exibido no branch de VENDA/PARCELA
+      if (!((deleteTarget.tipo === 'VENDA' || deleteTarget.tipo === 'PARCELA_VENDA') && deleteTarget.pedido_id)) {
+        toast.success('Lançamento excluído!');
+      }
     } catch (err: any) {
       console.error('Delete error:', err);
       toast.error('Erro ao excluir: ' + (err.message || 'Erro desconhecido'));
@@ -1752,14 +1763,16 @@ export default function FinanceiroPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{deleteTarget?.tipo === 'VENDA' && deleteTarget?.pedido_id ? 'Reverter venda para pendente?' : 'Excluir lançamento?'}</AlertDialogTitle>
+            <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.tipo === 'VENDA' && deleteTarget?.pedido_id
-                ? 'O pagamento será desfeito e o pedido volta para PENDENTE. O pedido, os itens e o estoque NÃO são apagados.'
+              {deleteTarget?.tipo === 'PARCELA_VENDA' && deleteTarget?.pedido_id
+                ? 'A parcela será desfeita e o valor volta para o SALDO PENDENTE do pedido.'
+                : deleteTarget?.tipo === 'VENDA' && deleteTarget?.pedido_id
+                ? 'Se o pedido foi criado já PAGO, ele será excluído. Se era um pedido PENDENTE que foi pago, ele volta para pendente (nada é perdido).'
                 : 'Esta ação não pode ser desfeita.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={deleteTarget?.tipo === 'VENDA' && deleteTarget?.pedido_id ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-destructive text-destructive-foreground'}>{deleteTarget?.tipo === 'VENDA' && deleteTarget?.pedido_id ? 'Reverter p/ pendente' : 'Excluir'}</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">Confirmar</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
