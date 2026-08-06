@@ -1010,9 +1010,10 @@ export default function FinanceiroPage() {
     }
 
     try {
-      // Se for VENDA com pedido_id, usa RPC de exclusão completa (cascade)
+      // VENDA com pedido_id: NÃO apaga o pedido — só REVERTE para pendente
+      // (desfaz o pagamento). O pedido, itens e estoque permanecem intactos.
       if (deleteTarget.tipo === 'VENDA' && deleteTarget.pedido_id) {
-        const { data: rpcResult, error: rpcError } = await supabase.rpc('deletar_venda_completa', {
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('reverter_venda_para_pendente' as any, {
           p_lancamento_id: deleteTarget.id,
         });
         if (rpcError) throw rpcError;
@@ -1020,8 +1021,8 @@ export default function FinanceiroPage() {
           throw new Error((rpcResult as any).message);
         }
         await supabase.from('log_atividades').insert({
-          usuario: profile?.nome || 'Desconhecido', acao: 'Excluiu venda completa (pedido + estoque)', tabela_afetada: 'lancamentos_socios', registro_id: deleteTarget.id,
-          detalhe: `${formatBRL(deleteTarget.valor)} — VENDA — Pedido #${deleteTarget.pedido_id} — ${formatDateShort(deleteTarget.data)}`,
+          usuario: profile?.nome || 'Desconhecido', acao: 'Reverteu venda para pendente (desfez pagamento)', tabela_afetada: 'pedidos', registro_id: deleteTarget.pedido_id,
+          detalhe: `${formatBRL(deleteTarget.valor)} — VENDA revertida p/ pendente — Pedido #${deleteTarget.pedido_id} — ${formatDateShort(deleteTarget.data)}`,
         });
       }
       // Se for agrupado (transferencia ou lucro explícito), usa _pairedIds
@@ -1750,8 +1751,15 @@ export default function FinanceiroPage() {
       {/* Delete confirm */}
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Excluir lançamento?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">Excluir</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{deleteTarget?.tipo === 'VENDA' && deleteTarget?.pedido_id ? 'Reverter venda para pendente?' : 'Excluir lançamento?'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.tipo === 'VENDA' && deleteTarget?.pedido_id
+                ? 'O pagamento será desfeito e o pedido volta para PENDENTE. O pedido, os itens e o estoque NÃO são apagados.'
+                : 'Esta ação não pode ser desfeita.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={deleteTarget?.tipo === 'VENDA' && deleteTarget?.pedido_id ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-destructive text-destructive-foreground'}>{deleteTarget?.tipo === 'VENDA' && deleteTarget?.pedido_id ? 'Reverter p/ pendente' : 'Excluir'}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
